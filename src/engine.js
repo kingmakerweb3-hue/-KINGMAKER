@@ -5,10 +5,10 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 4;
+  const SAVE_VERSION = 5;
   const RESOURCE_LIMIT = 1_000_000;
   const RESOURCE_KEYS = ["food", "materials", "ore", "goods", "credits", "science", "power", "influence"];
-  const MARKET_RESOURCES = ["food", "materials", "ore", "goods"];
+  const MARKET_RESOURCES = ["food", "materials", "ore", "goods", "power"];
   const BUILDINGS = {
     farm: { name: "Farm", cost: { materials: 24, credits: 36 }, production: { food: 12 } },
     mine: { name: "Mine", cost: { materials: 32, credits: 52 }, production: { ore: 10 } },
@@ -33,33 +33,56 @@
     founding: {
       name: "A New Horizon",
       description: "Build a stable, self-sufficient nation and earn the trust of your neighbors.",
+      phases: ["Foundations", "National development", "Regional leadership"],
       objectives: [
-        { id: "feed-the-people", text: "Reach 180 food", resource: "food", target: 180 },
-        { id: "build-the-future", text: "Build 3 infrastructure levels", buildings: 3, target: 3 },
-        { id: "earn-trust", text: "Reach 30 relations with any rival", relations: 30, target: 30 },
-        { id: "research-age", text: "Research 2 technologies", technologies: 2, target: 2 }
+        { id: "feed-the-people", phase: 0, text: "Reach 180 food", resource: "food", target: 180 },
+        { id: "build-the-future", phase: 0, text: "Build 3 infrastructure levels", buildings: 3, target: 3 },
+        { id: "earn-trust", phase: 1, text: "Reach 30 relations with any rival", relations: 30, target: 30 },
+        { id: "research-age", phase: 1, text: "Research 2 technologies", technologies: 2, target: 2 },
+        { id: "lead-industry", phase: 2, text: "Operate 2 factories", building: "factory", target: 2 },
+        { id: "regional-trade", phase: 2, text: "Trade 40 units with the world market", progress: "tradeVolume", target: 40 }
       ]
     },
     longwinter: {
       name: "The Long Winter",
       description: "Protect your citizens through a lean season while keeping the nation stable.",
+      phases: ["Survival", "Recovery", "Resilience"],
       objectives: [
-        { id: "winter-survivor", text: "Reach turn 8", turn: 8, target: 8 },
-        { id: "warm-granaries", text: "Hold 100 food", resource: "food", target: 100 },
-        { id: "steady-hands", text: "Reach 75% stability", stability: 75, target: 75 },
-        { id: "keep-growing", text: "Reach 110 population", population: 110, target: 110 }
+        { id: "winter-survivor", phase: 0, text: "Reach turn 8", turn: 8, target: 8 },
+        { id: "warm-granaries", phase: 0, text: "Hold 100 food", resource: "food", target: 100 },
+        { id: "steady-hands", phase: 1, text: "Reach 75% stability", stability: 75, target: 75 },
+        { id: "keep-growing", phase: 1, text: "Reach 110 population", population: 110, target: 110 },
+        { id: "weather-crises", phase: 2, text: "Survive 2 world crises", progress: "crisesSurvived", target: 2 },
+        { id: "winter-power", phase: 2, text: "Build 2 power grids", building: "power", target: 2 }
       ]
     },
     council: {
       name: "A Seat at the Council",
       description: "Earn an alliance and establish your nation as the region's diplomatic center.",
+      phases: ["Build trust", "Forge agreements", "Lead the council"],
       objectives: [
-        { id: "trusted-voice", text: "Reach 50 relations with a rival", relations: 50, target: 50 },
-        { id: "shared-future", text: "Sign an alliance", treaty: "alliance", target: 1 },
-        { id: "regional-prosperity", text: "Build 3 infrastructure levels", buildings: 3, target: 3 },
-        { id: "council-research", text: "Research 2 technologies", technologies: 2, target: 2 }
+        { id: "trusted-voice", phase: 0, text: "Reach 50 relations with a rival", relations: 50, target: 50 },
+        { id: "shared-future", phase: 0, text: "Sign an alliance", treaty: "alliance", target: 1 },
+        { id: "regional-prosperity", phase: 1, text: "Build 3 infrastructure levels", buildings: 3, target: 3 },
+        { id: "council-research", phase: 1, text: "Research 2 technologies", technologies: 2, target: 2 },
+        { id: "lasting-agreements", phase: 2, text: "Sign 3 regional agreements", progress: "agreementsSigned", target: 3 },
+        { id: "mediate-crisis", phase: 2, text: "Resolve a diplomatic dispute peacefully", progress: "peacefulDisputes", target: 1 }
       ]
     }
+  };
+  const WORLD_EVENT_CATALOG = {
+    energy_crisis: { title: "International energy crisis", description: "A fuel shortage strains power grids. Factories lose access to energy and world power prices rise.", duration: 3, crisis: true, choices: [{ id: "ration", label: "Ration national power", detail: "Protect the treasury; factories may pause while reserves recover." }, { id: "import", label: "Import emergency power", detail: "Buy 10 power from finite world stock for 25 credits." }] },
+    food_shortage: { title: "Regional food shortage", description: "A poor harvest across the region tightens food supply and increases market prices.", duration: 2, crisis: true, choices: [{ id: "buy_grain", label: "Buy 20 grain", detail: "Pay 30 credits and use 20 units of available market food." }, { id: "ration", label: "Start rationing", detail: "Reduce food demand for the next two turns; stability may suffer." }] },
+    industrial_revolution: { title: "Industrial revolution", description: "New production methods spread through the region, temporarily lifting factory output.", duration: 3 },
+    tech_breakthrough: { title: "Technological breakthrough", description: "Researchers share a major discovery. Nations gain science in line with their research capacity.", duration: 0 },
+    financial_crisis: { title: "Regional financial crisis", description: "Credit tightens and household confidence falls, reducing income and stability.", duration: 2, crisis: true },
+    trade_disruption: { title: "Trade route disruption", description: "A key shipping corridor closes. Commodity supply falls until routes are secured.", duration: 2, choices: [{ id: "escort", label: "Fund convoy escorts", detail: "Pay 18 credits to reduce the supply shock." }, { id: "wait", label: "Wait for routes to reopen", detail: "Keep funds, accepting higher prices and weaker supply." }] },
+    natural_disaster: { title: "Natural disaster", description: "Severe weather damages stores and infrastructure in one nation.", duration: 0, crisis: true },
+    political_instability: { title: "Political instability", description: "Public confidence falls as institutions struggle to respond to regional pressures.", duration: 1, crisis: true },
+    diplomatic_dispute: { title: "Diplomatic dispute", description: "A public disagreement strains relations with a neighboring nation.", duration: 0, choices: [{ id: "envoys", label: "Send conciliatory envoys", detail: "Spend 20 credits to restore relations." }, { id: "stand_firm", label: "Stand firm", detail: "Keep the treasury; relations worsen." }] },
+    international_conflict: { title: "International conflict", description: "A border incident raises tensions between two rival powers and shifts regional trade.", duration: 2 },
+    resource_discovery: { title: "Resource discovery", description: "Surveyors locate a new deposit and bring a limited ore shipment to market.", duration: 0 },
+    infrastructure_opportunity: { title: "Infrastructure opportunity", description: "A regional consortium offers matching support for a transport link.", duration: 0, choices: [{ id: "cofund", label: "Build the transport link", detail: "Invest 20 materials and 30 credits to build one Transport Hub." }, { id: "decline", label: "Decline the offer", detail: "Preserve resources for another priority." }] }
   };
   const RIVAL_TEMPLATES = [
     { id: "aurelia", name: "Aurelia", population: 115, traits: ["commerce", "diplomacy"], personality: "Merchant Republic", economicPriority: "commerce", politicalPriority: "diplomacy", militaryPriority: "defense", riskTolerance: 0.35, longTermObjective: "Control regional trade", buildings: { market: 2 }, resources: { credits: 210, goods: 18 } },
@@ -99,12 +122,13 @@
       resources: { food: 120, materials: 105, credits: 180, science: 0, power: 20, influence: 20 },
       buildings: { farm: 2, workshop: 1, market: 1, academy: 1, power: 1, housing: 0 },
       technologies: [],
-      market: { stock: { food: 400, materials: 300, ore: 240, goods: 180 }, basePrices: { food: 2, materials: 4, ore: 5, goods: 8 }, prices: { food: 2, materials: 4, ore: 5, goods: 8 }, lastFlow: { food: 0, materials: 0, ore: 0, goods: 0 } },
+      market: { stock: { food: 400, materials: 300, ore: 240, goods: 180, power: 260 }, basePrices: { food: 2, materials: 4, ore: 5, goods: 8, power: 4 }, prices: { food: 2, materials: 4, ore: 5, goods: 8, power: 4 }, lastFlow: { food: 0, materials: 0, ore: 0, goods: 0, power: 0 } },
       rivals: Object.fromEntries(RIVAL_TEMPLATES.map((r, i) => [r.id, createRival(r, i)])),
       diplomacy: { treaties: [], conflicts: [] },
       economy: { lastIncome: 0, lastExpenses: 0, lastBalance: 0, workforce: 0, employed: 0, production: { food: 0, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, capacity: 0, logistics: 0 }, consumption: { food: 0, materials: 0, ore: 0, power: 0 }, phase: "stable", deficitTurns: 0, recoveryTurns: 0 },
-      campaign: { id: campaignId, completedObjectives: [], status: "active", buildingStart: 6 },
-      achievements: [], creations: [], events: [{ turn: 1, text: "Your civilization was founded. The first chapter begins.", type: "milestone" }],
+      campaign: { id: campaignId, completedObjectives: [], status: "active", phaseIndex: 0, buildingStart: 6, progress: { tradeVolume: 0, agreementsSigned: 0, crisesSurvived: 0, peacefulDisputes: 0 } },
+      achievements: [], creations: [], events: [{ id: "history-1-0", turn: 1, text: "Your civilization was founded. The first chapter begins.", type: "milestone", details: { summary: "A new campaign begins with a developing economy and six neighboring nations.", affectedNationIds: ["player"] } }],
+      world: { nextEventId: 1, activeEvents: [], processedEventIds: [] },
       status: "playing"
     };
     if (campaignId === "longwinter") {
@@ -158,6 +182,30 @@
       if (!Number.isFinite(normalized.market.basePrices[key]) || normalized.market.basePrices[key] < 1 || normalized.market.basePrices[key] > 100) throw new Error("Market base price is invalid.");
       if (!Number.isInteger(normalized.market.lastFlow[key]) || Math.abs(normalized.market.lastFlow[key]) > RESOURCE_LIMIT) throw new Error("Market flow is invalid.");
     }
+    if (!normalized.world || !Number.isInteger(normalized.world.nextEventId) || normalized.world.nextEventId < 1 || normalized.world.nextEventId > 10_000_000 ||
+        !Array.isArray(normalized.world.activeEvents) || normalized.world.activeEvents.length > 8 ||
+        !Array.isArray(normalized.world.processedEventIds) || normalized.world.processedEventIds.length > 500 ||
+        new Set(normalized.world.processedEventIds).size !== normalized.world.processedEventIds.length ||
+        normalized.world.processedEventIds.some(id => typeof id !== "string" || id.length > 64)) throw new Error("World event state is invalid.");
+    for (const event of normalized.world.activeEvents) {
+      const definition = event && WORLD_EVENT_CATALOG[event.key];
+      if (!definition || typeof event.id !== "string" || event.id.length > 64 ||
+          !Number.isInteger(event.startedTurn) || event.startedTurn < 1 || event.startedTurn > normalized.turn ||
+          !Number.isInteger(event.remainingTurns) || event.remainingTurns < 0 || event.remainingTurns > 10 ||
+          !["pending", "active"].includes(event.status) || !Array.isArray(event.affectedNationIds) || event.affectedNationIds.length > 7 ||
+          event.affectedNationIds.some(id => id !== "player" && !normalized.rivals[id]) ||
+          (event.status === "pending" && (!definition.choices || event.choiceId !== null)) ||
+          (event.choiceId !== null && (!definition.choices || !definition.choices.some(choice => choice.id === event.choiceId))) ||
+          (event.lastAppliedTurn !== undefined && (!Number.isInteger(event.lastAppliedTurn) || event.lastAppliedTurn < event.startedTurn || event.lastAppliedTurn > normalized.turn))) throw new Error("World event record is invalid.");
+    }
+    const eventIds = new Set();
+    if (normalized.events.length > 500 || normalized.events.some(e => {
+      if (!e || !Number.isInteger(e.turn) || e.turn < 1 || e.turn > normalized.turn || typeof e.text !== "string" || e.text.length > 240 || typeof e.type !== "string" || e.type.length > 32) return true;
+      if (e.id !== undefined && (typeof e.id !== "string" || e.id.length > 64 || eventIds.has(e.id))) return true;
+      if (e.id) eventIds.add(e.id);
+      if (e.details !== undefined && (!e.details || typeof e.details !== "object" || typeof e.details.summary !== "string" || e.details.summary.length > 300 || !Array.isArray(e.details.affectedNationIds) || e.details.affectedNationIds.length > 7 || e.details.affectedNationIds.some(id => id !== "player" && !normalized.rivals[id]))) return true;
+      return false;
+    })) throw new Error("World history is invalid.");
     if (Object.keys(normalized.rivals).length > 50) throw new Error("Save contains too many rival nations.");
     for (const [rivalId, rival] of Object.entries(normalized.rivals)) {
       if (!rival || typeof rival.name !== "string" || rival.name.length > 48 || !Number.isInteger(rival.population) || rival.population < 1 || rival.population > RESOURCE_LIMIT || !rival.resources || !rival.buildings || typeof rival.stance !== "string" || typeof rival.activity !== "string" || rival.activity.length > 100 || !Array.isArray(rival.traits) || !Array.isArray(rival.treaties) || typeof rival.personality !== "string" || rival.personality.length > 48 || typeof rival.economicPriority !== "string" || rival.economicPriority.length > 48 || typeof rival.politicalPriority !== "string" || rival.politicalPriority.length > 48 || typeof rival.militaryPriority !== "string" || rival.militaryPriority.length > 48 || !Number.isFinite(rival.riskTolerance) || rival.riskTolerance < 0 || rival.riskTolerance > 1 || typeof rival.longTermObjective !== "string" || rival.longTermObjective.length > 128 || !Array.isArray(rival.memory) || rival.memory.length > 30) throw new Error("Rival nation data is invalid.");
@@ -185,10 +233,11 @@
       if (!Number.isInteger(normalized.economy.consumption[key]) || normalized.economy.consumption[key] < 0 || normalized.economy.consumption[key] > RESOURCE_LIMIT) throw new Error("Economic consumption ledger is invalid.");
     }
     if (!CAMPAIGNS[normalized.campaign.id] || !["active", "victory", "defeat"].includes(normalized.campaign.status)) throw new Error("Campaign status is invalid.");
-    if (!Number.isInteger(normalized.campaign.buildingStart) || normalized.campaign.buildingStart < 0 || normalized.campaign.buildingStart > 100_000) throw new Error("Campaign infrastructure baseline is invalid.");
+    if (!Number.isInteger(normalized.campaign.buildingStart) || normalized.campaign.buildingStart < 0 || normalized.campaign.buildingStart > 100_000 ||
+        !Number.isInteger(normalized.campaign.phaseIndex) || normalized.campaign.phaseIndex < 0 || normalized.campaign.phaseIndex > CAMPAIGNS[normalized.campaign.id].phases.length ||
+        !normalized.campaign.progress || !["tradeVolume", "agreementsSigned", "crisesSurvived", "peacefulDisputes"].every(key => Number.isInteger(normalized.campaign.progress[key]) && normalized.campaign.progress[key] >= 0 && normalized.campaign.progress[key] <= RESOURCE_LIMIT)) throw new Error("Campaign progression is invalid.");
     const objectiveIds = new Set(CAMPAIGNS[normalized.campaign.id].objectives.map(o => o.id));
     if (normalized.campaign.completedObjectives.some(id => !objectiveIds.has(id))) throw new Error("Campaign objective list is invalid.");
-    if (normalized.events.length > 200 || normalized.events.some(e => !e || !Number.isInteger(e.turn) || e.turn < 1 || e.turn > normalized.turn || typeof e.text !== "string" || e.text.length > 240)) throw new Error("World history is invalid.");
     if (normalized.achievements.length > 100 || normalized.achievements.some(a => typeof a !== "string" || a.length > 80)) throw new Error("Achievement list is invalid.");
     if (normalized.creations.length > 500 || normalized.creations.some(c => !c || typeof c.id !== "string" || typeof c.title !== "string" || c.title.length > 64 || typeof c.creator !== "string" || c.creator.length > 48 || typeof c.description !== "string" || c.description.length > 500)) throw new Error("Creator registry is invalid.");
     if (normalized.diplomacy.treaties.length > 500 || normalized.diplomacy.conflicts.length > 500) throw new Error("Diplomatic history is too large.");
@@ -207,7 +256,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -262,7 +311,7 @@
     state.market.basePrices = state.market.basePrices || {};
     state.market.prices = state.market.prices || {};
     state.market.lastFlow = state.market.lastFlow || {};
-    for (const [key, stock, price] of [["ore", 240, 5], ["goods", 180, 8]]) {
+    for (const [key, stock, price] of [["ore", 240, 5], ["goods", 180, 8], ["power", 260, 4]]) {
       state.market.stock[key] = safeInt(state.market.stock[key], stock);
       state.market.basePrices[key] = Number.isFinite(state.market.basePrices[key]) ? state.market.basePrices[key] : price;
       state.market.prices[key] = Number.isFinite(state.market.prices[key]) ? state.market.prices[key] : price;
@@ -276,6 +325,20 @@
     state.economy.phase = ["stable", "growth", "recession", "recovery"].includes(state.economy.phase) ? state.economy.phase : "stable";
     state.economy.deficitTurns = safeInt(state.economy.deficitTurns, 0, RESOURCE_LIMIT);
     state.economy.recoveryTurns = safeInt(state.economy.recoveryTurns, 0, 100);
+    state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active", buildingStart: 0 };
+    state.campaign.progress = state.campaign.progress || {};
+    for (const key of ["tradeVolume", "agreementsSigned", "crisesSurvived", "peacefulDisputes"]) state.campaign.progress[key] = safeInt(state.campaign.progress[key], 0);
+    const campaign = CAMPAIGNS[state.campaign.id] || CAMPAIGNS.founding;
+    state.campaign.completedObjectives = Array.isArray(state.campaign.completedObjectives) ? state.campaign.completedObjectives : [];
+    let migratedPhase = 0;
+    while (migratedPhase < campaign.phases.length && campaign.objectives.filter(o => o.phase === migratedPhase).every(o => state.campaign.completedObjectives.includes(o.id))) migratedPhase++;
+    state.campaign.phaseIndex = Math.max(migratedPhase, Number.isInteger(state.campaign.phaseIndex) ? clamp(state.campaign.phaseIndex, 0, campaign.phases.length) : 0);
+    state.world = state.world && typeof state.world === "object" ? state.world : { nextEventId: 1, activeEvents: [], processedEventIds: [] };
+    state.world.nextEventId = safeInt(state.world.nextEventId, 1, 10_000_000) || 1;
+    state.world.activeEvents = Array.isArray(state.world.activeEvents) ? state.world.activeEvents.filter(event => event && WORLD_EVENT_CATALOG[event.key]).slice(0, 8) : [];
+    state.world.processedEventIds = Array.isArray(state.world.processedEventIds) ? [...new Set(state.world.processedEventIds.filter(id => typeof id === "string" && id.length <= 64))].slice(-500) : [];
+    state.events = Array.isArray(state.events) ? state.events.slice(0, 500) : [];
+    state.events.forEach((event, index) => { if (event && typeof event === "object" && !event.id) event.id = "legacy-history-" + state.turn + "-" + index; });
     state.rivals = state.rivals || {};
     RIVAL_TEMPLATES.forEach((template, index) => {
       if (!state.rivals[template.id]) state.rivals[template.id] = createRival(template, index);
@@ -302,11 +365,142 @@
     state.seed = value;
     return value / 4294967296;
   }
-  function addEvent(state, text, type = "world") {
-    state.events.unshift({ turn: state.turn, text: String(text).slice(0, 240), type });
-    state.events = state.events.slice(0, 200);
+  function addEvent(state, text, type = "world", details) {
+    const world = state.world || (state.world = { nextEventId: 1, activeEvents: [], processedEventIds: [] });
+    const id = "history-" + state.turn + "-" + world.nextEventId++;
+    const entry = { id, turn: state.turn, text: String(text).slice(0, 240), type };
+    if (details) entry.details = { summary: String(details.summary || "").slice(0, 300), affectedNationIds: Array.isArray(details.affectedNationIds) ? details.affectedNationIds.slice(0, 7) : [] };
+    state.events.unshift(entry);
+    state.events = state.events.slice(0, 500);
   }
   function hasTech(state, id) { return state.technologies.includes(id); }
+  function worldEventInfo(key) { return WORLD_EVENT_CATALOG[key] ? copy(WORLD_EVENT_CATALOG[key]) : null; }
+  function campaignProgress(state, key, amount = 1) {
+    if (!state.campaign.progress) state.campaign.progress = { tradeVolume: 0, agreementsSigned: 0, crisesSurvived: 0, peacefulDisputes: 0 };
+    state.campaign.progress[key] = clamp((state.campaign.progress[key] || 0) + amount, 0, RESOURCE_LIMIT);
+  }
+  function createWorldEvent(state, key, flow) {
+    const definition = WORLD_EVENT_CATALOG[key];
+    if (!definition || state.world.activeEvents.some(event => event.key === key) || state.world.activeEvents.filter(event => event.status === "pending").length) return null;
+    const rivalIds = Object.keys(state.rivals);
+    let affectedNationIds = ["player"];
+    if (!["natural_disaster", "diplomatic_dispute", "international_conflict"].includes(key)) affectedNationIds = ["player", ...rivalIds];
+    if (key === "natural_disaster") affectedNationIds = [nextRandom(state) < 0.5 ? "player" : rivalIds[Math.floor(nextRandom(state) * rivalIds.length)]];
+    if (key === "diplomatic_dispute") affectedNationIds = [rivalIds.slice().sort((a, b) => state.rivals[a].relation - state.rivals[b].relation)[0]];
+    if (key === "international_conflict") {
+      const first = Math.floor(nextRandom(state) * rivalIds.length), second = (first + 1 + Math.floor(nextRandom(state) * (rivalIds.length - 1))) % rivalIds.length;
+      affectedNationIds = [rivalIds[first], rivalIds[second]];
+    }
+    const id = "world-" + state.turn + "-" + state.world.nextEventId++;
+    const event = { id, key, startedTurn: state.turn, remainingTurns: definition.duration, status: definition.choices ? "pending" : "active", choiceId: null, affectedNationIds, lastAppliedTurn: state.turn };
+    state.world.activeEvents.unshift(event);
+    if (state.world.activeEvents.length > 8) state.world.activeEvents.pop();
+    if (key === "food_shortage") { flow.food -= 30; state.nation.stability = Math.max(0, state.nation.stability - 4); }
+    if (key === "tech_breakthrough") {
+      state.resources.science = clamp(state.resources.science + 18, 0, RESOURCE_LIMIT);
+      for (const rival of Object.values(state.rivals)) rival.resources.science = clamp(rival.resources.science + (rival.traits.includes("research") ? 18 : 6), 0, RESOURCE_LIMIT);
+    }
+    if (key === "financial_crisis") {
+      state.resources.credits = Math.floor(state.resources.credits * 0.85);
+      for (const rival of Object.values(state.rivals)) rival.resources.credits = Math.floor(rival.resources.credits * 0.85);
+    }
+    if (key === "trade_disruption") for (const resource of MARKET_RESOURCES) flow[resource] -= 15;
+    if (key === "natural_disaster") {
+      const target = affectedNationIds[0];
+      if (target === "player") { state.resources.food = Math.max(0, state.resources.food - 25); state.nation.stability = Math.max(0, state.nation.stability - 5); }
+      else { const rival = state.rivals[target]; rival.resources.food = Math.max(0, rival.resources.food - 25); rival.stability = Math.max(0, rival.stability - 5); rememberRival(rival, state.turn, "disaster", "A natural disaster damaged regional food stores"); }
+    }
+    if (key === "political_instability") {
+      state.nation.stability = Math.max(0, state.nation.stability - 8);
+      for (const rival of Object.values(state.rivals)) rival.stability = Math.max(0, rival.stability - 4);
+    }
+    if (key === "diplomatic_dispute") {
+      const rival = state.rivals[affectedNationIds[0]]; rival.relation = clamp(rival.relation - 12, -100, 100);
+      rememberRival(rival, state.turn, "dispute", "A public dispute strained relations", -12);
+    }
+    if (key === "international_conflict") {
+      for (const rivalId of affectedNationIds) { const rival = state.rivals[rivalId]; rival.relation = clamp(rival.relation - 18, -100, 100); rival.stance = rival.traits.includes("military") ? "Reassessing strategic risk" : "Monitoring regional conflict"; rememberRival(rival, state.turn, "international-conflict", "International conflict raised regional tensions", -18); }
+      for (const resource of MARKET_RESOURCES) flow[resource] -= 6;
+    }
+    if (key === "resource_discovery") state.resources.ore = clamp(state.resources.ore + 18, 0, RESOURCE_LIMIT);
+    if (definition.crisis && definition.duration === 0) campaignProgress(state, "crisesSurvived");
+    const response = definition.choices ? "A response is required before the next turn." : definition.duration ? "Effects continue for " + definition.duration + " turns." : "The immediate effects have been recorded.";
+    addEvent(state, definition.title + ". " + response, definition.crisis ? "crisis" : "world", { summary: definition.description, affectedNationIds });
+    for (const rival of Object.values(state.rivals)) {
+      if (key === "energy_crisis" && (rival.traits.includes("industry") || rival.traits.includes("security"))) rival.stance = "Securing alternative energy";
+      if (key === "food_shortage" && rival.traits.includes("agriculture")) rival.stance = "Expanding food exports";
+      if (key === "tech_breakthrough" && rival.traits.includes("research")) rival.stance = "Investing in new research";
+      if (key === "trade_disruption" && rival.traits.includes("commerce")) rival.stance = "Negotiating alternate trade routes";
+      rememberRival(rival, state.turn, "world-event", definition.title);
+    }
+    return event;
+  }
+  function resolveWorldEvent(state, eventId, choiceId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const event = state.world.activeEvents.find(item => item.id === eventId);
+    const definition = event && WORLD_EVENT_CATALOG[event.key];
+    if (!event || event.status !== "pending" || !definition || state.world.processedEventIds.includes(eventId)) throw new Error("World event is no longer awaiting a response.");
+    const choice = definition.choices.find(item => item.id === choiceId);
+    if (!choice) throw new Error("World event response is invalid.");
+    if (event.key === "energy_crisis" && choiceId === "import") {
+      if (state.resources.credits < 25 || state.market.stock.power < 10 || state.resources.power + 10 > RESOURCE_LIMIT) throw new Error("Emergency power import is unavailable or unaffordable.");
+      state.resources.credits -= 25; state.market.stock.power -= 10; state.resources.power += 10;
+    }
+    if (event.key === "food_shortage" && choiceId === "buy_grain") {
+      if (state.resources.credits < 30 || state.market.stock.food < 20 || state.resources.food + 20 > RESOURCE_LIMIT) throw new Error("Emergency grain purchase is unavailable or unaffordable.");
+      state.resources.credits -= 30; state.market.stock.food -= 20; state.resources.food += 20;
+    }
+    if (event.key === "food_shortage" && choiceId === "ration") event.remainingTurns = Math.max(event.remainingTurns, 2);
+    if (event.key === "trade_disruption" && choiceId === "escort") {
+      if (state.resources.credits < 18) throw new Error("Convoy escorts require 18 credits.");
+      state.resources.credits -= 18;
+    }
+    if (event.key === "diplomatic_dispute") {
+      const rival = state.rivals[event.affectedNationIds[0]];
+      if (choiceId === "envoys") { if (state.resources.credits < 20) throw new Error("Conciliatory envoys require 20 credits."); state.resources.credits -= 20; rival.relation = clamp(rival.relation + 10, -100, 100); campaignProgress(state, "peacefulDisputes"); }
+      else rival.relation = clamp(rival.relation - 5, -100, 100);
+      rememberRival(rival, state.turn, "dispute-response", choiceId === "envoys" ? "The player sent conciliatory envoys" : "The player stood firm during a dispute", choiceId === "envoys" ? 10 : -5);
+    }
+    if (event.key === "infrastructure_opportunity" && choiceId === "cofund") {
+      if (state.resources.materials < 20 || state.resources.credits < 30 || state.buildings.transport >= 8) throw new Error("The transport project is unaffordable or already at capacity.");
+      state.resources.materials -= 20; state.resources.credits -= 30; state.buildings.transport++;
+    }
+    event.choiceId = choiceId; event.status = "active";
+    state.world.processedEventIds.push(eventId);
+    state.world.processedEventIds = state.world.processedEventIds.slice(-500);
+    addEvent(state, "Response to " + definition.title + ": " + choice.label + ".", "decision", { summary: choice.detail, affectedNationIds: event.affectedNationIds });
+    updateObjectives(state);
+    return state;
+  }
+  function autoResolvePendingWorldEvents(state) {
+    const defaults = { energy_crisis: "ration", food_shortage: "ration", trade_disruption: "wait", diplomatic_dispute: "stand_firm", infrastructure_opportunity: "decline" };
+    for (const event of state.world.activeEvents.filter(item => item.status === "pending")) resolveWorldEvent(state, event.id, defaults[event.key]);
+  }
+  function applyOngoingWorldEvents(state, flow) {
+    for (const event of state.world.activeEvents) {
+      if (event.status !== "active" || event.remainingTurns <= 0 || event.lastAppliedTurn === state.turn) continue;
+      if (event.key === "energy_crisis") {
+        const draw = event.choiceId === "ration" ? 2 : 4;
+        state.resources.power = Math.max(0, state.resources.power - draw);
+        for (const rival of Object.values(state.rivals)) rival.resources.power = Math.max(0, rival.resources.power - 4);
+        flow.power -= draw + 4 * Object.keys(state.rivals).length;
+      }
+      if (event.key === "food_shortage") { flow.food -= 18; state.nation.stability = Math.max(0, state.nation.stability - 2); }
+      if (event.key === "trade_disruption") for (const resource of MARKET_RESOURCES) flow[resource] -= event.choiceId === "escort" ? 4 : 15;
+      if (event.key === "financial_crisis") state.nation.stability = Math.max(0, state.nation.stability - 1);
+      if (event.key === "political_instability") { state.nation.stability = Math.max(0, state.nation.stability - 2); for (const rival of Object.values(state.rivals)) rival.stability = Math.max(0, rival.stability - 1); }
+      if (event.key === "international_conflict") for (const resource of MARKET_RESOURCES) flow[resource] -= 6;
+      if (event.key === "industrial_revolution") state.world.industrialBoostTurn = state.turn;
+      event.remainingTurns--; event.lastAppliedTurn = state.turn;
+      if (event.remainingTurns === 0) {
+        if (WORLD_EVENT_CATALOG[event.key].crisis) campaignProgress(state, "crisesSurvived");
+        addEvent(state, WORLD_EVENT_CATALOG[event.key].title + " has ended.", "world", { summary: "The temporary world modifier has expired.", affectedNationIds: event.affectedNationIds });
+      }
+    }
+  }
+  function worldEventActiveThisTurn(state, key) {
+    return state.world.activeEvents.some(event => event.key === key && event.status === "active" && (event.remainingTurns > 0 || event.lastAppliedTurn === state.turn));
+  }
   function factorFor(id, technologies) {
     return Object.values(TECHNOLOGIES).filter(t => t.effect === id && technologies.includes(Object.keys(TECHNOLOGIES).find(k => TECHNOLOGIES[k] === t)))
       .reduce((factor, t) => factor * t.factor, 1);
@@ -351,6 +545,7 @@
     const definition = BUILDINGS[id];
     if (!definition) throw new Error("Unknown building.");
     if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (id === "transport" && state.buildings.transport >= 8) throw new Error("Transport hub limit reached.");
     if ((state.buildings[id] || 0) >= 10_000) throw new Error("Building level limit reached.");
     for (const [key, cost] of Object.entries(definition.cost)) if (state.resources[key] < cost) throw new Error("Not enough " + key + ".");
     for (const [key, cost] of Object.entries(definition.cost)) state.resources[key] -= cost;
@@ -381,6 +576,7 @@
       state.resources.credits = Math.min(RESOURCE_LIMIT, state.resources.credits + Math.floor(quantity * price));
       state.market.stock[resource] = Math.min(RESOURCE_LIMIT, state.market.stock[resource] + quantity);
     }
+    campaignProgress(state, "tradeVolume", Math.abs(amount));
     addEvent(state, (amount > 0 ? "Bought " : "Sold ") + Math.abs(amount) + " " + resource + " at " + price + " credits each.", "trade");
     for (const rival of Object.values(state.rivals)) rememberRival(rival, state.turn, "player-trade", "The player " + (amount > 0 ? "imported " : "exported ") + Math.abs(amount) + " " + resource);
     updateObjectives(state);
@@ -422,6 +618,7 @@
     if (state.diplomacy.treaties.some(t => t.id === id && t.status === "active")) throw new Error("This agreement is already active.");
     state.diplomacy.treaties.push({ id, rivalId, kind, status: "active", startedTurn: state.turn, duration: kind === "alliance" ? 12 : 5 });
     rival.treaties.push(kind);
+    campaignProgress(state, "agreementsSigned");
     addEvent(state, rival.name + " signed a " + kind + " agreement.", "diplomacy");
     rememberRival(rival, state.turn, "agreement", "Signed a " + kind + " agreement with the player");
     updateObjectives(state);
@@ -487,23 +684,42 @@
       let complete = false;
       if (objective.resource) complete = state.resources[objective.resource] >= objective.target;
       if (objective.buildings) complete = Object.values(state.buildings).reduce((a, b) => a + b, 0) - state.campaign.buildingStart >= objective.target;
+      if (objective.building) complete = state.buildings[objective.building] >= objective.target;
       if (objective.relations) complete = Object.values(state.rivals).some(r => r.relation >= objective.target);
       if (objective.technologies) complete = state.technologies.length >= objective.target;
       if (objective.turn) complete = state.turn >= objective.turn;
       if (objective.stability) complete = state.nation.stability >= objective.stability;
       if (objective.population) complete = state.nation.population >= objective.population;
       if (objective.treaty) complete = state.diplomacy.treaties.some(t => t.kind === objective.treaty && t.status === "active");
+      if (objective.progress) complete = state.campaign.progress[objective.progress] >= objective.target;
       if (complete) {
         state.campaign.completedObjectives.push(objective.id);
-        addEvent(state, "Campaign objective completed: " + objective.text + ".", "milestone");
+        addEvent(state, "Campaign objective completed: " + objective.text + ".", "milestone", { summary: "This objective advanced your " + campaign.phases[objective.phase] + " campaign phase.", affectedNationIds: ["player"] });
       }
     }
+    const previousPhase = state.campaign.phaseIndex;
+    while (state.campaign.phaseIndex < campaign.phases.length && campaign.objectives.filter(o => o.phase === state.campaign.phaseIndex).every(o => state.campaign.completedObjectives.includes(o.id))) state.campaign.phaseIndex++;
+    if (state.campaign.phaseIndex > previousPhase && state.campaign.phaseIndex < campaign.phases.length) addEvent(state, "Campaign phase advanced: " + campaign.phases[state.campaign.phaseIndex] + ".", "milestone", { summary: "The next set of short, medium, and long-term objectives is now active.", affectedNationIds: ["player"] });
     if (state.campaign.completedObjectives.length === campaign.objectives.length) {
       state.campaign.status = "victory";
+      state.campaign.phaseIndex = campaign.phases.length;
       state.status = "victory";
       if (!state.achievements.includes("campaign-victory")) state.achievements.push("campaign-victory");
-      addEvent(state, "Victory! Your nation has completed " + campaign.name + ".", "victory");
+      addEvent(state, "Victory! Your nation has completed " + campaign.name + ".", "victory", { summary: "Every campaign phase and strategic objective is complete.", affectedNationIds: ["player"] });
     }
+  }
+  function campaignObjectiveValue(state, objective) {
+    if (objective.resource) return state.resources[objective.resource];
+    if (objective.buildings) return Math.max(0, Object.values(state.buildings).reduce((a, b) => a + b, 0) - state.campaign.buildingStart);
+    if (objective.building) return state.buildings[objective.building] || 0;
+    if (objective.relations) return Math.max(0, ...Object.values(state.rivals).map(r => r.relation));
+    if (objective.technologies) return state.technologies.length;
+    if (objective.turn) return state.turn;
+    if (objective.stability) return state.nation.stability;
+    if (objective.population) return state.nation.population;
+    if (objective.treaty) return state.diplomacy.treaties.filter(t => t.kind === objective.treaty && t.status === "active").length;
+    if (objective.progress) return state.campaign.progress[objective.progress] || 0;
+    return 0;
   }
   function updateObjectives(state) { resolveObjectives(state); }
   function updateMarket(state, netFlow) {
@@ -637,17 +853,22 @@
   function developRivals(state, worldFlow) {
     for (const rival of Object.values(state.rivals)) {
       const industry = industrialOutput(rival.resources, rival.buildings, rival.technologies, rival.population), output = industry.production;
+      if (worldEventActiveThisTurn(state, "industrial_revolution")) output.goods = Math.floor(output.goods * 1.3);
       for (const resource of ["food", "materials", "ore", "goods", "science", "power"]) {
         rival.resources[resource] = clamp(rival.resources[resource] + output[resource], 0, RESOURCE_LIMIT);
       }
       rival.resources.materials = Math.max(0, rival.resources.materials - industry.inputs.materials);
       rival.resources.ore = Math.max(0, rival.resources.ore - industry.inputs.ore);
       rival.resources.power = Math.max(0, rival.resources.power - industry.inputs.power);
-      rival.resources.credits = Math.min(RESOURCE_LIMIT, rival.resources.credits + output.credits + Math.floor(rival.population / 20));
+      const rivalIncome = output.credits + Math.floor(rival.population / 20);
+      rival.resources.credits = Math.min(RESOURCE_LIMIT, rival.resources.credits + (worldEventActiveThisTurn(state, "financial_crisis") ? Math.floor(rivalIncome * 0.75) : rivalIncome));
       for (const resource of MARKET_RESOURCES) worldFlow[resource] += output[resource] - (industry.inputs[resource] || 0);
       const foodNeed = Math.ceil(rival.population / (12 + Math.min(8, output.logistics)));
       const foodTarget = Math.ceil(rival.population * 1.2);
-      const tradeTargets = { food: Math.max(foodNeed + 8, foodTarget), materials: 55, ore: 32, goods: 24 };
+      const foodTradeTarget = worldEventActiveThisTurn(state, "food_shortage") && rival.traits.includes("agriculture") ? Math.floor(foodTarget * 0.72) : foodTarget;
+      const powerTradeTarget = Math.ceil(rival.population / 8) + (worldEventActiveThisTurn(state, "energy_crisis") && (rival.traits.includes("industry") || rival.traits.includes("security")) ? 8 : 0);
+      const tradeTargets = { food: Math.max(foodNeed + 8, foodTradeTarget), materials: 55, ore: 32, goods: 24, power: powerTradeTarget };
+      if (worldEventActiveThisTurn(state, "trade_disruption") && rival.traits.includes("commerce")) { tradeTargets.materials = 70; tradeTargets.goods = 40; }
       let importedFood = false, traded = false;
       for (const resource of MARKET_RESOURCES) {
         const result = rivalTrade(state, rival, resource, tradeTargets[resource], worldFlow);
@@ -684,7 +905,10 @@
   function advanceTurn(state) {
     if (state.status !== "playing") throw new Error("This campaign has ended.");
     if (state.turn >= 10_000_000) throw new Error("Turn limit reached.");
+    autoResolvePendingWorldEvents(state);
+    if (state.status !== "playing") return state;
     state.turn++;
+    state.world.activeEvents = state.world.activeEvents.filter(event => event.status === "pending" || event.remainingTurns > 0);
     for (const treaty of state.diplomacy.treaties) {
       if (treaty.status === "active" && state.turn - treaty.startedTurn >= treaty.duration) {
         treaty.status = "expired";
@@ -692,6 +916,7 @@
       }
     }
     const flow = Object.fromEntries(MARKET_RESOURCES.map(key => [key, 0]));
+    applyOngoingWorldEvents(state, flow);
     const baseOutput = productionFor(state.buildings, state.technologies);
     const jobs = workforceFor(state.buildings), employed = Math.min(jobs, state.nation.population);
     const staffing = jobs > 0 ? Math.min(1, state.nation.population / jobs) : 1;
@@ -701,6 +926,7 @@
       power: clamp(state.resources.power + Math.floor(baseOutput.power * staffing), 0, RESOURCE_LIMIT)
     }, state.buildings, state.technologies, state.nation.population);
     const output = industry.production;
+    if (worldEventActiveThisTurn(state, "industrial_revolution")) output.goods = Math.floor(output.goods * 1.3);
     for (const resource of ["food", "materials", "ore", "goods", "science", "power"]) {
       state.resources[resource] = clamp(state.resources[resource] + output[resource], 0, RESOURCE_LIMIT);
     }
@@ -710,10 +936,11 @@
     const activeTreaties = state.diplomacy.treaties.filter(t => t.status === "active");
     const taxIncome = Math.floor(state.nation.population / 20);
     const tradeIncome = activeTreaties.filter(t => t.kind === "trade").length * 5;
-    const income = clamp(output.credits + taxIncome + tradeIncome, 0, RESOURCE_LIMIT);
+    let income = clamp(output.credits + taxIncome + tradeIncome, 0, RESOURCE_LIMIT);
+    if (worldEventActiveThisTurn(state, "financial_crisis")) income = Math.floor(income * 0.75);
     state.resources.science = clamp(state.resources.science + activeTreaties.filter(t => t.kind === "research").length * 2, 0, RESOURCE_LIMIT);
     state.resources.influence = clamp(state.resources.influence + activeTreaties.filter(t => t.kind === "alliance").length, 0, RESOURCE_LIMIT);
-    const wageExpense = Math.ceil(employed / 10);
+    const wageExpense = Math.ceil(employed / 10 * (worldEventActiveThisTurn(state, "financial_crisis") ? 1.15 : 1));
     state.resources.credits = clamp(state.resources.credits + income - wageExpense, 0, RESOURCE_LIMIT);
     const previousPhase = state.economy.phase;
     let phase = previousPhase, deficitTurns = state.economy.deficitTurns, recoveryTurns = state.economy.recoveryTurns;
@@ -735,7 +962,8 @@
       workforce: jobs, employed, requiredJobs: Math.ceil(state.nation.population / 10), production: output, consumption: { food: 0, ...industry.inputs }, phase, deficitTurns, recoveryTurns };
     if (phase !== previousPhase) addEvent(state, "The national economy entered a period of " + phase + ".", "economy");
     for (const resource of MARKET_RESOURCES) flow[resource] += output[resource] - (industry.inputs[resource] || 0);
-    const foodNeed = Math.ceil(state.nation.population / (12 + Math.min(8, output.logistics)));
+    let foodNeed = Math.ceil(state.nation.population / (12 + Math.min(8, output.logistics)));
+    if (state.world.activeEvents.some(event => event.key === "food_shortage" && event.status === "active" && event.choiceId === "ration" && (event.remainingTurns > 0 || event.lastAppliedTurn === state.turn))) foodNeed = Math.ceil(foodNeed * 0.75);
     state.economy.consumption.food = foodNeed;
     state.resources.food -= foodNeed;
     flow.food -= foodNeed;
@@ -782,19 +1010,12 @@
         }
       }
     }
-    if (nextRandom(state) < 0.22) {
-      const events = [
-        { text: "A harvest festival boosts public morale.", effect: () => { state.nation.stability = Math.min(100, state.nation.stability + 5); } },
-        { text: "Seasonal storms damage food stores.", effect: () => { state.resources.food = Math.max(0, state.resources.food - 12); } },
-        { text: "Travelers bring useful technical knowledge.", effect: () => { state.resources.science = Math.min(RESOURCE_LIMIT, state.resources.science + 8); } },
-        { text: "A caravan arrives with building materials.", effect: () => { state.resources.materials = Math.min(RESOURCE_LIMIT, state.resources.materials + 10); } },
-        { text: "A regional shortage tightens food supplies.", effect: () => { flow.food -= 18; } }
-      ];
-      const event = events[Math.floor(nextRandom(state) * events.length)];
-      event.effect();
-      addEvent(state, event.text, "world");
+    if (nextRandom(state) < 0.22 && !state.world.activeEvents.some(event => event.status === "pending")) {
+      const eventKeys = Object.keys(WORLD_EVENT_CATALOG);
+      createWorldEvent(state, eventKeys[Math.floor(nextRandom(state) * eventKeys.length)], flow);
     }
     updateMarket(state, flow);
+    state.world.activeEvents = state.world.activeEvents.filter(event => event.status === "pending" || event.remainingTurns > 0);
     if (state.nation.stability === 0 || state.nation.population <= 10) {
       state.status = "defeat";
       state.campaign.status = "defeat";
@@ -824,6 +1045,7 @@
     SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS,
     createInitialState, validateSave, migrateSave, productionFor, build, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation,
-    deleteCreation, advanceTurn, exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech
+    deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
+    exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech
   };
 });

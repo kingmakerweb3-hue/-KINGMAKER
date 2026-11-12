@@ -40,7 +40,7 @@ See [`docs/gameplay.md`](docs/gameplay.md) for economy, technology, diplomacy, c
 
 ## Save data
 
-Current saves use schema version 4. The importer validates bounds and required objects before replacing the active game, and it migrates saves from the v0.3 prototype and development schemas 1, 2, and 3. Rival strategic plans and recent interaction memories are persisted. Automatic local saves keep a previous safe copy for recovery. Export backups regularly if you clear browser storage or change devices.
+Current saves use schema version 5. The importer validates bounded event records, response choices, campaign phase progress, and required world data before replacing the active game. It migrates original v0.3 saves and development schemas 1 through 4. Active world effects, processed event IDs, campaign progress, and structured history persist in saves. Automatic local saves keep a previous safe copy for recovery. Export backups regularly if you clear browser storage or change devices.
 
 ## Development status
 

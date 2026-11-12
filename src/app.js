@@ -56,8 +56,8 @@
     $("building-list").innerHTML=Object.entries(E.BUILDINGS).map(([id,b])=>'<article class="list-card"><div><h3>'+esc(b.name)+' <span class="level">Lv '+(state.buildings[id]||0)+'</span></h3><p>'+Object.entries(b.production).map(([r,n])=>n+" "+r+" / level").join(", ")+(b.inputs?" · uses "+Object.entries(b.inputs).map(([r,n])=>n+" "+r).join(", "):id==="transport"?" · raises people served per food from 12 to 20, up to 8 hubs":"")+'</p><small>Upgrade: '+Object.entries(b.cost).map(([r,n])=>n+" "+r).join(" + ")+' · '+({farm:4,mine:5,workshop:5,factory:8,transport:4,market:3,academy:4,power:4,housing:1}[id])+" jobs"+'</small></div><button data-action="build" data-id="'+id+'">Upgrade</button></article>').join("");
   }
   function renderMarket() {
-    $("market-list").innerHTML=["food","materials","ore","goods"].map(r=>'<article class="market-row"><div><strong>'+r[0].toUpperCase()+r.slice(1)+'</strong><small>World stock: '+num(state.market.stock[r])+' · Your stock: '+num(state.resources[r])+'</small></div><b>'+state.market.prices[r].toFixed(2)+' cr</b><div class="trade-buttons"><button data-action="trade" data-resource="'+r+'" data-amount="-10">Sell 10</button><button data-action="trade" data-resource="'+r+'" data-amount="10">Buy 10</button></div></article>').join("");
-    $("market-trends").innerHTML=["food","materials","ore","goods"].map(r=>{const flow=state.market.lastFlow[r]||0,trend=flow>0?"supply rising":flow<0?"supply falling":"supply steady";return '<span>'+r+': '+(flow>=0?"+":"")+num(flow)+' net supply · '+trend+'</span>';}).join("");
+    $("market-list").innerHTML=["food","materials","ore","goods","power"].map(r=>'<article class="market-row"><div><strong>'+r[0].toUpperCase()+r.slice(1)+'</strong><small>World stock: '+num(state.market.stock[r])+' · Your stock: '+num(state.resources[r])+'</small></div><b>'+state.market.prices[r].toFixed(2)+' cr</b><div class="trade-buttons"><button data-action="trade" data-resource="'+r+'" data-amount="-10">Sell 10</button><button data-action="trade" data-resource="'+r+'" data-amount="10">Buy 10</button></div></article>').join("");
+    $("market-trends").innerHTML=["food","materials","ore","goods","power"].map(r=>{const flow=state.market.lastFlow[r]||0,trend=flow>0?"supply rising":flow<0?"supply falling":"supply steady";return '<span>'+r+': '+(flow>=0?"+":"")+num(flow)+' net supply · '+trend+'</span>';}).join("");
     $("economy-phase").textContent=state.economy.phase[0].toUpperCase()+state.economy.phase.slice(1)+" · "+(state.economy.lastBalance>=0?"+":"")+num(state.economy.lastBalance)+" credits / turn";
     $("economy-ledger").textContent="Last turn: "+num(state.economy.lastIncome)+" income − "+num(state.economy.lastExpenses)+" wages. "+(state.economy.phase==="recession"?"Two or more loss-making turns reduce stability and stop population growth.":state.economy.phase==="recovery"?"The economy is rebuilding stability after a recession.":"Income includes market output, citizen taxes and trade agreements.");
   }
@@ -73,14 +73,32 @@
     const active=state.diplomacy.treaties.filter(t=>t.status==="active");
     $("treaty-summary").textContent=active.length?active.map(t=>t.kind+" with "+state.rivals[t.rivalId].name).join(" · "):"No active agreements";
   }
+  function renderWorldEvents() {
+    const events=state.world.activeEvents.slice().sort((a,b)=>a.startedTurn-b.startedTurn);
+    if(!events.length){$("world-events").innerHTML='<p class="empty">No major event is active. Markets and rival nations continue to evolve each turn.</p>';return;}
+    $("world-events").innerHTML=events.map(event=>{
+      const info=E.worldEventInfo(event.key),pending=event.status==="pending";
+      const targets=event.affectedNationIds.map(id=>id==="player"?state.nation.name:state.rivals[id].name).join(", ")||"Regional market";
+      const responses=pending?'<div class="event-choices">'+info.choices.map(choice=>{
+        let available=true;
+        if(event.key==="energy_crisis"&&choice.id==="import")available=state.resources.credits>=25&&state.market.stock.power>=10&&state.resources.power+10<=E.RESOURCE_LIMIT;
+        if(event.key==="food_shortage"&&choice.id==="buy_grain")available=state.resources.credits>=30&&state.market.stock.food>=20&&state.resources.food+20<=E.RESOURCE_LIMIT;
+        if(event.key==="trade_disruption"&&choice.id==="escort")available=state.resources.credits>=18;
+        if(event.key==="diplomatic_dispute"&&choice.id==="envoys")available=state.resources.credits>=20;
+        if(event.key==="infrastructure_opportunity"&&choice.id==="cofund")available=state.resources.materials>=20&&state.resources.credits>=30&&state.buildings.transport<8;
+        return '<div class="event-choice"><button data-action="event-choice" data-event-id="'+esc(event.id)+'" data-choice="'+esc(choice.id)+'" '+(available?"":"disabled")+'>'+esc(choice.label)+'</button><small>'+esc(choice.detail)+'</small></div>';
+      }).join("")+'</div>':'<p class="event-duration">Active · '+num(event.remainingTurns)+' turn'+(event.remainingTurns===1?"":"s")+' remaining. '+esc(info.description)+'</p>';
+      return '<article class="world-event '+(info.crisis?"crisis":"")+'"><div class="world-event-heading"><h3>'+esc(info.title)+'</h3><span class="tag">'+(pending?"DECISION NEEDED":"ACTIVE")+'</span></div><p>'+esc(info.description)+'</p><small>Affected: '+esc(targets)+' · Began turn '+num(event.startedTurn)+'</small>'+responses+'</article>';
+    }).join("");
+  }
   function renderResearch() {
     $("technology-list").innerHTML=Object.entries(E.TECHNOLOGIES).map(([id,t])=>{const done=state.technologies.includes(id),effect=t.effect==="stability"?"Raises stability and improves recovery.":t.effect==="growth"?"Improves population growth with food surplus.":"Increases "+t.effect+" output by "+Math.round((t.factor-1)*100)+"%.";return '<article class="list-card"><div><h3>'+esc(t.name)+(done?' <span class="level">Researched</span>':"")+'</h3><p>'+effect+'</p><small>Cost: '+t.cost+' science</small></div><button data-action="research" data-id="'+id+'" '+(done||state.resources.science<t.cost?"disabled":"")+'>'+(done?"Complete":"Research")+'</button></article>';}).join("");
   }
   function renderCampaign() {
     const c=E.CAMPAIGNS[state.campaign.id]; $("campaign-name").textContent=c.name;$("campaign-description").textContent=c.description;
-    $("campaign-status").textContent=state.status==="playing"?"Turn "+state.turn+" · Campaign active":state.status.toUpperCase();
+    $("campaign-status").textContent=state.status==="playing"?"Turn "+state.turn+" · Phase "+(c.phases[state.campaign.phaseIndex]||"Complete"):state.status.toUpperCase();
     const picker=$("campaign-picker");picker.innerHTML=Object.entries(E.CAMPAIGNS).map(([id,item])=>'<option value="'+id+'">'+esc(item.name)+'</option>').join("");picker.value=state.campaign.id;
-    $("campaign-objectives").innerHTML=c.objectives.map(o=>{const done=state.campaign.completedObjectives.includes(o.id);let value=o.resource?state.resources[o.resource]:o.buildings?Math.max(0,totalBuildings()-state.campaign.buildingStart):o.relations?Math.max(0,...Object.values(state.rivals).map(r=>r.relation)):o.technologies?state.technologies.length:o.turn?state.turn:o.stability?state.nation.stability:o.population?state.nation.population:state.diplomacy.treaties.filter(t=>t.kind===o.treaty&&t.status==="active").length;return '<article class="objective '+(done?"complete":"")+'"><span class="objective-check">'+(done?"✓":"○")+'</span><div><b>'+esc(o.text)+'</b><small>'+(done?"Completed":num(value)+" / "+o.target)+'</small></div></article>';}).join("");
+    $("campaign-objectives").innerHTML=c.objectives.map(o=>{const done=state.campaign.completedObjectives.includes(o.id),locked=o.phase>state.campaign.phaseIndex,value=E.campaignObjectiveValue(state,o);return '<article class="objective '+(done?"complete":locked?"locked":"")+'"><span class="objective-check">'+(done?"✓":locked?"🔒":"○")+'</span><div><b>'+esc(o.text)+'</b><small>'+esc(c.phases[o.phase])+" · "+(done?"Completed":locked?"Locked until the prior phase is complete":num(value)+" / "+o.target)+'</small></div></article>';}).join("");
     const medals=[["campaign-victory","Victor of the Realm","Complete any campaign."],["first-research","Curious Minds","Research a technology."],["builder","Master Builder","Build 10 infrastructure levels."],["industrialist","Industrial Age","Build a factory and establish manufacturing."],["good-neighbor","Good Neighbor","Reach 50 relations with a rival."]],earned=new Set(state.achievements);
     $("achievement-list").innerHTML=medals.map(([id,n,d])=>'<div class="achievement '+(earned.has(id)?"earned":"")+'"><span>'+(earned.has(id)?"★":"☆")+'</span><div><b>'+n+'</b><small>'+d+'</small></div></div>').join("");
   }
@@ -97,16 +115,16 @@
     if(!state.technologies.length&&state.resources.science>=28)a.push(["Opportunity","Advanced Agriculture is available to research."]);
     const r=Object.values(state.rivals).sort((x,y)=>x.relation-y.relation)[0];
     if(r&&r.relation<=-20)a.push(["Diplomacy",r.name+" is hostile. A non-aggression offer or peace delegation can contain risk."]);
-    if(!state.campaign.completedObjectives.length)a.push(["Campaign","Review the campaign objectives; complete all four to win this scenario."]);
+    if(!state.campaign.completedObjectives.length)a.push(["Campaign","Review the short, medium, and long-term objectives; complete all six to win this scenario."]);
     if(!a.length)a.push(["Strong","Your nation is balanced. Expand infrastructure, research, and regional agreements."]);
     return a;
   }
   function renderAdvice() {const html=advice().map(([l,t])=>'<article class="advice-card '+l.toLowerCase()+'"><b>'+l+'</b><p>'+esc(t)+'</p></article>').join("");$("director-advice").innerHTML=html;$("director-advice-panel").innerHTML=html;}
   function renderHistory() {
-    $("history-list").innerHTML=state.events.slice(0,100).map(e=>'<article class="history-entry"><span class="event-type '+esc(e.type)+'">'+esc(e.type)+'</span><time>Turn '+num(e.turn)+'</time><span>'+esc(e.text)+'</span></article>').join("");
+    $("history-list").innerHTML=state.events.slice(0,120).map(e=>'<article class="history-entry"><span class="event-type '+esc(e.type)+'">'+esc(e.type)+'</span><time>Turn '+num(e.turn)+'</time><div><span>'+esc(e.text)+'</span>'+(e.details?'<details class="history-details"><summary>Impact and context</summary><p>'+esc(e.details.summary)+'</p><small>Affected: '+esc(e.details.affectedNationIds.map(id=>id==="player"?state.nation.name:state.rivals[id]?.name||id).join(", "))+'</small></details>':"")+'</div></article>').join("");
   }
   function render() {
-    renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderResearch();renderCampaign();renderCreator();renderAdvice();renderHistory();
+    renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderWorldEvents();renderResearch();renderCampaign();renderCreator();renderAdvice();renderHistory();
     $("turn-label").textContent="TURN "+state.turn;$("game-banner").textContent=state.status==="playing"?state.nation.name+" · "+state.nation.government:"Campaign "+state.status;
     $("game-banner").className="game-banner "+state.status;$("advance-turn").disabled=state.status!=="playing";tab(activeTab);
   }
@@ -121,7 +139,7 @@
     const t=event.target.closest("[data-tab]");if(t)return tab(t.dataset.tab);
     const node=event.target.closest("[data-focus]");if(node){const id=node.dataset.focus;if(id!=="player"){tab("diplomacy");toast(state.rivals[id].name+" · Relations "+state.rivals[id].relation+" · "+state.rivals[id].stance);}return;}
     const b=event.target.closest("[data-action]");if(!b)return;
-    const {action,id,resource,amount,kind}=b.dataset;
+    const {action,id,resource,amount,kind,eventId,choice}=b.dataset;
     act(()=>{
       if(action==="build")E.build(state,id);
       if(action==="trade")E.trade(state,resource,Number(amount));
@@ -131,6 +149,7 @@
       if(action==="treaty")E.offerTreaty(state,id,kind);
       if(action==="conflict")E.declareConflict(state,id);
       if(action==="peace")E.makePeace(state,id);
+      if(action==="event-choice")E.resolveWorldEvent(state,eventId,choice);
       if(action==="delete-creation")E.deleteCreation(state,id);
       if(totalBuildings()>=10&&!state.achievements.includes("builder"))state.achievements.push("builder");
     });

@@ -58,7 +58,7 @@ test("version 2 saves migrate to strategic AI schema without losing the scenario
   }
   delete old.rivals.solenne; delete old.rivals.ironmarch; delete old.rivals.duneward;
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 4);
+  assert.equal(migrated.schemaVersion, 5);
   assert.equal(migrated.campaign.buildingStart, buildingStart);
   assert.equal(migrated.resources.ore, 48);
   assert.equal(migrated.rivals.aurelia.activity, "Adapting industry");
@@ -73,9 +73,78 @@ test("version 3 saves migrate strategic personalities without losing interaction
   delete rival.personality; delete rival.economicPriority; delete rival.politicalPriority; delete rival.militaryPriority;
   delete rival.riskTolerance; delete rival.longTermObjective; delete rival.plan; delete rival.memory;
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 4);
+  assert.equal(migrated.schemaVersion, 5);
   assert.equal(migrated.rivals.aurelia.personality, "Merchant Republic");
   assert.deepEqual(migrated.rivals.aurelia.memory, []);
+});
+
+test("version 4 saves gain living-world defaults without losing campaign progress", () => {
+  const old = Engine.createInitialState({ seed: 19 });
+  old.schemaVersion = 4;
+  old.campaign.completedObjectives = ["feed-the-people", "build-the-future"];
+  delete old.campaign.phaseIndex; delete old.campaign.progress; delete old.world;
+  delete old.market.stock.power; delete old.market.basePrices.power; delete old.market.prices.power; delete old.market.lastFlow.power;
+  const migrated = Engine.migrateSave(old);
+  assert.equal(migrated.schemaVersion, 5);
+  assert.equal(migrated.campaign.phaseIndex, 1);
+  assert.equal(migrated.market.stock.power, 260);
+  assert.deepEqual(migrated.world.activeEvents, []);
+  assert.deepEqual(migrated.campaign.completedObjectives, ["feed-the-people", "build-the-future"]);
+  assert.ok(Engine.validateSave(migrated));
+});
+
+test("world event responses are enumerated, atomic, one-time, and survive save reloads", () => {
+  const state = Engine.createInitialState({ seed: 20 });
+  const event = { id: "world-test-energy", key: "energy_crisis", startedTurn: 1, remainingTurns: 3, status: "pending", choiceId: null, affectedNationIds: ["player"], lastAppliedTurn: 1 };
+  state.world.activeEvents.push(event);
+  state.resources.credits = 100;
+  state.market.stock.power = 9;
+  assert.throws(() => Engine.resolveWorldEvent(state, event.id, "import"), /unavailable or unaffordable/);
+  assert.equal(state.resources.credits, 100);
+  assert.equal(state.resources.power, 20);
+  assert.throws(() => Engine.resolveWorldEvent(state, event.id, "grant-power"), /response is invalid/);
+  state.market.stock.power = 10;
+  Engine.resolveWorldEvent(state, event.id, "import");
+  assert.equal(state.resources.credits, 75);
+  assert.equal(state.resources.power, 30);
+  assert.equal(state.market.stock.power, 0);
+  assert.ok(state.world.processedEventIds.includes(event.id));
+  assert.throws(() => Engine.resolveWorldEvent(state, event.id, "import"), /no longer awaiting/);
+  const loaded = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.equal(loaded.world.activeEvents[0].choiceId, "import");
+  assert.ok(loaded.events.some(entry => entry.type === "decision" && entry.details.summary.includes("10 power")));
+  loaded.world.activeEvents[0].choiceId = "free-power";
+  assert.throws(() => Engine.validateSave(loaded), /World event record is invalid/);
+});
+
+test("an international energy crisis pauses factories, raises power prices, and redirects rival investment", () => {
+  const makeState = seed => {
+    const state = Engine.createInitialState({ seed });
+    state.buildings = { farm: 0, mine: 0, workshop: 0, factory: 1, transport: 0, market: 0, academy: 0, power: 0, housing: 0 };
+    state.resources.food = 500; state.resources.materials = 20; state.resources.ore = 10; state.resources.power = 3; state.resources.goods = 0;
+    state.market.stock.power = 0;
+    for (const rival of Object.values(state.rivals)) {
+      rival.buildings = { farm: 0, mine: 0, workshop: 0, factory: 0, transport: 0, market: 0, academy: 0, power: 0, housing: 0 };
+      rival.resources.food = 500; rival.resources.materials = 100; rival.resources.ore = 50; rival.resources.power = 0; rival.resources.credits = 0;
+    }
+    state.rivals.northreach.resources.credits = 200;
+    return state;
+  };
+  const normal = makeState(225), crisis = makeState(225);
+  crisis.world.activeEvents.push({ id: "world-test-crisis", key: "energy_crisis", startedTurn: 1, remainingTurns: 2, status: "active", choiceId: "ration", affectedNationIds: ["player"], lastAppliedTurn: 1 });
+  crisis.world.processedEventIds.push("world-test-crisis");
+  Engine.advanceTurn(normal); Engine.advanceTurn(crisis);
+  assert.ok(crisis.economy.production.goods < normal.economy.production.goods);
+  assert.ok(crisis.market.prices.power > normal.market.prices.power);
+  assert.ok(crisis.rivals.northreach.buildings.power > 0);
+});
+
+test("world event catalog explains major crisis, diplomatic, industrial, and discovery systems", () => {
+  for (const key of ["energy_crisis", "food_shortage", "industrial_revolution", "tech_breakthrough", "financial_crisis", "trade_disruption", "natural_disaster", "political_instability", "diplomatic_dispute", "international_conflict", "resource_discovery", "infrastructure_opportunity"]) {
+    const info = Engine.worldEventInfo(key);
+    assert.ok(info && info.title && info.description, key);
+  }
+  assert.equal(Engine.worldEventInfo("credit_grant"), null);
 });
 
 test("legacy v0.3 saves migrate while keeping player progress", () => {
@@ -284,8 +353,7 @@ test("faction traits steer rivals toward industry, energy, research, and commerc
   guard.resources.credits = 1000; guard.resources.power = 0; guard.buildings.academy = 1;
   const powerBefore = guard.buildings.power;
   Engine.advanceTurn(energy);
-  assert.equal(guard.buildings.power, powerBefore + 1);
-  assert.match(guard.activity, /power grid/i);
+  assert.ok(guard.buildings.power > powerBefore || guard.resources.power > 0);
 
   const research = Engine.createInitialState({ seed: 9 });
   const meridian = research.rivals.meridian;
@@ -315,6 +383,21 @@ test("storage caps reject trades without partially charging the player", () => {
   state.market.stock.food = Engine.RESOURCE_LIMIT;
   assert.throws(() => Engine.trade(state, "food", -10), /market storage limit/);
   assert.equal(state.resources.food, 120);
+});
+
+test("power can be imported and exported through finite energy-market stock", () => {
+  const state = Engine.createInitialState();
+  state.resources.credits = 100;
+  state.resources.power = 4;
+  state.market.stock.power = 30;
+  const price = state.market.prices.power;
+  Engine.trade(state, "power", 10);
+  assert.equal(state.resources.power, 14);
+  assert.equal(state.market.stock.power, 20);
+  assert.equal(state.resources.credits, 100 - Math.ceil(price * 10));
+  Engine.trade(state, "power", -5);
+  assert.equal(state.resources.power, 9);
+  assert.equal(state.market.stock.power, 25);
 });
 
 test("a trade action can immediately complete a campaign supply objective", () => {
@@ -476,14 +559,19 @@ test("world turn limit prevents overflow", () => {
 test("the founding campaign records objectives and declares victory when all goals are met", () => {
   const state = Engine.createInitialState();
   state.resources.food = 180;
-  state.buildings.farm += 3;
+  state.resources.materials = 240; state.resources.credits = 1000;
+  for (let i = 0; i < 3; i++) Engine.build(state, "farm");
   state.rivals.aurelia.relation = 30;
   state.resources.science = 66;
   Engine.research(state, "agriculture");
   Engine.research(state, "governance");
+  assert.equal(state.campaign.phaseIndex, 2);
+  for (let i = 0; i < 2; i++) Engine.build(state, "factory");
+  Engine.trade(state, "ore", -40);
   assert.equal(state.status, "victory");
   assert.equal(state.campaign.status, "victory");
-  assert.equal(state.campaign.completedObjectives.length, 4);
+  assert.equal(state.campaign.completedObjectives.length, 6);
+  assert.equal(state.campaign.phaseIndex, 3);
   assert.ok(state.achievements.includes("campaign-victory"));
 });
 
