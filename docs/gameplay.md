@@ -24,7 +24,7 @@ Mines, workshops, factories, and power grids form an input chain: mines extract 
 
 National income includes market building output, citizen taxes, and trade-agreement income. Wages scale with employed industrial jobs. The last turn's income, wage costs, balance, production, and consumption appear in the World and Economy panels. Two consecutive negative-balance turns cause a recession, which reduces stability and stops population growth. Positive cash flow after a recession starts a three-turn recovery period.
 
-Rivals use the same production chains and shared commodity market. They consume food, consume factory inputs, trade to manage shortages and surpluses, expand farms, mines, workshops, academies, factories, and markets, and research industrial technologies. Rival reports show their latest turn action, strategic stance, workforce scale, and treasury. Diplomatic rivals may form strategic alliances when relations are high.
+Rivals use the same production chains and shared commodity market. They consume food, consume factory inputs, trade to manage shortages and surpluses, expand farms, mines, workshops, academies, factories, power grids, transport hubs, and markets, and research industrial technologies. Their faction traits guide investment: industrial nations favor factories, security nations shore up energy, research and agriculture nations choose matching technologies, and commercial nations expand markets. Rival reports show their latest turn action, strategic stance, employed workforce, and treasury. Diplomatic rivals may form strategic alliances when relations are high.
 
 ## Technologies
 

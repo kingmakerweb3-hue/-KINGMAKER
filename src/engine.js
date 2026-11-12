@@ -509,6 +509,17 @@
     }
     return "steady";
   }
+  function rivalTechnologyChoice(rival) {
+    const priorities = [];
+    if (rival.traits.includes("industry")) priorities.push("manufacturing", "industry", "energy");
+    if (rival.traits.includes("agriculture")) priorities.push("agriculture", "medicine", "governance");
+    if (rival.traits.includes("research")) priorities.push("agriculture", "industry", "energy", "manufacturing", "medicine", "governance", "commerce");
+    if (rival.traits.includes("security")) priorities.push("energy", "governance", "industry");
+    if (rival.traits.includes("commerce")) priorities.push("commerce", "industry", "agriculture");
+    return [...new Set(priorities)].map(id => [id, TECHNOLOGIES[id]])
+      .find(([id, technology]) => technology && !rival.technologies.includes(id) &&
+        (id !== "manufacturing" || rival.buildings.factory > 0) && rival.resources.science >= technology.cost);
+  }
   function developRivals(state, worldFlow) {
     for (const rival of Object.values(state.rivals)) {
       const industry = industrialOutput(rival.resources, rival.buildings, rival.technologies, rival.population), output = industry.production;
@@ -537,7 +548,7 @@
         rival.population = Math.max(10, rival.population - 3);
       } else {
         rival.stability = Math.min(100, rival.stability + 1);
-        if (rival.resources.food > 25 && rival.stability > 50) rival.population = Math.min(RESOURCE_LIMIT, rival.population + 1 + Math.floor((rival.buildings.housing || 0) / 2));
+        if (rival.resources.food > 25 && rival.stability > 50) rival.population = Math.min(RESOURCE_LIMIT, rival.population + 1 + (rival.technologies.includes("medicine") ? 1 : 0) + Math.floor((rival.buildings.housing || 0) / 2));
       }
       if (rival.resources.food < foodTarget && rival.resources.credits >= 35 && rival.buildings.farm < 10_000) {
         rival.buildings.farm++;
@@ -549,6 +560,11 @@
         rival.resources.credits -= 52; rival.resources.materials -= 32;
         rival.stance = "Expanding mineral extraction";
         rival.activity = "Opened a mine to address ore shortages";
+      } else if (rival.population >= 150 && rival.resources.food > foodTarget && rival.resources.credits >= 62 && rival.resources.materials >= 38 && rival.buildings.transport < 8) {
+        rival.buildings.transport++;
+        rival.resources.credits -= 62; rival.resources.materials -= 38;
+        rival.stance = "Improving regional logistics";
+        rival.activity = "Built a transport hub to lower food demand";
       } else if (rival.buildings.academy === 0 && rival.resources.credits >= 68 && rival.resources.materials >= 36) {
         rival.buildings.academy++;
         rival.resources.credits -= 68;
@@ -560,19 +576,23 @@
         rival.resources.credits -= 45;
         rival.stance = "Expanding industry";
         rival.activity = "Expanded materials processing";
+      } else if (rival.resources.power < Math.ceil(rival.population / 8) && rival.resources.credits >= 74 && rival.resources.materials >= 42 && rival.buildings.power < 10_000) {
+        rival.buildings.power++;
+        rival.resources.credits -= 74; rival.resources.materials -= 42;
+        rival.stance = "Securing energy supply";
+        rival.activity = "Built a power grid to support industry";
       } else if (rival.traits.includes("industry") && rival.resources.credits >= 86 && rival.resources.materials >= 48 && rival.buildings.factory < 10_000 && rival.resources.ore >= 3) {
         rival.buildings.factory++;
         rival.resources.credits -= 86; rival.resources.materials -= 48;
         rival.stance = "Investing in manufacturing";
         rival.activity = "Built a factory for manufactured goods";
-      } else if (rival.resources.science >= 55 && rival.buildings.factory > 0 && !rival.technologies.includes("manufacturing")) {
-        rival.resources.science -= 55; rival.technologies.push("manufacturing");
-        rival.stance = "Advancing manufacturing technology";
-        rival.activity = "Researched precision manufacturing";
-      } else if (rival.resources.science >= 34 && !rival.technologies.includes("industry")) {
-        rival.resources.science -= 34; rival.technologies.push("industry"); rival.stance = "Advancing technology";
-        rival.activity = "Researched industrial methods";
-      } else if (rival.resources.credits > 70 && nextRandom(state) > 0.62 && rival.buildings.market < 10_000) {
+      } else if (rivalTechnologyChoice(rival)) {
+        const [technologyId, technology] = rivalTechnologyChoice(rival);
+        rival.resources.science -= technology.cost; rival.technologies.push(technologyId);
+        if (technologyId === "governance") rival.stability = Math.min(100, rival.stability + 10);
+        rival.stance = "Advancing " + technology.name;
+        rival.activity = "Researched " + technology.name;
+      } else if ((rival.traits.includes("commerce") || rival.traits.includes("diplomacy")) && rival.resources.credits > 70 && nextRandom(state) > 0.62 && rival.buildings.market < 10_000) {
         rival.buildings.market++; rival.resources.credits -= 52; rival.stance = "Growing trade"; rival.activity = "Expanded market infrastructure";
       } else if (rival.traits.includes("diplomacy") && rival.relation >= 65 && !state.diplomacy.treaties.some(t => t.rivalId === rival.id && t.kind === "alliance" && t.status === "active") && nextRandom(state) > 0.75) {
         state.diplomacy.treaties.push({ id: rival.id + ":alliance", rivalId: rival.id, kind: "alliance", status: "active", startedTurn: state.turn, duration: 12 });

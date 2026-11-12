@@ -217,6 +217,42 @@ test("a trusted diplomatic rival can independently form a strategic alliance", (
   assert.equal(rival.activity, "Formed a strategic alliance");
 });
 
+test("faction traits steer rivals toward industry, energy, research, and commerce", () => {
+  const industrial = Engine.createInitialState({ seed: 7 });
+  const northreach = industrial.rivals.northreach;
+  northreach.resources.food = 500; northreach.resources.ore = 100; northreach.resources.materials = 200;
+  northreach.resources.credits = 1000; northreach.resources.power = 50; northreach.buildings.academy = 1;
+  Engine.advanceTurn(industrial);
+  assert.equal(northreach.buildings.factory, 1);
+  assert.match(northreach.activity, /factory/i);
+
+  const energy = Engine.createInitialState({ seed: 8 });
+  const guard = energy.rivals.northreach;
+  guard.resources.food = 500; guard.resources.ore = 100; guard.resources.materials = 200;
+  guard.resources.credits = 1000; guard.resources.power = 0; guard.buildings.academy = 1;
+  const powerBefore = guard.buildings.power;
+  Engine.advanceTurn(energy);
+  assert.equal(guard.buildings.power, powerBefore + 1);
+  assert.match(guard.activity, /power grid/i);
+
+  const research = Engine.createInitialState({ seed: 9 });
+  const meridian = research.rivals.meridian;
+  meridian.resources.food = 500; meridian.resources.ore = 100; meridian.resources.materials = 200;
+  meridian.resources.power = 30; meridian.resources.science = 50; meridian.buildings.academy = 1;
+  Engine.advanceTurn(research);
+  assert.ok(meridian.technologies.includes("agriculture"));
+  assert.match(meridian.activity, /agriculture/i);
+
+  const commerce = Engine.createInitialState({ seed: 991 });
+  const aurelia = commerce.rivals.aurelia;
+  aurelia.resources.food = 500; aurelia.resources.ore = 100; aurelia.resources.materials = 200;
+  aurelia.resources.credits = 1000; aurelia.resources.power = 30; aurelia.buildings.academy = 1;
+  const marketsBefore = aurelia.buildings.market;
+  Engine.advanceTurn(commerce);
+  assert.equal(aurelia.buildings.market, marketsBefore + 1);
+  assert.match(aurelia.activity, /market infrastructure/i);
+});
+
 test("storage caps reject trades without partially charging the player", () => {
   const state = Engine.createInitialState();
   state.resources.food = Engine.RESOURCE_LIMIT;
