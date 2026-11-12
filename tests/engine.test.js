@@ -58,7 +58,7 @@ test("version 2 saves migrate to strategic AI schema without losing the scenario
   }
   delete old.rivals.solenne; delete old.rivals.ironmarch; delete old.rivals.duneward;
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 5);
+  assert.equal(migrated.schemaVersion, Engine.SAVE_VERSION);
   assert.equal(migrated.campaign.buildingStart, buildingStart);
   assert.equal(migrated.resources.ore, 48);
   assert.equal(migrated.rivals.aurelia.activity, "Adapting industry");
@@ -73,7 +73,7 @@ test("version 3 saves migrate strategic personalities without losing interaction
   delete rival.personality; delete rival.economicPriority; delete rival.politicalPriority; delete rival.militaryPriority;
   delete rival.riskTolerance; delete rival.longTermObjective; delete rival.plan; delete rival.memory;
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 5);
+  assert.equal(migrated.schemaVersion, Engine.SAVE_VERSION);
   assert.equal(migrated.rivals.aurelia.personality, "Merchant Republic");
   assert.deepEqual(migrated.rivals.aurelia.memory, []);
 });
@@ -85,7 +85,7 @@ test("version 4 saves gain living-world defaults without losing campaign progres
   delete old.campaign.phaseIndex; delete old.campaign.progress; delete old.world;
   delete old.market.stock.power; delete old.market.basePrices.power; delete old.market.prices.power; delete old.market.lastFlow.power;
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 5);
+  assert.equal(migrated.schemaVersion, Engine.SAVE_VERSION);
   assert.equal(migrated.campaign.phaseIndex, 1);
   assert.equal(migrated.market.stock.power, 260);
   assert.deepEqual(migrated.world.activeEvents, []);
@@ -481,6 +481,77 @@ test("creator registry entries are bounded and save validation checks their shap
   state.creations[0].description = "A vertical garden.";
   Engine.deleteCreation(state, state.creations[0].id);
   assert.equal(state.creations.length, 0);
+});
+
+test("creator commissions cost resources once, produce real income, and can be withdrawn", () => {
+  const state = Engine.createInitialState({ seed: 41 });
+  const design = Engine.registerCreation(state, { creator: "Ada", title: "Foundry Co-op", category: "Business" });
+  const credits = state.resources.credits, materials = state.resources.materials;
+  Engine.commissionCreation(state, design.id);
+  assert.equal(state.resources.credits, credits - 30);
+  assert.equal(state.resources.materials, materials - 12);
+  assert.equal(Engine.validateSave(state).creations[0].commissioned, true);
+  Engine.advanceTurn(state);
+  assert.equal(state.economy.production.credits, Engine.productionFor(state.buildings, state.technologies).credits + 4);
+  assert.equal(state.economy.lastIncome, state.economy.production.credits + Math.floor(state.nation.population / 20));
+  assert.throws(() => Engine.deleteCreation(state, design.id), /Withdraw an active commission/);
+  Engine.withdrawCreation(state, design.id);
+  Engine.advanceTurn(state);
+  assert.equal(state.economy.production.credits, Engine.productionFor(state.buildings, state.technologies).credits);
+  assert.equal(Engine.validateSave(state).creations[0].commissioned, false);
+});
+
+test("creator commission slots, affordability, and category effects are bounded", () => {
+  const state = Engine.createInitialState({ seed: 42 });
+  const designs = ["Building", "Technology", "Artwork", "World Lore"].map((category, index) => Engine.registerCreation(state, { creator: "Maker", title: "Design " + index, category }));
+  for (const design of designs.slice(0, 3)) Engine.commissionCreation(state, design.id);
+  const before = { credits: state.resources.credits, materials: state.resources.materials };
+  assert.throws(() => Engine.commissionCreation(state, designs[3].id), /three active commissions/);
+  assert.deepEqual({ credits: state.resources.credits, materials: state.resources.materials }, before);
+  const effects = Engine.creatorEffects(state);
+  assert.deepEqual(effects.production, { materials: 2, science: 2, credits: 0 });
+  assert.equal(effects.stability, 1);
+  assert.equal(effects.influence, 0);
+  state.resources.credits = 0;
+  Engine.withdrawCreation(state, designs[0].id);
+  const materials = state.resources.materials;
+  assert.throws(() => Engine.commissionCreation(state, designs[3].id), /Not enough credits/);
+  assert.equal(state.resources.materials, materials);
+  assert.throws(() => Engine.registerCreation(state, { creator: "Maker", title: "Unknown", category: "Unsupported" }), /supported Creator Studio category/);
+});
+
+test("every commissioned Creator Studio category changes its advertised game system", () => {
+  for (const category of ["City Design", "Building", "Technology", "Business", "Artwork", "World Lore"]) {
+    const baseline = Engine.createInitialState({ seed: 71 });
+    baseline.nation.population = 250;
+    baseline.resources.food = 1000;
+    const designed = JSON.parse(JSON.stringify(baseline));
+    const creation = Engine.registerCreation(designed, { creator: "Maker", title: category, category });
+    Engine.commissionCreation(designed, creation.id);
+    Engine.advanceTurn(baseline);
+    Engine.advanceTurn(designed);
+    if (category === "City Design") assert.equal(designed.nation.population, baseline.nation.population + 2);
+    if (category === "Building") assert.equal(designed.economy.production.materials, baseline.economy.production.materials + 2);
+    if (category === "Technology") assert.equal(designed.economy.production.science, baseline.economy.production.science + 2);
+    if (category === "Business") assert.equal(designed.economy.production.credits, baseline.economy.production.credits + 4);
+    if (category === "Artwork") assert.equal(designed.nation.stability, baseline.nation.stability + 1);
+    if (category === "World Lore") assert.equal(designed.resources.influence, baseline.resources.influence + 1);
+  }
+});
+
+test("version 5 saves migrate creator designs as uncommissioned schema 6 records", () => {
+  const state = Engine.createInitialState({ seed: 43 });
+  Engine.registerCreation(state, { creator: "Ada", title: "Town plan", category: "City Design" });
+  Engine.registerCreation(state, { creator: "Ada", title: "Second plan", category: "Building" });
+  state.creations[1].id = state.creations[0].id;
+  state.schemaVersion = 5;
+  state.creations.forEach(creation => { delete creation.commissioned; delete creation.commissionedTurn; });
+  const migrated = Engine.migrateSave(state);
+  assert.equal(migrated.schemaVersion, 6);
+  assert.equal(migrated.creations[0].commissioned, false);
+  assert.equal(migrated.creations[0].commissionedTurn, null);
+  assert.equal(new Set(migrated.creations.map(creation => creation.id)).size, 2);
+  assert.ok(Engine.validateSave(migrated).creations.some(creation => creation.title === "Town plan"));
 });
 
 test("a rival with empty stores reacts to scarcity and invests in food security", () => {

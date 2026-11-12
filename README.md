@@ -21,7 +21,7 @@ Open <http://127.0.0.1:4173>. The server only binds to loopback.
 - **Research** spends science to unlock production and resilience effects.
 - **Campaign** offers three scenarios with objectives, achievements, victory, and defeat.
 - **World Director** gives local rule-based advice based on current game state.
-- **Creator Studio** stores local creation records in the save.
+- **Creator Studio** lets you author designs and commission up to three at a time for bounded, persistent effects on population capacity, materials, research, income, stability, or influence.
 - **Export save / Import save** move a versioned JSON save between browsers.
 - **New nation** starts over while retaining the prior game as a recovery backup.
 

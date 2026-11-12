@@ -43,6 +43,10 @@ Events that need a player decision display their affected nations and response c
 | Energy Systems | 48 | Power Grid output +50% |
 | Public Health | 44 | Raises population growth and population capacity |
 
+## Creator Studio
+
+Register a design in one of six supported disciplines, then commission it for 30 credits and 12 materials. A nation can keep up to three commissions active. Each commissioned design applies its published effect once per turn: City Design raises population capacity by 25; Building adds 2 materials; Technology adds 2 science; Business adds 4 credits income; Artwork adds 1 stability; and World Lore adds 1 influence. Withdraw a commission to stop its ongoing effect; the initial cost is not refunded. Creator records and commission state are local to the save and have no external marketplace, real-money value, or token integration.
+
 ## Diplomacy
 
 Aid costs credits and improves relations. Recalling an envoy costs influence and strains relations. Trade agreements add credits each turn; research agreements add science; alliances add influence and prevent conflict; non-aggression pacts prevent conflict. Trade and research agreements last five turns; alliances last twelve. Conflicts require hostile relations, credits, and power. They resolve after three turns based on national power, infrastructure, and research; fighting drains power and stability. Peace can be negotiated for credits.
@@ -51,4 +55,4 @@ Aid costs credits and improves relations. Recalling an envoy costs influence and
 
 The campaign screen has three scenarios: **A New Horizon** (balanced nation-building), **The Long Winter** (stability and survival), and **A Seat at the Council** (diplomacy and alliance). Each campaign advances through short-term, medium-term, and long-term phases with six objectives tied to resources, infrastructure, research, trade, treaties, or surviving crises. Completing all six wins that scenario. Stability at zero or population at ten or lower causes defeat. Campaign progress, world event responses, trade volume, and peaceful dispute resolutions are tracked in the save.
 
-Saves use versioned JSON with resource, economic ledger, structured event history, active event and duplicate-processing state, rival plan and memory, treaty, campaign phase and progress, and creator-registry validation. Version 1, 2, 3, and 4 development saves and original v0.3 saves migrate into schema 5. The browser retains a recovery copy before each autosave and before starting another campaign, and a corrupt primary save cannot replace the last validated recovery copy.
+Saves use versioned JSON with resource, economic ledger, structured event history, active event and duplicate-processing state, rival plan and memory, treaty, campaign phase and progress, and validated creator commissions. Version 1, 2, 3, 4, and 5 development saves and original v0.3 saves migrate into schema 6. Older creator entries remain in the archive and migrate as uncommissioned. The browser retains a recovery copy before each autosave and before starting another campaign, and a corrupt primary save cannot replace the last validated recovery copy.

@@ -5,7 +5,17 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 5;
+  const SAVE_VERSION = 6;
+  const CREATOR_EFFECTS = {
+    "City Design": { label: "+25 population capacity", capacity: 25 },
+    Building: { label: "+2 materials per turn", production: { materials: 2 } },
+    Technology: { label: "+2 science per turn", production: { science: 2 } },
+    Business: { label: "+4 credits income per turn", production: { credits: 4 } },
+    Artwork: { label: "+1 stability per turn", stability: 1 },
+    "World Lore": { label: "+1 influence per turn", influence: 1 }
+  };
+  const CREATOR_COMMISSION_COST = { credits: 30, materials: 12 };
+  const MAX_COMMISSIONED_CREATIONS = 3;
   const RESOURCE_LIMIT = 1_000_000;
   const RESOURCE_KEYS = ["food", "materials", "ore", "goods", "credits", "science", "power", "influence"];
   const MARKET_RESOURCES = ["food", "materials", "ore", "goods", "power"];
@@ -112,6 +122,22 @@
     return clamp(Math.floor(value), 0, max);
   }
   function copy(value) { return JSON.parse(JSON.stringify(value)); }
+  function normalizeCreatorRecords(state) {
+    const seen = new Set();
+    state.creations = (Array.isArray(state.creations) ? state.creations : []).filter(creation => creation && typeof creation === "object" && typeof creation.title === "string").slice(0, 500);
+    state.creations.forEach((creation, index) => {
+      creation.creator = typeof creation.creator === "string" ? creation.creator.slice(0, 48) : "Unknown creator";
+      creation.title = creation.title.slice(0, 64);
+      creation.description = typeof creation.description === "string" ? creation.description.slice(0, 500) : "";
+      creation.category = typeof creation.category === "string" ? creation.category.slice(0, 32) : "Design";
+      if (!Number.isInteger(creation.createdTurn) || creation.createdTurn < 1 || creation.createdTurn > state.turn) creation.createdTurn = state.turn;
+      if (typeof creation.id !== "string" || !creation.id || creation.id.length > 96 || seen.has(creation.id)) creation.id = "migrated-creation-" + state.turn + "-" + index;
+      while (seen.has(creation.id)) creation.id += "-" + index;
+      seen.add(creation.id);
+      creation.commissioned = false;
+      creation.commissionedTurn = null;
+    });
+  }
   function createInitialState(options = {}) {
     const defaultSeed = Math.floor(Math.random() * 0xffffffff) || 1;
     const seed = safeInt(options.seed, defaultSeed, 0xffffffff) || defaultSeed;
@@ -239,7 +265,8 @@
     const objectiveIds = new Set(CAMPAIGNS[normalized.campaign.id].objectives.map(o => o.id));
     if (normalized.campaign.completedObjectives.some(id => !objectiveIds.has(id))) throw new Error("Campaign objective list is invalid.");
     if (normalized.achievements.length > 100 || normalized.achievements.some(a => typeof a !== "string" || a.length > 80)) throw new Error("Achievement list is invalid.");
-    if (normalized.creations.length > 500 || normalized.creations.some(c => !c || typeof c.id !== "string" || typeof c.title !== "string" || c.title.length > 64 || typeof c.creator !== "string" || c.creator.length > 48 || typeof c.description !== "string" || c.description.length > 500)) throw new Error("Creator registry is invalid.");
+    if (normalized.creations.length > 500 || normalized.creations.some(c => !c || typeof c.id !== "string" || !c.id || c.id.length > 96 || typeof c.title !== "string" || c.title.length > 64 || typeof c.creator !== "string" || c.creator.length > 48 || typeof c.description !== "string" || c.description.length > 500 || typeof c.category !== "string" || c.category.length > 32 || !Number.isInteger(c.createdTurn) || c.createdTurn < 1 || c.createdTurn > normalized.turn || typeof c.commissioned !== "boolean" || (c.commissionedTurn !== null && (!Number.isInteger(c.commissionedTurn) || c.commissionedTurn < c.createdTurn || c.commissionedTurn > normalized.turn)) || (c.commissioned && (!CREATOR_EFFECTS[c.category] || !Number.isInteger(c.commissionedTurn))))) throw new Error("Creator registry is invalid.");
+    if (new Set(normalized.creations.map(c => c.id)).size !== normalized.creations.length || normalized.creations.filter(c => c.commissioned).length > MAX_COMMISSIONED_CREATIONS) throw new Error("Creator registry is invalid.");
     if (normalized.diplomacy.treaties.length > 500 || normalized.diplomacy.conflicts.length > 500) throw new Error("Diplomatic history is too large.");
     for (const treaty of normalized.diplomacy.treaties) {
       if (!treaty || !normalized.rivals[treaty.rivalId] || !["trade", "research", "alliance", "non-aggression"].includes(treaty.kind) ||
@@ -256,7 +283,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -264,7 +291,7 @@
         state.campaign.buildingStart = ["farm", "workshop", "market", "academy", "power", "housing"]
           .reduce((sum, id) => sum + safeInt((state.buildings || {})[id], 0, 10_000), 0);
       }
-      state.creations = Array.isArray(state.creations) ? state.creations : [];
+      normalizeCreatorRecords(state);
       state.achievements = Array.isArray(state.achievements) ? state.achievements : [];
       state.schemaVersion = SAVE_VERSION;
       addIndustryDefaults(state);
@@ -295,8 +322,9 @@
         title: c.title.slice(0, 64),
         category: String(c.category || "Design").slice(0, 32),
         description: String(c.description || "").slice(0, 500),
-        createdTurn: state.turn
+        createdTurn: state.turn, commissioned: false, commissionedTurn: null
       }));
+      normalizeCreatorRecords(state);
       state.schemaVersion = SAVE_VERSION;
       addIndustryDefaults(state);
       return validateSave(state);
@@ -532,12 +560,14 @@
     const jobs = workforceFor(state.buildings);
     const employed = Math.min(jobs, state.nation.population);
     const staffing = jobs > 0 ? Math.min(1, state.nation.population / jobs) : 1;
+    const creator = creatorEffects(state);
     const base = productionFor(state.buildings, state.technologies);
     const industry = industrialOutput({ ...state.resources,
       materials: clamp(state.resources.materials + Math.floor(base.materials * staffing), 0, RESOURCE_LIMIT),
       ore: clamp(state.resources.ore + Math.floor(base.ore * staffing), 0, RESOURCE_LIMIT),
       power: clamp(state.resources.power + Math.floor(base.power * staffing), 0, RESOURCE_LIMIT)
     }, state.buildings, state.technologies, state.nation.population);
+    for (const [resource, amount] of Object.entries(creator.production)) industry.production[resource] += amount;
     return { production: industry.production, consumption: { food: Math.ceil(state.nation.population / (12 + Math.min(8, industry.production.logistics))), ...industry.inputs },
       workforce: jobs, employed, requiredJobs: Math.ceil(state.nation.population / 10), activeFactories: industry.activeFactories };
   }
@@ -664,15 +694,55 @@
     const description = String(creation.description || "").trim().slice(0, 500);
     const category = String(creation.category || "Design").trim().slice(0, 32);
     if (!creator || !title) throw new Error("Creator and title are required.");
+    if (!CREATOR_EFFECTS[category]) throw new Error("Choose a supported Creator Studio category.");
     if (state.creations.length >= 500) throw new Error("Creator registry limit reached.");
-    const item = { id: "creation-" + state.turn + "-" + state.creations.length + "-" + state.seed, creator, title, description, category, createdTurn: state.turn };
+    let id = "creation-" + state.turn + "-" + state.seed + "-" + state.creations.length, suffix = 0;
+    while (state.creations.some(existing => existing.id === id)) id = "creation-" + state.turn + "-" + state.seed + "-" + state.creations.length + "-" + (++suffix);
+    const item = { id, creator, title, description, category, createdTurn: state.turn, commissioned: false, commissionedTurn: null };
     state.creations.unshift(item);
     addEvent(state, "Creator entry registered: " + title + ".", "creator");
     return item;
   }
+  function commissionCreation(state, id) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const creation = state.creations.find(item => item.id === id);
+    if (!creation) throw new Error("Creation entry not found.");
+    if (!CREATOR_EFFECTS[creation.category]) throw new Error("This creation category cannot be commissioned.");
+    if (creation.commissioned) throw new Error("This creation is already commissioned.");
+    if (state.creations.filter(item => item.commissioned).length >= MAX_COMMISSIONED_CREATIONS) throw new Error("Creator Studio supports three active commissions.");
+    for (const [resource, cost] of Object.entries(CREATOR_COMMISSION_COST)) if (state.resources[resource] < cost) throw new Error("Not enough " + resource + " to commission this design.");
+    for (const [resource, cost] of Object.entries(CREATOR_COMMISSION_COST)) state.resources[resource] -= cost;
+    creation.commissioned = true;
+    creation.commissionedTurn = state.turn;
+    addEvent(state, "Commissioned creator design: " + creation.title + " (" + CREATOR_EFFECTS[creation.category].label + ").", "creator");
+    return creation;
+  }
+  function withdrawCreation(state, id) {
+    const creation = state.creations.find(item => item.id === id);
+    if (!creation) throw new Error("Creation entry not found.");
+    if (!creation.commissioned) throw new Error("This creation is not commissioned.");
+    creation.commissioned = false;
+    creation.commissionedTurn = null;
+    addEvent(state, "Withdrew creator design: " + creation.title + ". Its ongoing effect has ended.", "creator");
+    return creation;
+  }
+  function creatorEffects(state) {
+    const effects = { production: { materials: 0, science: 0, credits: 0 }, capacity: 0, stability: 0, influence: 0 };
+    for (const creation of state.creations) {
+      if (!creation.commissioned) continue;
+      const effect = CREATOR_EFFECTS[creation.category];
+      for (const [resource, amount] of Object.entries(effect.production || {})) effects.production[resource] += amount;
+      effects.capacity += effect.capacity || 0;
+      effects.stability += effect.stability || 0;
+      effects.influence += effect.influence || 0;
+    }
+    return effects;
+  }
+  function creatorEffectFor(category) { return CREATOR_EFFECTS[category] || null; }
   function deleteCreation(state, id) {
     const index = state.creations.findIndex(c => c.id === id);
     if (index < 0) throw new Error("Creation entry not found.");
+    if (state.creations[index].commissioned) throw new Error("Withdraw an active commission before removing its design.");
     state.creations.splice(index, 1);
   }
   function resolveObjectives(state) {
@@ -917,6 +987,7 @@
     }
     const flow = Object.fromEntries(MARKET_RESOURCES.map(key => [key, 0]));
     applyOngoingWorldEvents(state, flow);
+    const creator = creatorEffects(state);
     const baseOutput = productionFor(state.buildings, state.technologies);
     const jobs = workforceFor(state.buildings), employed = Math.min(jobs, state.nation.population);
     const staffing = jobs > 0 ? Math.min(1, state.nation.population / jobs) : 1;
@@ -926,6 +997,7 @@
       power: clamp(state.resources.power + Math.floor(baseOutput.power * staffing), 0, RESOURCE_LIMIT)
     }, state.buildings, state.technologies, state.nation.population);
     const output = industry.production;
+    for (const [resource, amount] of Object.entries(creator.production)) output[resource] += amount;
     if (worldEventActiveThisTurn(state, "industrial_revolution")) output.goods = Math.floor(output.goods * 1.3);
     for (const resource of ["food", "materials", "ore", "goods", "science", "power"]) {
       state.resources[resource] = clamp(state.resources[resource] + output[resource], 0, RESOURCE_LIMIT);
@@ -939,7 +1011,7 @@
     let income = clamp(output.credits + taxIncome + tradeIncome, 0, RESOURCE_LIMIT);
     if (worldEventActiveThisTurn(state, "financial_crisis")) income = Math.floor(income * 0.75);
     state.resources.science = clamp(state.resources.science + activeTreaties.filter(t => t.kind === "research").length * 2, 0, RESOURCE_LIMIT);
-    state.resources.influence = clamp(state.resources.influence + activeTreaties.filter(t => t.kind === "alliance").length, 0, RESOURCE_LIMIT);
+    state.resources.influence = clamp(state.resources.influence + activeTreaties.filter(t => t.kind === "alliance").length + creator.influence, 0, RESOURCE_LIMIT);
     const wageExpense = Math.ceil(employed / 10 * (worldEventActiveThisTurn(state, "financial_crisis") ? 1.15 : 1));
     state.resources.credits = clamp(state.resources.credits + income - wageExpense, 0, RESOURCE_LIMIT);
     const previousPhase = state.economy.phase;
@@ -975,13 +1047,14 @@
     } else {
       state.nation.stability = Math.min(100, state.nation.stability + (jobs >= Math.ceil(state.nation.population / 10) ? (hasTech(state, "governance") ? 2 : 1) : 0));
       if (state.resources.food > foodNeed * 3 && state.nation.stability >= 45 && phase !== "recession" && jobs >= Math.ceil(state.nation.population / 10)) {
-        const populationCap = Math.min(RESOURCE_LIMIT, 250 + (state.buildings.housing || 0) * 50 + (hasTech(state, "medicine") ? 100 : 0));
+        const populationCap = Math.min(RESOURCE_LIMIT, 250 + (state.buildings.housing || 0) * 50 + (hasTech(state, "medicine") ? 100 : 0) + creator.capacity);
         state.nation.population = Math.min(populationCap, state.nation.population + 2 + (hasTech(state, "medicine") ? 1 : 0) + Math.floor((state.buildings.housing || 0) / 2));
       }
     }
     if (jobs < Math.ceil(state.nation.population / 10)) state.nation.stability = Math.max(0, state.nation.stability - 1);
     if (phase === "recession") state.nation.stability = Math.max(0, state.nation.stability - 2);
     else if (phase === "recovery") state.nation.stability = Math.min(100, state.nation.stability + 1);
+    state.nation.stability = Math.min(100, state.nation.stability + creator.stability);
     if (state.resources.power < state.nation.population / 10) state.nation.stability = Math.max(0, state.nation.stability - 2);
     developRivals(state, flow);
     for (const conflict of state.diplomacy.conflicts) {
@@ -1042,9 +1115,9 @@
   }
 
   return {
-    SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS,
+    SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     createInitialState, validateSave, migrateSave, productionFor, build, trade,
-    research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation,
+    research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
     exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech
   };

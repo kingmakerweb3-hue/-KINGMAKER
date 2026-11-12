@@ -103,7 +103,12 @@
     $("achievement-list").innerHTML=medals.map(([id,n,d])=>'<div class="achievement '+(earned.has(id)?"earned":"")+'"><span>'+(earned.has(id)?"★":"☆")+'</span><div><b>'+n+'</b><small>'+d+'</small></div></div>').join("");
   }
   function renderCreator() {
-    $("creator-list").innerHTML=state.creations.length?state.creations.map(c=>'<article class="list-card"><div><h3>'+esc(c.title)+'</h3><p>'+esc(c.category)+' · by '+esc(c.creator)+'</p><small>'+esc(c.description||"No description")+'</small></div><button class="danger" data-action="delete-creation" data-id="'+esc(c.id)+'">Remove</button></article>').join(""):'<p class="empty">Your registry is ready for its first design.</p>';
+    const active=state.creations.filter(c=>c.commissioned).length;
+    $("creator-list").innerHTML=state.creations.length?state.creations.map(c=>{
+      const effect=E.creatorEffectFor(c.category),action=c.commissioned?'<button data-action="withdraw-creation" data-id="'+esc(c.id)+'">Withdraw commission</button>':'<button data-action="commission-creation" data-id="'+esc(c.id)+'" '+(active>=E.MAX_COMMISSIONED_CREATIONS||state.resources.credits<E.CREATOR_COMMISSION_COST.credits||state.resources.materials<E.CREATOR_COMMISSION_COST.materials||state.status!=="playing"?"disabled":"")+'>Commission · 30 cr + 12 materials</button>';
+      return '<article class="list-card"><div><h3>'+esc(c.title)+(c.commissioned?' <span class="level">Active</span>':"")+'</h3><p>'+esc(c.category)+' · by '+esc(c.creator)+(effect?' · '+esc(effect.label):' · Archive only')+'</p><small>'+esc(c.description||"No description")+'</small>'+(c.commissioned?'<small>Commissioned turn '+num(c.commissionedTurn)+' · effect runs each world turn</small>':"")+'</div><div class="actions">'+action+'<button class="danger" data-action="delete-creation" data-id="'+esc(c.id)+'" '+(c.commissioned?"disabled title=\"Withdraw the commission first\"":"")+'>Remove</button></div></article>';
+    }).join(""):'<p class="empty">Your registry is ready for its first design.</p>';
+    $("creator-capacity").textContent=active+" / "+E.MAX_COMMISSIONED_CREATIONS+" designs commissioned · "+num(state.resources.credits)+" credits · "+num(state.resources.materials)+" materials available";
   }
   function advice() {
     const a=[],o=E.productionFor(state.buildings,state.technologies),need=Math.ceil(state.nation.population/12);
@@ -151,6 +156,8 @@
       if(action==="peace")E.makePeace(state,id);
       if(action==="event-choice")E.resolveWorldEvent(state,eventId,choice);
       if(action==="delete-creation")E.deleteCreation(state,id);
+      if(action==="commission-creation")E.commissionCreation(state,id);
+      if(action==="withdraw-creation")E.withdrawCreation(state,id);
       if(totalBuildings()>=10&&!state.achievements.includes("builder"))state.achievements.push("builder");
     });
   });
