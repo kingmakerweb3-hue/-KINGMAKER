@@ -480,7 +480,8 @@ test("creator registry entries are bounded and save validation checks their shap
   assert.throws(() => Engine.validateSave(state), /Creator registry is invalid/);
   state.creations[0].description = "A vertical garden.";
   Engine.deleteCreation(state, state.creations[0].id);
-  assert.equal(state.creations.length, 0);
+  assert.equal(state.creations.length, 1);
+  assert.equal(state.creations[0].archived, true);
 });
 
 test("creator commissions cost resources once, produce real income, and can be withdrawn", () => {
@@ -539,7 +540,71 @@ test("every commissioned Creator Studio category changes its advertised game sys
   }
 });
 
-test("version 5 saves migrate creator designs as uncommissioned schema 6 records", () => {
+test("creator publications respond to world demand and food crises", () => {
+  const state = Engine.createInitialState({ seed: 57 });
+  state.resources.materials = 100;
+  state.resources.food = 1000;
+  const normal = Engine.creatorDemand(state).find(item => item.category === "Building");
+  state.world.activeEvents.push({ id: "food-demand-test", key: "food_shortage", startedTurn: state.turn, remainingTurns: 2, status: "active", choiceId: null, affectedNationIds: ["player"] });
+  const crisis = Engine.creatorDemand(state).find(item => item.category === "Building");
+  assert.ok(crisis.score > normal.score);
+  assert.match(crisis.reason, /Food pressure/);
+  assert.equal(Engine.MAX_CREATOR_PUBLICATIONS, 500);
+  assert.ok(Engine.MAX_CREATOR_ROYALTY_PER_USE <= 10);
+});
+
+test("rivals adopt demanded creator designs, grant one bounded royalty, and preserve usage in saves", () => {
+  const state = Engine.createInitialState({ seed: 58 });
+  const design = Engine.registerCreation(state, { creator: "Ada Maker", title: "Research Exchange", category: "Technology" });
+  Engine.advanceTurn(state);
+  assert.ok(state.creatorEconomy.adoptions.some(adoption => adoption.designId === design.id && adoption.successfulUseTurn === state.turn));
+  assert.ok(state.creatorEconomy.totalRoyalties > 0);
+  assert.ok(state.creatorEconomy.totalRoyalties <= Object.keys(state.rivals).length * Engine.MAX_CREATOR_ROYALTY_PER_USE);
+  const before = state.creatorEconomy.totalRoyalties;
+  const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.equal(saved.creatorEconomy.totalRoyalties, before);
+  assert.equal(saved.creatorEconomy.adoptions.length, state.creatorEconomy.adoptions.length);
+  const paid = new Set(saved.creatorEconomy.adoptions.filter(item => item.rewardClaimed).map(item => item.id));
+  Engine.advanceTurn(saved);
+  for (const id of paid) assert.equal(saved.creatorEconomy.adoptions.find(item => item.id === id).rewardClaimed, true);
+  assert.equal(new Set(saved.creatorEconomy.adoptions.map(item => item.id)).size, saved.creatorEconomy.adoptions.length);
+  assert.equal(new Set(saved.creatorEconomy.adoptions.map(item => item.designId + ":" + item.rivalId)).size, saved.creatorEconomy.adoptions.length);
+  assert.doesNotThrow(() => Engine.validateSave(saved));
+});
+
+test("creator progress is derived from successful rival uses and commissioning reactivation is not charged twice", () => {
+  const state = Engine.createInitialState({ seed: 59 });
+  const design = Engine.registerCreation(state, { creator: "Ada  Maker", title: "Research Exchange", category: "Technology" });
+  Engine.commissionCreation(state, design.id);
+  Engine.withdrawCreation(state, design.id);
+  const balance = { credits: state.resources.credits, materials: state.resources.materials };
+  Engine.commissionCreation(state, design.id);
+  assert.deepEqual({ credits: state.resources.credits, materials: state.resources.materials }, balance);
+  assert.equal(state.creatorEconomy.commissions.filter(item => item.designId === design.id).length, 1);
+  Engine.withdrawCreation(state, design.id);
+  Engine.advanceTurn(state);
+  const profile = Engine.creatorProfiles(state).find(item => item.creatorId === "ada maker");
+  assert.ok(profile && profile.successfulUses > 0);
+  assert.ok(profile.experience >= profile.successfulUses * 10);
+  if (profile.experience >= 50) assert.ok(profile.level >= 2);
+});
+
+test("schema 6 commissions migrate into the validated creator economy ledger", () => {
+  const state = Engine.createInitialState({ seed: 60 });
+  const design = Engine.registerCreation(state, { creator: "Ada", title: "Old commissioned plan", category: "Building" });
+  Engine.commissionCreation(state, design.id);
+  state.schemaVersion = 6;
+  delete state.creatorEconomy;
+  state.creations.forEach(item => { delete item.creatorId; delete item.archived; });
+  const migrated = Engine.migrateSave(state);
+  assert.equal(migrated.schemaVersion, Engine.SAVE_VERSION);
+  assert.equal(migrated.creations[0].commissioned, true);
+  assert.equal(migrated.creatorEconomy.publications.length, 1);
+  assert.equal(migrated.creatorEconomy.commissions.length, 1);
+  assert.doesNotThrow(() => Engine.validateSave(migrated));
+});
+
+test("version 5 saves migrate creator designs as uncommissioned schema 7 records", () => {
   const state = Engine.createInitialState({ seed: 43 });
   Engine.registerCreation(state, { creator: "Ada", title: "Town plan", category: "City Design" });
   Engine.registerCreation(state, { creator: "Ada", title: "Second plan", category: "Building" });
@@ -547,7 +612,7 @@ test("version 5 saves migrate creator designs as uncommissioned schema 6 records
   state.schemaVersion = 5;
   state.creations.forEach(creation => { delete creation.commissioned; delete creation.commissionedTurn; });
   const migrated = Engine.migrateSave(state);
-  assert.equal(migrated.schemaVersion, 6);
+  assert.equal(migrated.schemaVersion, Engine.SAVE_VERSION);
   assert.equal(migrated.creations[0].commissioned, false);
   assert.equal(migrated.creations[0].commissionedTurn, null);
   assert.equal(new Set(migrated.creations.map(creation => creation.id)).size, 2);

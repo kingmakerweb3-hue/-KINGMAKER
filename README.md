@@ -21,7 +21,7 @@ Open <http://127.0.0.1:4173>. The server only binds to loopback.
 - **Research** spends science to unlock production and resilience effects.
 - **Campaign** offers three scenarios with objectives, achievements, victory, and defeat.
 - **World Director** gives local rule-based advice based on current game state.
-- **Creator Studio** lets you author designs and commission up to three at a time for bounded, persistent effects on population capacity, materials, research, income, stability, or influence.
+- **Creator Studio** lets you publish designs into a bounded local market. Rival nations can adopt designs when their needs match, apply their effects, and pay one capped royalty after successful use. Authors gain persistent experience and reputation; you can also commission up to three designs for your nation.
 - **Export save / Import save** move a versioned JSON save between browsers.
 - **New nation** starts over while retaining the prior game as a recovery backup.
 
@@ -40,7 +40,7 @@ See [`docs/gameplay.md`](docs/gameplay.md) for economy, technology, diplomacy, c
 
 ## Save data
 
-Current saves use schema version 5. The importer validates bounded event records, response choices, campaign phase progress, and required world data before replacing the active game. It migrates original v0.3 saves and development schemas 1 through 4. Active world effects, processed event IDs, campaign progress, and structured history persist in saves. Automatic local saves keep a previous safe copy for recovery. Export backups regularly if you clear browser storage or change devices.
+Current saves use schema version 7. The importer validates bounded creator publications, adoption and royalty ledgers, event records, response choices, campaign phase progress, and required world data before replacing the active game. It migrates original v0.3 saves and development schemas 1 through 6. Active world effects, creator progression, processed event IDs, campaign progress, and structured history persist in saves. Automatic local saves keep a previous safe copy for recovery. Export backups regularly if you clear browser storage or change devices.
 
 ## Development status
 
