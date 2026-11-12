@@ -1,190 +1,75 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#101827">
-<title>KINGMAKER — World Engine v0.3</title>
-<style>
-:root{--bg:#0b1220;--panel:#121d30;--panel2:#18263d;--line:#2a3a55;--text:#edf3ff;--muted:#9fb0ca;--gold:#e7bd62;--green:#70d6a1;--red:#ff8d8d;--blue:#83b7ff}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#172843 0,#0b1220 58%);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-header{padding:26px max(18px,calc((100% - 1180px)/2));border-bottom:1px solid var(--line);background:#0b1220dd;position:sticky;top:0;z-index:5;backdrop-filter:blur(12px)}
-.brand{display:flex;align-items:center;gap:12px}.sigil{width:42px;height:42px;border:1px solid var(--gold);border-radius:12px;display:grid;place-items:center;color:var(--gold);font-weight:900;font-size:22px}
-h1{font-size:22px;letter-spacing:3px;margin:0}.tag{color:var(--muted);font-size:12px;letter-spacing:1.3px}
-main{max-width:1180px;margin:24px auto;padding:0 18px 50px}.hero{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;margin:22px 0}.eyebrow{color:var(--gold);font-size:11px;letter-spacing:2px;font-weight:800}.hero h2{font-size:clamp(28px,4vw,42px);line-height:1.05;margin:8px 0}.hero p{max-width:660px;color:var(--muted);margin:0}
-button,input,select,textarea{font:inherit}button{border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:10px 14px;border-radius:10px;cursor:pointer}button:hover{border-color:var(--gold)}button.primary{background:var(--gold);color:#171b23;border-color:var(--gold);font-weight:800}button.danger{color:var(--red)}button:disabled{opacity:.45;cursor:not-allowed}
-.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0}.tabs button.active{background:var(--gold);color:#161b24;border-color:var(--gold);font-weight:800}
-.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}.card{background:linear-gradient(145deg,#17243a,#101a2b);border:1px solid var(--line);border-radius:16px;padding:17px;min-width:0}.span-12{grid-column:span 12}.span-8{grid-column:span 8}.span-6{grid-column:span 6}.span-4{grid-column:span 4}.span-3{grid-column:span 3}
-.card h3{margin:0 0 12px;font-size:16px}.muted{color:var(--muted)}.small{font-size:12px}.metric{font-size:27px;font-weight:800;letter-spacing:-1px}.metric-label{color:var(--muted);font-size:12px}.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.metricbox{background:#0d1727;border:1px solid var(--line);border-radius:12px;padding:13px}.row{display:flex;justify-content:space-between;align-items:center;gap:12px}.stack{display:grid;gap:10px}.item{padding:12px;border:1px solid var(--line);border-radius:12px;background:#0d1727}.item p{margin:4px 0;color:var(--muted);font-size:13px}.pill{font-size:11px;padding:3px 8px;border-radius:99px;background:#24344d;color:#c7d8f3}.good{color:var(--green)}.bad{color:var(--red)}.gold{color:var(--gold)}
-.bar{height:8px;background:#263650;border-radius:20px;overflow:hidden;margin-top:7px}.bar>i{display:block;height:100%;background:var(--green);border-radius:20px}
-label{display:block;font-size:12px;color:var(--muted);margin:8px 0 5px}input,select,textarea{width:100%;padding:10px;border-radius:9px;border:1px solid var(--line);background:#0b1525;color:var(--text)}textarea{min-height:90px;resize:vertical}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.log{max-height:290px;overflow:auto}.logline{padding:8px 0;border-bottom:1px solid #24334a;font-size:13px}.hidden{display:none!important}.agent-high{border-left:3px solid var(--red)}.agent-mid{border-left:3px solid var(--gold)}.agent-good{border-left:3px solid var(--green)}
-.notice{border-left:3px solid var(--gold);padding:10px 13px;background:#211f1a;color:#d9d0b9;border-radius:7px;font-size:12px;margin-top:16px}
-footer{border-top:1px solid var(--line);padding:20px;text-align:center;color:var(--muted);font-size:12px}
-@media(max-width:800px){.span-8,.span-6,.span-4,.span-3{grid-column:span 12}.metrics{grid-template-columns:repeat(2,1fr)}.hero{display:block}.hero .actions{margin-top:16px}}
-</style></head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101827">
+  <meta name="description" content="Build a nation, guide a living world, and shape your place in history.">
+  <title>KINGMAKER — World Engine v1.0</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="src/engine.js"></script>
+  <script defer src="src/app.js"></script>
+</head>
 <body>
-<header><div class="brand"><div class="sigil">K</div><div><h1>KINGMAKER</h1><div class="tag">PLAY THE WORLD · BUILD THE FUTURE · OWN YOUR CREATION</div></div></div></header>
-<main>
-<section class="hero"><div><div class="eyebrow">WORLD ENGINE · LOCAL PLAYABLE BUILD 0.3</div><h2>Your nation is only<br>the beginning.</h2><p>Build an economy, develop infrastructure, research technology, trade with rival nations and register original creator assets. The world advances when you advance it.</p></div><div class="actions"><button class="primary" onclick="advanceTurn()">Advance World ▸</button><button onclick="exportSave()">Export Save</button><button onclick="document.getElementById('importFile').click()">Import Save</button><input id="importFile" type="file" accept="application/json" class="hidden" onchange="importSave(event)"></div></section>
-<div class="metrics" id="metrics"></div>
-<nav class="tabs">
-<button class="active" data-tab="overview">World Overview</button><button data-tab="nation">My Nation</button><button data-tab="market">Trade & Diplomacy</button><button data-tab="research">Research</button><button data-tab="director">AI World Director</button><button data-tab="studio">Creator Studio</button><button data-tab="history">World History</button>
-</nav>
-<section id="overview" class="tab grid">
-<div class="card span-8"><div class="row"><h3>World Situation</h3><span class="pill" id="season"></span></div><p class="muted small">A living simulation prototype. NPC nations produce, consume and compete as each world turn passes.</p><div id="worldMap" class="grid"></div></div>
-<div class="card span-4"><h3>World Intelligence</h3><div id="intel" class="stack"></div></div>
-<div class="card span-6"><h3>Production & Consumption</h3><div id="production"></div></div>
-<div class="card span-6"><h3>Recent Events</h3><div id="recentEvents" class="log"></div></div>
-</section>
-<section id="nation" class="tab grid hidden">
-<div class="card span-8"><h3>Nation Profile</h3><div class="formgrid"><div><label>Nation name</label><input id="nationName"></div><div><label>Government style</label><select id="government"><option>Republic</option><option>Federation</option><option>Merchant Council</option><option>Constitutional Monarchy</option></select></div></div><div class="actions"><button class="primary" onclick="saveProfile()">Save Profile</button></div><hr style="border-color:var(--line);margin:18px 0"><h3>Infrastructure</h3><div id="buildings" class="stack"></div></div>
-<div class="card span-4"><h3>Nation Status</h3><div id="nationStatus"></div><div class="notice">Construction uses simulated game resources only. No real money or crypto is involved.</div></div>
-</section>
-<section id="market" class="tab grid hidden">
-<div class="card span-6"><h3>Open Market</h3><p class="muted small">Trade resources at simulated world prices. NPC demand shifts over time.</p><div id="marketItems" class="stack"></div></div>
-<div class="card span-6"><h3>Diplomatic Relations</h3><div id="diplomacy" class="stack"></div><div class="notice">Diplomacy is a prototype simulation, not a real political or financial service.</div></div>
-</section>
-<section id="research" class="tab grid hidden">
-<div class="card span-8"><h3>Technology Tree</h3><p class="muted small">Research unlocks more efficient production and stronger civic infrastructure.</p><div id="techTree" class="stack"></div></div>
-<div class="card span-4"><h3>Research Office</h3><div id="researchStatus"></div></div>
-</section>
-<section id="director" class="tab grid hidden">
-<div class="card span-8"><div class="row"><h3>AI World Director</h3><span class="pill">LOCAL GAME AGENT</span></div>
-<p class="muted small">The Director evaluates your nation, economy and diplomacy, then produces strategic guidance. It runs locally; it is a deterministic game agent, not a connected cloud LLM.</p>
-<div class="actions"><button class="primary" onclick="runDirector()">Run World Director</button></div>
-<div id="directorAdvice" class="stack" style="margin-top:14px"></div></div>
-<div class="card span-4"><h3>Autonomous NPC Council</h3><p class="muted small">Rival nations make simulated decisions each turn. Their behavior changes diplomatic standing and can trigger world events.</p>
-<div id="npcCouncil" class="stack"></div>
-<div class="notice">No external AI service, API key or account is connected. No credentials are needed.</div></div>
-</section>
-<section id="studio" class="tab grid hidden">
-<div class="card span-6">
-<h3>Creator Studio</h3>
-<p class="muted small">Register your original creations in the local prototype.</p>
-<label>Creator name</label><input id="creatorName" placeholder="Your creator name">
-<label>Creation title</label><input id="creationTitle" placeholder="City, building, design, technology...">
-<label>Creation category</label>
-<select id="creationCategory"><option>City Design</option><option>Building</option><option>Technology</option><option>Business</option><option>Artwork</option></select>
-<label>Description</label><textarea id="creationDescription" placeholder="Describe your creation and its purpose"></textarea>
-<div class="actions"><button class="primary" onclick="registerCreation()">Register Creation</button></div>
-</div>
-<div class="card span-6"><h3>Creator Registry</h3><div id="creatorList" class="stack"></div>
-<div class="notice">Registration here is local game data, not legal copyright registration or an NFT.</div></div>
-</section>
-<section id="history" class="tab grid hidden">
-<div class="card span-12"><h3>World History</h3><p class="muted small">A record of important events in your civilization.</p><div id="historyLog" class="log"></div></div>
-</section>
-</main>
-<footer>KINGMAKER WORLD ENGINE · LOCAL PROTOTYPE 0.3 · GAME CREDITS HAVE NO REAL-WORLD VALUE</footer>
-
-<script>
-const $=id=>document.getElementById(id);
-const initial={
- turn:1,name:"New Horizon",government:"Republic",
- food:120,materials:100,credits:150,influence:20,
- population:100,stability:80,power:20,research:0,
- buildings:{farm:1,workshop:1,market:1,academy:0,power:0},
- tech:[],prices:{food:2,materials:4},relations:{Aurelia:15,Northreach:5,Meridian:-5},
- creators:[],events:["Your civilization was founded. The first chapter of your history begins."],
- npc:{Aurelia:"Trading",Northreach:"Observing",Meridian:"Cautious"}
-};
-let state;
-try{state=JSON.parse(localStorage.getItem("kingmaker_save"))||structuredClone(initial)}catch(e){state=structuredClone(initial)}
-function save(){localStorage.setItem("kingmaker_save",JSON.stringify(state));render()}
-function log(message){state.events.unshift("Turn "+state.turn+": "+message);state.events=state.events.slice(0,100)}
-function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-const definitions={
- farm:{name:"Farm",cost:35,desc:"Produces food every turn.",field:"food"},
- workshop:{name:"Workshop",cost:45,desc:"Produces building materials.",field:"materials"},
- market:{name:"Market",cost:50,desc:"Improves trade and tax income.",field:"credits"},
- academy:{name:"Academy",cost:65,desc:"Produces research points.",field:"research"},
- power:{name:"Power Grid",cost:75,desc:"Improves stability and production.",field:"power"}
-};
-const technologies=[
- {id:"agriculture",name:"Advanced Agriculture",cost:30,desc:"Farms produce 50% more food."},
- {id:"industry",name:"Industrial Methods",cost:40,desc:"Workshops produce 50% more materials."},
- {id:"governance",name:"Civic Governance",cost:45,desc:"Improves stability."},
- {id:"commerce",name:"Trade Networks",cost:50,desc:"Markets earn more credits."},
- {id:"energy",name:"Energy Systems",cost:60,desc:"Power grids improve production."}
-];
-function hasTech(id){return state.tech.includes(id)}
-function render(){
- $("metrics").innerHTML=[
- ["Population",state.population],["Food",state.food],["Materials",state.materials],["Credits",state.credits],["Influence",state.influence]
- ].map(x=>`<div class="metricbox"><div class="metric">${x[1]}</div><div class="metric-label">${x[0]}</div></div>`).join("");
- $("season").textContent="TURN "+state.turn;
- $("worldMap").innerHTML=["Your Nation","Aurelia","Northreach","Meridian"].map((n,i)=>`<div class="card span-6"><b>${n}</b><p class="muted small">${i===0?"Your growing civilization": "Independent NPC nation"}</p><span class="pill">${i===0?"PLAYER CONTROLLED":state.npc[n]||"Neutral"}</span></div>`).join("");
- $("intel").innerHTML=[
- ["Stability",state.stability+"%"],["Power",state.power],["Research",state.research],["Diplomatic influence",state.influence]
- ].map(x=>`<div class="item"><div class="row"><span>${x[0]}</span><b>${x[1]}</b></div></div>`).join("");
- $("production").innerHTML=`<p>Food: <b class="good">+${state.buildings.farm*(hasTech("agriculture")?15:10)}</b> each turn</p><p>Materials: <b class="good">+${state.buildings.workshop*(hasTech("industry")?12:8)}</b> each turn</p><p>Academy research: <b class="good">+${state.buildings.academy*8}</b> each turn</p>`;
- $("recentEvents").innerHTML=state.events.slice(0,6).map(e=>`<div class="logline">${esc(e)}</div>`).join("");
- $("historyLog").innerHTML=state.events.map(e=>`<div class="logline">${esc(e)}</div>`).join("");
- $("nationName").value=state.name;$("government").value=state.government;
- $("nationStatus").innerHTML=`<div class="stack">${[["Population",state.population],["Stability",state.stability+"%"],["Power",state.power],["Research points",state.research]].map(x=>`<div class="item"><span class="muted">${x[0]}</span><div class="metric">${x[1]}</div></div>`).join("")}</div>`;
- $("buildings").innerHTML=Object.entries(definitions).map(([id,d])=>`<div class="item"><div class="row"><b>${d.name} × ${state.buildings[id]}</b><span class="pill">${d.cost} credits</span></div><p>${d.desc}</p><button onclick="build('${id}')">Build / Upgrade</button></div>`).join("");
- $("marketItems").innerHTML=[["food","Food"],["materials","Materials"]].map(([id,n])=>`<div class="item"><div class="row"><b>${n}</b><span>${state.prices[id]} credits each</span></div><div class="actions"><button onclick="trade('${id}',-10)">Sell 10</button><button onclick="trade('${id}',10)">Buy 10</button></div></div>`).join("");
- $("diplomacy").innerHTML=Object.entries(state.relations).map(([n,v])=>`<div class="item"><div class="row"><b>${n}</b><span>${v} relationship</span></div><button onclick="diplomacy('${n}')">Send diplomatic gift (20 credits)</button></div>`).join("");
- $("techTree").innerHTML=technologies.map(t=>`<div class="item"><div class="row"><b>${t.name}</b><span class="pill">${hasTech(t.id)?"RESEARCHED":t.cost+" points"}</span></div><p>${t.desc}</p><button ${hasTech(t.id)?"disabled":""} onclick="research('${t.id}')">${hasTech(t.id)?"Completed":"Research"}</button></div>`).join("");
- $("researchStatus").innerHTML=`<div class="metric">${state.research}</div><p class="muted">Available research points</p>`;
- $("creatorList").innerHTML=state.creators.length?state.creators.map(c=>`<div class="item"><b>${esc(c.title)}</b><p>${esc(c.category)} · by ${esc(c.creator)}</p><p>${esc(c.description)}</p></div>`).join(""):"<p class='muted'>No creations registered yet.</p>";
- $("npcCouncil").innerHTML=Object.entries(state.npc).map(([n,p])=>`<div class="item"><b>${n}</b><p>Council posture: ${p}</p></div>`).join("");
-}
-function saveProfile(){state.name=$("nationName").value.trim()||"New Horizon";state.government=$("government").value;log("Nation profile updated.");save()}
-function build(id){let d=definitions[id];if(state.credits<d.cost){alert("Not enough credits.");return}state.credits-=d.cost;state.buildings[id]++;log(d.name+" infrastructure upgraded.");save()}
-function trade(id,amount){
- let price=state.prices[id],resource=state[id];
- if(amount>0){let cost=amount*price;if(state.credits<cost){alert("Not enough credits.");return}state.credits-=cost;state[id]+=amount}
- else{let qty=-amount;if(resource<qty){alert("Not enough resources.");return}state[id]-=qty;state.credits+=qty*price}
- log((amount>0?"Purchased ":"Sold ")+Math.abs(amount)+" "+id+".");save()
-}
-function diplomacy(n){if(state.credits<20){alert("Not enough credits.");return}state.credits-=20;state.relations[n]=Math.min(100,state.relations[n]+10);state.influence+=2;log("Diplomatic gift sent to "+n+".");save()}
-function research(id){let t=technologies.find(x=>x.id===id);if(hasTech(id)||state.research<t.cost){alert("Not enough research points.");return}state.research-=t.cost;state.tech.push(id);if(id==="governance")state.stability=Math.min(100,state.stability+10);log("Technology researched: "+t.name+".");save()}
-function advanceTurn(){
- state.turn++;let farm=state.buildings.farm*(hasTech("agriculture")?15:10);
- let workshop=state.buildings.workshop*(hasTech("industry")?12:8);
- state.food+=farm-Math.ceil(state.population/20);
- state.materials+=workshop;
- state.credits+=state.buildings.market*(hasTech("commerce")?14:8)+Math.floor(state.population/20);
- state.research+=state.buildings.academy*8;
- state.power+=state.buildings.power*3;
- state.population+=state.food>20?2:-2;
- state.population=Math.max(10,state.population);
- if(state.food<0){state.food=0;state.stability=Math.max(0,state.stability-8);log("Food shortage reduced national stability.")}
- else state.stability=Math.min(100,state.stability+1);
- for(let n of Object.keys(state.npc)){
- let roll=Math.random();
- state.npc[n]=roll>.7?"Expanding trade":roll>.4?"Observing":"Strengthening borders";
- if(roll>.8)state.relations[n]=Math.max(-100,state.relations[n]-2);
- }
- state.prices.food=Math.max(1,Math.min(10,state.prices.food+(state.food<30?1:-1)));
- state.prices.materials=Math.max(2,Math.min(12,state.prices.materials+(state.materials<30?1:-1)));
- if(Math.random()>.78){let event=["A new trade route opens.","A festival raises public morale.","A storm disrupts production.","Travelers bring new ideas to your capital."][Math.floor(Math.random()*4)];if(event.includes("storm"))state.stability=Math.max(0,state.stability-4);else state.influence++;log(event)}
- log("World turn advanced. Your nation produced resources and NPC councils acted.");
- save()
-}
-function runDirector(){
- let advice=[];
- if(state.food<40)advice.push(["HIGH","Food reserves are low. Upgrade farms or buy food before the next shortage."]);
- if(state.materials<35)advice.push(["MEDIUM","Material reserves are limited. Consider upgrading a workshop."]);
- if(state.stability<55)advice.push(["HIGH","National stability is weak. Research Civic Governance and protect food supplies."]);
- if(state.credits<60)advice.push(["MEDIUM","Treasury is low. Sell surplus resources or improve your market."]);
- if(state.buildings.academy===0)advice.push(["MEDIUM","Build an Academy to generate research points each turn."]);
- if(state.influence<30)advice.push(["LOW","Diplomatic gifts can strengthen relations and grow influence."]);
- if(!advice.length)advice.push(["GOOD","Your nation is stable. Invest in research, infrastructure and diplomatic relationships."]);
- $("directorAdvice").innerHTML=advice.map(a=>`<div class="item agent-${a[0]==="HIGH"?"high":a[0]==="MEDIUM"?"mid":"good"}"><b>${a[0]}</b><p>${a[1]}</p></div>`).join("");
- log("World Director completed a strategic assessment.");save()
-}
-function registerCreation(){
- let creator=$("creatorName").value.trim(),title=$("creationTitle").value.trim(),description=$("creationDescription").value.trim();
- if(!creator||!title){alert("Enter a creator name and creation title.");return}
- state.creators.push({creator,title,category:$("creationCategory").value,description});
- $("creatorName").value="";$("creationTitle").value="";$("creationDescription").value="";
- log("Creator asset registered: "+title+".");save()
-}
-function exportSave(){let blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});let a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="kingmaker-save.json";a.click();URL.revokeObjectURL(a.href)}
-function importSave(event){let file=event.target.files[0];if(!file)return;let reader=new FileReader();reader.onload=()=>{try{let data=JSON.parse(reader.result);if(!data.buildings||!data.events)throw Error();state=data;save();alert("Save imported.")}catch(e){alert("That save file is invalid.")}};reader.readAsText(file)}
-document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x===b));document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("hidden",x.id!==b.dataset.tab))}));
-render();
-</script>
+  <a class="skip-link" href="#main">Skip to game</a>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="KINGMAKER home"><span class="sigil">K</span><span><b>KINGMAKER</b><small>PLAY THE WORLD · BUILD THE FUTURE</small></span></a>
+    <div class="top-actions"><span id="turn-label" class="turn-pill">TURN 1</span><button id="sound-toggle" aria-pressed="false">Sound: off</button><button id="export-save">Export save</button><button id="import-save">Import save</button><input id="import-file" type="file" accept="application/json,.json" hidden><button id="new-game">New nation</button></div>
+  </header>
+  <main id="main">
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <section class="welcome">
+      <div><p class="eyebrow">WORLD ENGINE · LOCAL CAMPAIGN</p><h1>Your nation is only<br>the beginning.</h1><p class="intro">Build a resilient economy, discover new technologies, and decide how your nation meets its neighbors. Every turn changes the world.</p></div>
+      <div class="welcome-actions"><div id="game-banner" class="game-banner"></div><button id="advance-turn" class="primary large">Advance World <span aria-hidden="true">→</span></button></div>
+    </section>
+    <section id="metrics" class="metrics" aria-label="National resources"></section>
+    <nav class="tabs" aria-label="Game sections" role="tablist">
+      <button class="active" role="tab" aria-selected="true" data-tab="overview">World</button>
+      <button role="tab" aria-selected="false" data-tab="nation">Nation</button>
+      <button role="tab" aria-selected="false" data-tab="market">Economy</button>
+      <button role="tab" aria-selected="false" data-tab="diplomacy">Diplomacy</button>
+      <button role="tab" aria-selected="false" data-tab="research">Research</button>
+      <button role="tab" aria-selected="false" data-tab="campaign">Campaign</button>
+      <button role="tab" aria-selected="false" data-tab="director">World Director</button>
+      <button role="tab" aria-selected="false" data-tab="creator">Creator Studio</button>
+      <button role="tab" aria-selected="false" data-tab="history">History</button>
+    </nav>
+    <section id="panel-overview" class="tab-panel grid">
+      <article class="panel span-8"><div class="panel-heading"><div><p class="eyebrow">THE KNOWN WORLD</p><h2>Regional map</h2></div><span class="tag">STRATEGIC VIEW</span></div><div id="world-map" class="world-map"></div><div id="map-legend" class="map-legend"></div></article>
+      <article class="panel span-4"><p class="eyebrow">NATIONAL OUTLOOK</p><h2>World intelligence</h2><div class="intel-line"><span>Stability</span><b id="stability-value">80%</b></div><div class="meter"><i id="stability-bar"></i></div><div id="production-summary" class="production-summary"></div><div class="notice">A turn advances your economy, rival decisions, world prices, diplomacy, and events.</div></article>
+      <article class="panel span-12"><div class="panel-heading"><div><p class="eyebrow">LOCAL SIMULATION</p><h2>World Director</h2></div><button id="director-run">Assess my nation</button></div><div id="director-advice" class="advice-grid"></div></article>
+    </section>
+    <section id="panel-nation" class="tab-panel grid" hidden>
+      <article class="panel span-5"><p class="eyebrow">NATIONAL CHARTER</p><h2>My nation</h2><label for="nation-name">Nation name</label><input id="nation-name" maxlength="48"><label for="government">Government</label><select id="government"><option>Republic</option><option>Federation</option><option>Merchant Council</option><option>Constitutional Monarchy</option></select><button id="save-profile" class="primary top-gap">Save charter</button><div class="notice">All resources are simulated game values. Nothing here represents real money or a political service.</div></article>
+      <article class="panel span-7"><p class="eyebrow">BUILD THE FUTURE</p><h2>Infrastructure</h2><div id="building-list" class="list-stack"></div></article>
+    </section>
+    <section id="panel-market" class="tab-panel grid" hidden>
+      <article class="panel span-7"><p class="eyebrow">SUPPLY · DEMAND · PRICE</p><h2>World market</h2><p class="muted">Turn production, population needs, rival economies, and your trades move available supply and prices.</p><div id="market-list" class="market-list"></div><div id="market-trends" class="trend-line"></div></article>
+      <article class="panel span-5"><p class="eyebrow">THE NATIONAL ECONOMY</p><h2>Trade policy</h2><p class="muted">Prices update after each world turn. Markets can run short when the world consumes more than it produces.</p><div class="economy-callout"><b>Trading controls</b><p>Buy orders use market stock and your credits. Sell orders add goods back to world supply. Prices are quoted before each trade.</p></div><div class="notice">KINGMAKER credits and resources have no real-world value.</div></article>
+    </section>
+    <section id="panel-diplomacy" class="tab-panel grid" hidden>
+      <article class="panel span-12"><div class="panel-heading"><div><p class="eyebrow">REGIONAL RELATIONS</p><h2>Diplomacy & conflict</h2></div><span id="treaty-summary" class="tag"></span></div><p class="muted">Relationships affect access to agreements. Treaties expire after several turns; active conflict consumes power and stability.</p><div id="diplomacy-list" class="diplomacy-grid"></div></article>
+    </section>
+    <section id="panel-research" class="tab-panel grid" hidden>
+      <article class="panel span-8"><p class="eyebrow">SCIENCE UNLOCKS ADVANTAGE</p><h2>Technology tree</h2><div id="technology-list" class="list-stack"></div></article>
+      <article class="panel span-4"><p class="eyebrow">RESEARCH OFFICE</p><h2>Research reserves</h2><strong id="science-reserve" class="big-number"></strong><p class="muted">Academies generate science every turn. Technologies affect national production and resilience.</p></article>
+    </section>
+    <section id="panel-campaign" class="tab-panel grid" hidden>
+      <article class="panel span-7"><p class="eyebrow">CAMPAIGN · CHAPTER ONE</p><h2 id="campaign-name"></h2><p id="campaign-description" class="muted"></p><p id="campaign-status" class="tag"></p><div id="campaign-objectives" class="objective-list"></div></article>
+      <article class="panel span-5"><p class="eyebrow">MILESTONES</p><h2>Achievements</h2><div id="achievement-list" class="achievement-list"></div><div class="notice">Complete every founding objective to win the campaign. Stability collapse or a population below 11 means defeat.</div></article>
+    </section>
+    <section id="panel-director" class="tab-panel grid" hidden>
+      <article class="panel span-8"><p class="eyebrow">LOCAL GAME ADVISOR</p><h2>AI World Director</h2><p class="muted">The Director evaluates your actual resources, production, stability, and relations. It runs locally as game logic; no cloud model or account is connected.</p><button id="director-run-panel" class="primary">Refresh recommendations</button><div id="director-advice-panel" class="advice-grid top-gap"></div></article>
+      <article class="panel span-4"><p class="eyebrow">AUTONOMOUS COUNCIL</p><h2>Rival decisions</h2><p class="muted">Each nation has a profile, stores, population, infrastructure, and priorities. Rivals produce goods, consume food, build, research, respond to shortages, and compete for regional strength each turn.</p><div class="notice">No external AI service or API key is used.</div></article>
+    </section>
+    <section id="panel-creator" class="tab-panel grid" hidden>
+      <article class="panel span-5"><p class="eyebrow">AUTHOR YOUR WORLD</p><h2>Creator Studio</h2><p class="muted">Keep a local registry of original designs for cities, infrastructure, technology, businesses, or art.</p><form id="creator-form"><label for="creator-name">Creator name</label><input id="creator-name" maxlength="48" required><label for="creation-title">Creation title</label><input id="creation-title" maxlength="64" required><label for="creation-category">Category</label><select id="creation-category"><option>City Design</option><option>Building</option><option>Technology</option><option>Business</option><option>Artwork</option><option>World Lore</option></select><label for="creation-description">Description</label><textarea id="creation-description" maxlength="500" rows="4"></textarea><button class="primary top-gap" type="submit">Register creation</button></form><div class="notice">Registry entries are saved in this browser. This is not legal copyright registration or an NFT.</div></article>
+      <article class="panel span-7"><p class="eyebrow">YOUR LOCAL ARCHIVE</p><h2>Creator registry</h2><div id="creator-list" class="list-stack"></div></article>
+    </section>
+    <section id="panel-history" class="tab-panel grid" hidden>
+      <article class="panel span-12"><p class="eyebrow">A RECORD OF YOUR CIVILIZATION</p><h2>World history</h2><div id="history-list" class="history-list"></div></article>
+    </section>
+  </main>
+  <footer>KINGMAKER WORLD ENGINE · LOCAL SINGLE-PLAYER CAMPAIGN · BUILD 1.0 DEVELOPMENT</footer>
 </body>
 </html>

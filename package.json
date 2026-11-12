@@ -1,0 +1,14 @@
+{
+  "name": "kingmaker-world-engine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "KINGMAKER local nation-building game engine",
+  "scripts": {
+    "dev": "node src/server.js",
+    "test": "node --test",
+    "check": "node --check src/engine.js && node --check src/app.js && node --check src/server.js && node --check tests/engine.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
