@@ -56,6 +56,14 @@ test("market buys and sells respect affordability, stock and inventory", () => {
   assert.equal(state.market.stock.food, oldStock - 5);
 });
 
+test("storage caps reject trades without partially charging the player", () => {
+  const state = Engine.createInitialState();
+  state.resources.food = Engine.RESOURCE_LIMIT;
+  const credits = state.resources.credits;
+  assert.throws(() => Engine.trade(state, "food", 10), /storage limit/);
+  assert.equal(state.resources.credits, credits);
+});
+
 test("a trade action can immediately complete a campaign supply objective", () => {
   const state = Engine.createInitialState();
   state.resources.food = 179;
@@ -92,6 +100,20 @@ test("diplomatic gifts improve standing and treaty thresholds are enforced", () 
   assert.equal(state.diplomacy.treaties[0].status, "active");
 });
 
+test("trade and research agreements pay benefits while an alliance strengthens influence", () => {
+  const state = Engine.createInitialState();
+  const rival = state.rivals.aurelia;
+  rival.relation = 50;
+  Engine.offerTreaty(state, "aurelia", "trade");
+  Engine.offerTreaty(state, "aurelia", "research");
+  Engine.offerTreaty(state, "aurelia", "alliance");
+  const before = {...state.resources};
+  Engine.advanceTurn(state);
+  assert.ok(state.resources.credits >= before.credits + 20);
+  assert.equal(state.resources.science, before.science + 7);
+  assert.equal(state.resources.influence, before.influence + 1);
+});
+
 test("envoy actions, conflict, peace, and treaty expiry have gameplay effects", () => {
   const state = Engine.createInitialState({ seed: 7 });
   assert.throws(() => Engine.declareConflict(state, "aurelia"), /Relations must fall/);
@@ -107,7 +129,7 @@ test("envoy actions, conflict, peace, and treaty expiry have gameplay effects", 
   assert.equal(state.diplomacy.conflicts[0].status, "peace");
   state.rivals.aurelia.relation = 50;
   Engine.offerTreaty(state, "aurelia", "alliance");
-  state.turn += 8;
+  state.turn += 12;
   Engine.advanceTurn(state);
   assert.equal(state.diplomacy.treaties[0].status, "expired");
 });
@@ -119,6 +141,21 @@ test("creator registry entries are bounded and save validation checks their shap
   assert.equal(Engine.validateSave(state).creations.length, 1);
   state.creations[0].description = "<".repeat(501);
   assert.throws(() => Engine.validateSave(state), /Creator registry is invalid/);
+  state.creations[0].description = "A vertical garden.";
+  Engine.deleteCreation(state, state.creations[0].id);
+  assert.equal(state.creations.length, 0);
+});
+
+test("a rival with empty stores reacts to scarcity and invests in food security", () => {
+  const state = Engine.createInitialState({ seed: 5 });
+  const rival = state.rivals.northreach;
+  rival.buildings.farm = 0;
+  rival.resources.food = 0;
+  rival.resources.credits = 200;
+  state.market.stock.food = 0;
+  Engine.advanceTurn(state);
+  assert.ok(rival.buildings.farm > 0);
+  assert.ok(rival.stability < 80);
 });
 
 test("v0.3 saves with negative relations migrate without losing the sign", () => {
@@ -128,6 +165,27 @@ test("v0.3 saves with negative relations migrate without losing the sign", () =>
   });
   assert.equal(migrated.rivals.meridian.relation, -35);
   assert.equal(migrated.resources.influence, 12);
+});
+
+test("version 1 saves migrate forward and preserve a safe campaign baseline", () => {
+  const old = Engine.createInitialState();
+  old.schemaVersion = 1;
+  delete old.campaign.buildingStart;
+  const migrated = Engine.migrateSave(old);
+  assert.equal(migrated.schemaVersion, Engine.SAVE_VERSION);
+  assert.equal(migrated.campaign.buildingStart, 6);
+  assert.equal(migrated.nation.name, "New Horizon");
+});
+
+test("campaign scenarios start with distinct playable objectives and valid saves", () => {
+  const winter = Engine.createInitialState({ campaignId: "longwinter", seed: 11 });
+  const council = Engine.createInitialState({ campaignId: "council", seed: 12 });
+  assert.equal(winter.campaign.id, "longwinter");
+  assert.equal(winter.nation.stability, 58);
+  assert.equal(council.campaign.id, "council");
+  assert.equal(council.nation.population, 90);
+  assert.equal(Engine.validateSave(winter).campaign.id, "longwinter");
+  assert.equal(Engine.validateSave(council).campaign.id, "council");
 });
 
 test("large values are capped and campaign defeat triggers at collapse", () => {
@@ -143,6 +201,13 @@ test("large values are capped and campaign defeat triggers at collapse", () => {
   assert.equal(state.status, "defeat");
 });
 
+test("world turn limit prevents overflow", () => {
+  const state = Engine.createInitialState();
+  state.turn = 10_000_000;
+  assert.throws(() => Engine.advanceTurn(state), /Turn limit/);
+  assert.equal(state.turn, 10_000_000);
+});
+
 test("the founding campaign records objectives and declares victory when all goals are met", () => {
   const state = Engine.createInitialState();
   state.resources.food = 180;
@@ -154,5 +219,15 @@ test("the founding campaign records objectives and declares victory when all goa
   assert.equal(state.status, "victory");
   assert.equal(state.campaign.status, "victory");
   assert.equal(state.campaign.completedObjectives.length, 4);
-  assert.ok(state.achievements.includes("founding-victory"));
+  assert.ok(state.achievements.includes("campaign-victory"));
+});
+
+test("a long-running deterministic world remains inside the save schema", () => {
+  const state = Engine.createInitialState({ seed: 237 });
+  for (let turn = 0; turn < 250 && state.status === "playing"; turn++) {
+    Engine.advanceTurn(state);
+    Engine.validateSave(state);
+  }
+  assert.ok(state.turn > 100);
+  assert.ok(Object.values(state.rivals).every(r => r.resources.food >= 0 && r.resources.materials >= 0 && r.resources.credits >= 0));
 });

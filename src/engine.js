@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 1;
+  const SAVE_VERSION = 2;
   const RESOURCE_LIMIT = 1_000_000;
   const RESOURCE_KEYS = ["food", "materials", "credits", "science", "power", "influence"];
   const BUILDINGS = {
@@ -34,6 +34,26 @@
         { id: "earn-trust", text: "Reach 30 relations with any rival", relations: 30, target: 30 },
         { id: "research-age", text: "Research 2 technologies", technologies: 2, target: 2 }
       ]
+    },
+    longwinter: {
+      name: "The Long Winter",
+      description: "Protect your citizens through a lean season while keeping the nation stable.",
+      objectives: [
+        { id: "winter-survivor", text: "Reach turn 8", turn: 8, target: 8 },
+        { id: "warm-granaries", text: "Hold 100 food", resource: "food", target: 100 },
+        { id: "steady-hands", text: "Reach 75% stability", stability: 75, target: 75 },
+        { id: "keep-growing", text: "Reach 110 population", population: 110, target: 110 }
+      ]
+    },
+    council: {
+      name: "A Seat at the Council",
+      description: "Earn an alliance and establish your nation as the region's diplomatic center.",
+      objectives: [
+        { id: "trusted-voice", text: "Reach 50 relations with a rival", relations: 50, target: 50 },
+        { id: "shared-future", text: "Sign an alliance", treaty: "alliance", target: 1 },
+        { id: "regional-prosperity", text: "Build 3 infrastructure levels", buildings: 3, target: 3 },
+        { id: "council-research", text: "Research 2 technologies", technologies: 2, target: 2 }
+      ]
     }
   };
   const RIVAL_TEMPLATES = [
@@ -49,8 +69,10 @@
   }
   function copy(value) { return JSON.parse(JSON.stringify(value)); }
   function createInitialState(options = {}) {
-    const seed = safeInt(options.seed, 7381, 0xffffffff) || 7381;
-    return {
+    const defaultSeed = Math.floor(Math.random() * 0xffffffff) || 1;
+    const seed = safeInt(options.seed, defaultSeed, 0xffffffff) || defaultSeed;
+    const campaignId = CAMPAIGNS[options.campaignId] ? options.campaignId : "founding";
+    const state = {
       schemaVersion: SAVE_VERSION, turn: 1, seed,
       nation: { name: "New Horizon", government: "Republic", population: 100, stability: 80 },
       resources: { food: 120, materials: 105, credits: 180, science: 0, power: 20, influence: 20 },
@@ -64,10 +86,23 @@
         technologies: [], relation: [15, 5, -5][i], stance: "Cautious", treaties: []
       }])) ,
       diplomacy: { treaties: [], conflicts: [] },
-      campaign: { id: "founding", completedObjectives: [], status: "active" },
+      campaign: { id: campaignId, completedObjectives: [], status: "active", buildingStart: 6 },
       achievements: [], creations: [], events: [{ turn: 1, text: "Your civilization was founded. The first chapter begins.", type: "milestone" }],
       status: "playing"
     };
+    if (campaignId === "longwinter") {
+      state.nation.population = 120; state.nation.stability = 58;
+      state.resources.food = 66; state.resources.materials = 80; state.resources.credits = 210; state.resources.power = 18;
+      state.buildings.farm = 1; state.buildings.workshop = 1; state.buildings.market = 1; state.buildings.academy = 0; state.buildings.power = 1;
+      state.rivals.northreach.relation = -10;
+    } else if (campaignId === "council") {
+      state.nation.name = "New Horizon"; state.nation.population = 90;
+      state.resources.food = 150; state.resources.materials = 135; state.resources.credits = 300; state.resources.science = 18;
+      state.buildings.farm = 2; state.buildings.workshop = 2; state.buildings.market = 1; state.buildings.academy = 1; state.buildings.power = 1;
+    }
+    state.campaign.buildingStart = Object.values(state.buildings).reduce((a, b) => a + b, 0);
+    state.events[0].text = campaignId === "founding" ? state.events[0].text : "Your nation entered the " + CAMPAIGNS[campaignId].name + " campaign.";
+    return state;
   }
 
   function validateSave(input) {
@@ -115,11 +150,13 @@
       if (rival.id !== rivalId) throw new Error("Rival identity does not match its save key.");
     }
     if (!CAMPAIGNS[normalized.campaign.id] || !["active", "victory", "defeat"].includes(normalized.campaign.status)) throw new Error("Campaign status is invalid.");
+    if (!Number.isInteger(normalized.campaign.buildingStart) || normalized.campaign.buildingStart < 0 || normalized.campaign.buildingStart > 100_000) throw new Error("Campaign infrastructure baseline is invalid.");
     const objectiveIds = new Set(CAMPAIGNS[normalized.campaign.id].objectives.map(o => o.id));
     if (normalized.campaign.completedObjectives.some(id => !objectiveIds.has(id))) throw new Error("Campaign objective list is invalid.");
     if (normalized.events.length > 200 || normalized.events.some(e => !e || !Number.isInteger(e.turn) || e.turn < 1 || e.turn > normalized.turn || typeof e.text !== "string" || e.text.length > 240)) throw new Error("World history is invalid.");
     if (normalized.achievements.length > 100 || normalized.achievements.some(a => typeof a !== "string" || a.length > 80)) throw new Error("Achievement list is invalid.");
     if (normalized.creations.length > 500 || normalized.creations.some(c => !c || typeof c.id !== "string" || typeof c.title !== "string" || c.title.length > 64 || typeof c.creator !== "string" || c.creator.length > 48 || typeof c.description !== "string" || c.description.length > 500)) throw new Error("Creator registry is invalid.");
+    if (normalized.diplomacy.treaties.length > 500 || normalized.diplomacy.conflicts.length > 500) throw new Error("Diplomatic history is too large.");
     for (const treaty of normalized.diplomacy.treaties) {
       if (!treaty || !normalized.rivals[treaty.rivalId] || !["trade", "research", "alliance", "non-aggression"].includes(treaty.kind) ||
           !["active", "expired"].includes(treaty.status) || !Number.isInteger(treaty.startedTurn) || treaty.startedTurn > normalized.turn) throw new Error("Diplomatic agreement is invalid.");
@@ -135,6 +172,16 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
+    if (input && input.schemaVersion === 1) {
+      const state = copy(input);
+      state.schemaVersion = SAVE_VERSION;
+      state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
+      if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
+      state.campaign.buildingStart = Object.values(state.buildings || {}).reduce((a, b) => a + safeInt(b), 0);
+      state.creations = Array.isArray(state.creations) ? state.creations : [];
+      state.achievements = Array.isArray(state.achievements) ? state.achievements : [];
+      return validateSave(state);
+    }
     if (input && !("schemaVersion" in input) && input.buildings && input.events) {
       const state = createInitialState();
       state.turn = safeInt(input.turn, 1, 10_000_000) || 1;
@@ -209,6 +256,7 @@
       const cost = amount * price;
       if (state.resources.credits < cost) throw new Error("Not enough credits.");
       if (state.market.stock[resource] < amount) throw new Error("The world market does not have enough stock.");
+      if (state.resources[resource] + amount > RESOURCE_LIMIT) throw new Error(resource + " storage limit reached.");
       state.resources.credits -= cost;
       state.resources[resource] += amount;
       state.market.stock[resource] -= amount;
@@ -254,9 +302,10 @@
     if (rival.relation < (kind === "alliance" ? 50 : 20)) throw new Error(rival.name + " does not trust your nation enough.");
     const id = rivalId + ":" + kind;
     if (state.diplomacy.treaties.some(t => t.id === id && t.status === "active")) throw new Error("This agreement is already active.");
-    state.diplomacy.treaties.push({ id, rivalId, kind, status: "active", startedTurn: state.turn, duration: kind === "alliance" ? 8 : 5 });
+    state.diplomacy.treaties.push({ id, rivalId, kind, status: "active", startedTurn: state.turn, duration: kind === "alliance" ? 12 : 5 });
     rival.treaties.push(kind);
     addEvent(state, rival.name + " signed a " + kind + " agreement.", "diplomacy");
+    updateObjectives(state);
     return state;
   }
   function declareConflict(state, rivalId) {
@@ -316,9 +365,13 @@
       if (state.campaign.completedObjectives.includes(objective.id)) continue;
       let complete = false;
       if (objective.resource) complete = state.resources[objective.resource] >= objective.target;
-      if (objective.buildings) complete = Object.values(state.buildings).reduce((a, b) => a + b, 0) >= objective.target + 6;
+      if (objective.buildings) complete = Object.values(state.buildings).reduce((a, b) => a + b, 0) - state.campaign.buildingStart >= objective.target;
       if (objective.relations) complete = Object.values(state.rivals).some(r => r.relation >= objective.target);
       if (objective.technologies) complete = state.technologies.length >= objective.target;
+      if (objective.turn) complete = state.turn >= objective.turn;
+      if (objective.stability) complete = state.nation.stability >= objective.stability;
+      if (objective.population) complete = state.nation.population >= objective.population;
+      if (objective.treaty) complete = state.diplomacy.treaties.some(t => t.kind === objective.treaty && t.status === "active");
       if (complete) {
         state.campaign.completedObjectives.push(objective.id);
         addEvent(state, "Campaign objective completed: " + objective.text + ".", "milestone");
@@ -327,8 +380,8 @@
     if (state.campaign.completedObjectives.length === campaign.objectives.length) {
       state.campaign.status = "victory";
       state.status = "victory";
-      if (!state.achievements.includes("founding-victory")) state.achievements.push("founding-victory");
-      addEvent(state, "Victory! Your nation has completed the founding campaign.", "victory");
+      if (!state.achievements.includes("campaign-victory")) state.achievements.push("campaign-victory");
+      addEvent(state, "Victory! Your nation has completed " + campaign.name + ".", "victory");
     }
   }
   function updateObjectives(state) { resolveObjectives(state); }
@@ -392,7 +445,7 @@
         rival.stability = Math.min(100, rival.stability + 1);
         if (rival.resources.food > 25 && rival.stability > 50) rival.population = Math.min(RESOURCE_LIMIT, rival.population + 1 + Math.floor((rival.buildings.housing || 0) / 2));
       }
-      if (rival.resources.food < foodTarget && rival.resources.credits >= 35) {
+      if (rival.resources.food < foodTarget && rival.resources.credits >= 35 && rival.buildings.farm < 10_000) {
         rival.buildings.farm++;
         rival.resources.credits -= 35;
         rival.stance = "Investing in food security";
@@ -409,7 +462,7 @@
         rival.resources.science -= 34;
         rival.technologies.push("industry");
         rival.stance = "Advancing technology";
-      } else if (rival.resources.credits > 70 && nextRandom(state) > 0.62) {
+      } else if (rival.resources.credits > 70 && nextRandom(state) > 0.62 && rival.buildings.market < 10_000) {
         rival.buildings.market++;
         rival.resources.credits -= 52;
         rival.stance = "Growing trade";
@@ -421,6 +474,7 @@
   }
   function advanceTurn(state) {
     if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (state.turn >= 10_000_000) throw new Error("Turn limit reached.");
     state.turn++;
     for (const treaty of state.diplomacy.treaties) {
       if (treaty.status === "active" && state.turn - treaty.startedTurn >= treaty.duration) {

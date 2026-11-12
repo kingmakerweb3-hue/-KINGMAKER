@@ -24,49 +24,49 @@
     </section>
     <section id="metrics" class="metrics" aria-label="National resources"></section>
     <nav class="tabs" aria-label="Game sections" role="tablist">
-      <button class="active" role="tab" aria-selected="true" data-tab="overview">World</button>
-      <button role="tab" aria-selected="false" data-tab="nation">Nation</button>
-      <button role="tab" aria-selected="false" data-tab="market">Economy</button>
-      <button role="tab" aria-selected="false" data-tab="diplomacy">Diplomacy</button>
-      <button role="tab" aria-selected="false" data-tab="research">Research</button>
-      <button role="tab" aria-selected="false" data-tab="campaign">Campaign</button>
-      <button role="tab" aria-selected="false" data-tab="director">World Director</button>
-      <button role="tab" aria-selected="false" data-tab="creator">Creator Studio</button>
-      <button role="tab" aria-selected="false" data-tab="history">History</button>
+      <button id="tab-overview" class="active" role="tab" aria-controls="panel-overview" aria-selected="true" data-tab="overview">World</button>
+      <button id="tab-nation" role="tab" aria-controls="panel-nation" aria-selected="false" data-tab="nation">Nation</button>
+      <button id="tab-market" role="tab" aria-controls="panel-market" aria-selected="false" data-tab="market">Economy</button>
+      <button id="tab-diplomacy" role="tab" aria-controls="panel-diplomacy" aria-selected="false" data-tab="diplomacy">Diplomacy</button>
+      <button id="tab-research" role="tab" aria-controls="panel-research" aria-selected="false" data-tab="research">Research</button>
+      <button id="tab-campaign" role="tab" aria-controls="panel-campaign" aria-selected="false" data-tab="campaign">Campaign</button>
+      <button id="tab-director" role="tab" aria-controls="panel-director" aria-selected="false" data-tab="director">World Director</button>
+      <button id="tab-creator" role="tab" aria-controls="panel-creator" aria-selected="false" data-tab="creator">Creator Studio</button>
+      <button id="tab-history" role="tab" aria-controls="panel-history" aria-selected="false" data-tab="history">History</button>
     </nav>
-    <section id="panel-overview" class="tab-panel grid">
+    <section id="panel-overview" class="tab-panel grid" role="tabpanel" aria-labelledby="tab-overview" tabindex="0">
       <article class="panel span-8"><div class="panel-heading"><div><p class="eyebrow">THE KNOWN WORLD</p><h2>Regional map</h2></div><span class="tag">STRATEGIC VIEW</span></div><div id="world-map" class="world-map"></div><div id="map-legend" class="map-legend"></div></article>
       <article class="panel span-4"><p class="eyebrow">NATIONAL OUTLOOK</p><h2>World intelligence</h2><div class="intel-line"><span>Stability</span><b id="stability-value">80%</b></div><div class="meter"><i id="stability-bar"></i></div><div id="production-summary" class="production-summary"></div><div class="notice">A turn advances your economy, rival decisions, world prices, diplomacy, and events.</div></article>
       <article class="panel span-12"><div class="panel-heading"><div><p class="eyebrow">LOCAL SIMULATION</p><h2>World Director</h2></div><button id="director-run">Assess my nation</button></div><div id="director-advice" class="advice-grid"></div></article>
     </section>
-    <section id="panel-nation" class="tab-panel grid" hidden>
+    <section id="panel-nation" class="tab-panel grid" role="tabpanel" aria-labelledby="tab-nation" tabindex="0" hidden>
       <article class="panel span-5"><p class="eyebrow">NATIONAL CHARTER</p><h2>My nation</h2><label for="nation-name">Nation name</label><input id="nation-name" maxlength="48"><label for="government">Government</label><select id="government"><option>Republic</option><option>Federation</option><option>Merchant Council</option><option>Constitutional Monarchy</option></select><button id="save-profile" class="primary top-gap">Save charter</button><div class="notice">All resources are simulated game values. Nothing here represents real money or a political service.</div></article>
       <article class="panel span-7"><p class="eyebrow">BUILD THE FUTURE</p><h2>Infrastructure</h2><div id="building-list" class="list-stack"></div></article>
     </section>
-    <section id="panel-market" class="tab-panel grid" hidden>
+    <section id="panel-market" class="tab-panel grid" role="tabpanel" aria-labelledby="tab-market" tabindex="0" hidden>
       <article class="panel span-7"><p class="eyebrow">SUPPLY · DEMAND · PRICE</p><h2>World market</h2><p class="muted">Turn production, population needs, rival economies, and your trades move available supply and prices.</p><div id="market-list" class="market-list"></div><div id="market-trends" class="trend-line"></div></article>
       <article class="panel span-5"><p class="eyebrow">THE NATIONAL ECONOMY</p><h2>Trade policy</h2><p class="muted">Prices update after each world turn. Markets can run short when the world consumes more than it produces.</p><div class="economy-callout"><b>Trading controls</b><p>Buy orders use market stock and your credits. Sell orders add goods back to world supply. Prices are quoted before each trade.</p></div><div class="notice">KINGMAKER credits and resources have no real-world value.</div></article>
     </section>
-    <section id="panel-diplomacy" class="tab-panel grid" hidden>
+    <section id="panel-diplomacy" class="tab-panel grid" role="tabpanel" aria-labelledby="tab-diplomacy" tabindex="0" hidden>
       <article class="panel span-12"><div class="panel-heading"><div><p class="eyebrow">REGIONAL RELATIONS</p><h2>Diplomacy & conflict</h2></div><span id="treaty-summary" class="tag"></span></div><p class="muted">Relationships affect access to agreements. Treaties expire after several turns; active conflict consumes power and stability.</p><div id="diplomacy-list" class="diplomacy-grid"></div></article>
     </section>
-    <section id="panel-research" class="tab-panel grid" hidden>
+    <section id="panel-research" class="tab-panel grid" role="tabpanel" aria-labelledby="tab-research" tabindex="0" hidden>
       <article class="panel span-8"><p class="eyebrow">SCIENCE UNLOCKS ADVANTAGE</p><h2>Technology tree</h2><div id="technology-list" class="list-stack"></div></article>
       <article class="panel span-4"><p class="eyebrow">RESEARCH OFFICE</p><h2>Research reserves</h2><strong id="science-reserve" class="big-number"></strong><p class="muted">Academies generate science every turn. Technologies affect national production and resilience.</p></article>
     </section>
-    <section id="panel-campaign" class="tab-panel grid" hidden>
-      <article class="panel span-7"><p class="eyebrow">CAMPAIGN · CHAPTER ONE</p><h2 id="campaign-name"></h2><p id="campaign-description" class="muted"></p><p id="campaign-status" class="tag"></p><div id="campaign-objectives" class="objective-list"></div></article>
-      <article class="panel span-5"><p class="eyebrow">MILESTONES</p><h2>Achievements</h2><div id="achievement-list" class="achievement-list"></div><div class="notice">Complete every founding objective to win the campaign. Stability collapse or a population below 11 means defeat.</div></article>
+    <section id="panel-campaign" class="tab-panel grid" role="tabpanel" aria-labelledby="tab-campaign" tabindex="0" hidden>
+      <article class="panel span-7"><p class="eyebrow">CAMPAIGN · MISSIONS</p><h2 id="campaign-name"></h2><p id="campaign-description" class="muted"></p><p id="campaign-status" class="tag"></p><label for="campaign-picker">Choose a campaign</label><select id="campaign-picker"></select><button id="start-campaign" class="primary top-gap">Begin campaign</button><div id="campaign-objectives" class="objective-list top-gap"></div></article>
+      <article class="panel span-5"><p class="eyebrow">MILESTONES</p><h2>Achievements</h2><div id="achievement-list" class="achievement-list"></div><div class="notice">Complete every campaign objective to win. Stability collapse or a population below 11 means defeat.</div></article>
     </section>
-    <section id="panel-director" class="tab-panel grid" hidden>
+    <section id="panel-director" class="tab-panel grid" role="tabpanel" aria-labelledby="tab-director" tabindex="0" hidden>
       <article class="panel span-8"><p class="eyebrow">LOCAL GAME ADVISOR</p><h2>AI World Director</h2><p class="muted">The Director evaluates your actual resources, production, stability, and relations. It runs locally as game logic; no cloud model or account is connected.</p><button id="director-run-panel" class="primary">Refresh recommendations</button><div id="director-advice-panel" class="advice-grid top-gap"></div></article>
       <article class="panel span-4"><p class="eyebrow">AUTONOMOUS COUNCIL</p><h2>Rival decisions</h2><p class="muted">Each nation has a profile, stores, population, infrastructure, and priorities. Rivals produce goods, consume food, build, research, respond to shortages, and compete for regional strength each turn.</p><div class="notice">No external AI service or API key is used.</div></article>
     </section>
-    <section id="panel-creator" class="tab-panel grid" hidden>
+    <section id="panel-creator" class="tab-panel grid" role="tabpanel" aria-labelledby="tab-creator" tabindex="0" hidden>
       <article class="panel span-5"><p class="eyebrow">AUTHOR YOUR WORLD</p><h2>Creator Studio</h2><p class="muted">Keep a local registry of original designs for cities, infrastructure, technology, businesses, or art.</p><form id="creator-form"><label for="creator-name">Creator name</label><input id="creator-name" maxlength="48" required><label for="creation-title">Creation title</label><input id="creation-title" maxlength="64" required><label for="creation-category">Category</label><select id="creation-category"><option>City Design</option><option>Building</option><option>Technology</option><option>Business</option><option>Artwork</option><option>World Lore</option></select><label for="creation-description">Description</label><textarea id="creation-description" maxlength="500" rows="4"></textarea><button class="primary top-gap" type="submit">Register creation</button></form><div class="notice">Registry entries are saved in this browser. This is not legal copyright registration or an NFT.</div></article>
       <article class="panel span-7"><p class="eyebrow">YOUR LOCAL ARCHIVE</p><h2>Creator registry</h2><div id="creator-list" class="list-stack"></div></article>
     </section>
-    <section id="panel-history" class="tab-panel grid" hidden>
+    <section id="panel-history" class="tab-panel grid" role="tabpanel" aria-labelledby="tab-history" tabindex="0" hidden>
       <article class="panel span-12"><p class="eyebrow">A RECORD OF YOUR CIVILIZATION</p><h2>World history</h2><div id="history-list" class="history-list"></div></article>
     </section>
   </main>

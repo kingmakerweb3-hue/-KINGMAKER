@@ -19,7 +19,7 @@ Open <http://127.0.0.1:4173>. The server only binds to loopback.
 - **Economy** lets you buy and sell food and materials against finite world-market stock.
 - **Diplomacy** lets you send aid, recall an envoy, offer agreements, and manage conflict.
 - **Research** spends science to unlock production and resilience effects.
-- **Campaign** tracks the founding objectives, achievements, victory, and defeat.
+- **Campaign** offers three scenarios with objectives, achievements, victory, and defeat.
 - **World Director** gives local rule-based advice based on current game state.
 - **Creator Studio** stores local creation records in the save.
 - **Export save / Import save** move a versioned JSON save between browsers.
@@ -36,10 +36,12 @@ npm test
 
 The engine is in `src/engine.js`; the browser interface is in `src/app.js`; automated rules tests are in `tests/engine.test.js`.
 
+See [`docs/gameplay.md`](docs/gameplay.md) for economy, technology, diplomacy, campaign, and save rules.
+
 ## Save data
 
-Current saves use schema version 1. The importer validates bounds and required objects before replacing the active game, and it migrates saves from the original v0.3 prototype. Automatic local saves keep a previous safe copy for recovery. Export backups regularly if you clear browser storage or change devices.
+Current saves use schema version 2. The importer validates bounds and required objects before replacing the active game, and it migrates saves from both the v0.3 prototype and the first KINGMAKER v1 development save format. Automatic local saves keep a previous safe copy for recovery. Export backups regularly if you clear browser storage or change devices.
 
 ## Development status
 
-The current build is an in-progress v1 foundation. It includes a founding campaign and local simulation; additional balancing, broader content, and release verification remain before calling v1.0 complete.
+The current build is an in-progress v1 foundation. It includes three local campaigns and simulation systems; additional balancing, broader content, and release verification remain before calling v1.0 complete.

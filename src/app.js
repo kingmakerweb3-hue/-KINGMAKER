@@ -10,7 +10,7 @@
     clearTimeout(toast.timer); toast.timer=setTimeout(()=>{el.hidden=true;},3800);
   }
   function load() {
-    try { const s=localStorage.getItem(KEY); if(s) return E.validateSave(JSON.parse(s)); } catch (_) {
+    try { const s=localStorage.getItem(KEY); if(s) return E.migrateSave(JSON.parse(s)); } catch (_) {
       try { const b=localStorage.getItem(BACKUP); if(b){toast("Recovered your previous safe save. Export it to keep a copy.","warning");return E.migrateSave(JSON.parse(b));} } catch (_) {}
       toast("Latest save was unreadable. A new game is ready; use Import Save to recover a file.","warning");
     }
@@ -60,7 +60,7 @@
   }
   function renderMarket() {
     $("market-list").innerHTML=["food","materials"].map(r=>'<article class="market-row"><div><strong>'+r[0].toUpperCase()+r.slice(1)+'</strong><small>World stock: '+num(state.market.stock[r])+' · Your stock: '+num(state.resources[r])+'</small></div><b>'+state.market.prices[r].toFixed(2)+' cr</b><div class="trade-buttons"><button data-action="trade" data-resource="'+r+'" data-amount="-10">Sell 10</button><button data-action="trade" data-resource="'+r+'" data-amount="10">Buy 10</button></div></article>').join("");
-    $("market-trends").innerHTML=["food","materials"].map(r=>'<span>'+r+': '+(state.market.lastFlow[r]>=0?"+":"")+num(state.market.lastFlow[r]||0)+' world flow · '+(state.market.lastFlow[r]>0?"price easing":"price rising")+'</span>').join("");
+    $("market-trends").innerHTML=["food","materials"].map(r=>{const flow=state.market.lastFlow[r]||0,trend=flow>0?"price easing":flow<0?"price rising":"price steady";return '<span>'+r+': '+(flow>=0?"+":"")+num(flow)+' world flow · '+trend+'</span>';}).join("");
   }
   function renderDiplomacy() {
     const treatyTypes=["trade","research","non-aggression","alliance"];
@@ -78,8 +78,9 @@
   function renderCampaign() {
     const c=E.CAMPAIGNS[state.campaign.id]; $("campaign-name").textContent=c.name;$("campaign-description").textContent=c.description;
     $("campaign-status").textContent=state.status==="playing"?"Turn "+state.turn+" · Campaign active":state.status.toUpperCase();
-    $("campaign-objectives").innerHTML=c.objectives.map(o=>{const done=state.campaign.completedObjectives.includes(o.id);let value=o.resource?state.resources[o.resource]:o.buildings?Math.max(0,totalBuildings()-6):o.relations?Math.max(0,...Object.values(state.rivals).map(r=>r.relation)):state.technologies.length;return '<article class="objective '+(done?"complete":"")+'"><span class="objective-check">'+(done?"✓":"○")+'</span><div><b>'+esc(o.text)+'</b><small>'+(done?"Completed":num(value)+" / "+o.target)+'</small></div></article>';}).join("");
-    const medals=[["founding-victory","Founder of the Realm","Complete the founding campaign."],["first-research","Curious Minds","Research a technology."],["builder","Master Builder","Build 10 infrastructure levels."],["good-neighbor","Good Neighbor","Reach 50 relations with a rival."]],earned=new Set(state.achievements);
+    const picker=$("campaign-picker");picker.innerHTML=Object.entries(E.CAMPAIGNS).map(([id,item])=>'<option value="'+id+'">'+esc(item.name)+'</option>').join("");picker.value=state.campaign.id;
+    $("campaign-objectives").innerHTML=c.objectives.map(o=>{const done=state.campaign.completedObjectives.includes(o.id);let value=o.resource?state.resources[o.resource]:o.buildings?Math.max(0,totalBuildings()-state.campaign.buildingStart):o.relations?Math.max(0,...Object.values(state.rivals).map(r=>r.relation)):o.technologies?state.technologies.length:o.turn?state.turn:o.stability?state.nation.stability:o.population?state.nation.population:state.diplomacy.treaties.filter(t=>t.kind===o.treaty&&t.status==="active").length;return '<article class="objective '+(done?"complete":"")+'"><span class="objective-check">'+(done?"✓":"○")+'</span><div><b>'+esc(o.text)+'</b><small>'+(done?"Completed":num(value)+" / "+o.target)+'</small></div></article>';}).join("");
+    const medals=[["campaign-victory","Victor of the Realm","Complete any campaign."],["first-research","Curious Minds","Research a technology."],["builder","Master Builder","Build 10 infrastructure levels."],["good-neighbor","Good Neighbor","Reach 50 relations with a rival."]],earned=new Set(state.achievements);
     $("achievement-list").innerHTML=medals.map(([id,n,d])=>'<div class="achievement '+(earned.has(id)?"earned":"")+'"><span>'+(earned.has(id)?"★":"☆")+'</span><div><b>'+n+'</b><small>'+d+'</small></div></div>').join("");
   }
   function renderCreator() {
@@ -95,7 +96,7 @@
     if(!state.technologies.length&&state.resources.science>=28)a.push(["Opportunity","Advanced Agriculture is available to research."]);
     const r=Object.values(state.rivals).sort((x,y)=>x.relation-y.relation)[0];
     if(r&&r.relation<=-20)a.push(["Diplomacy",r.name+" is hostile. A non-aggression offer or peace delegation can contain risk."]);
-    if(!state.campaign.completedObjectives.length)a.push(["Campaign","Review the founding objectives; complete all four to win."]);
+    if(!state.campaign.completedObjectives.length)a.push(["Campaign","Review the campaign objectives; complete all four to win this scenario."]);
     if(!a.length)a.push(["Strong","Your nation is balanced. Expand infrastructure, research, and regional agreements."]);
     return a;
   }
@@ -133,10 +134,14 @@
       if(totalBuildings()>=10&&!state.achievements.includes("builder"))state.achievements.push("builder");
     });
   });
+  $("world-map").addEventListener("keydown",event=>{
+    if(event.key==="Enter"||event.key===" "){const node=event.target.closest("[data-focus]");if(node){event.preventDefault();node.click();}}
+  });
   $("advance-turn").addEventListener("click",()=>act(()=>E.advanceTurn(state)));
   $("save-profile").addEventListener("click",()=>{const name=$("nation-name").value.trim();if(!name||name.length>48)return toast("Nation name must contain 1–48 characters.","error");state.nation.name=name;state.nation.government=$("government").value;E.addEvent(state,"National charter updated.","player");persist();toast("Nation charter saved.","success");});
   $("export-save").addEventListener("click",exportSave);$("import-save").addEventListener("click",()=>$("import-file").click());$("import-file").addEventListener("change",e=>importSave(e.target.files[0]));
   $("new-game").addEventListener("click",()=>{if(!confirm("Start a new nation? Your current game will remain in the recovery backup."))return;try{localStorage.setItem(BACKUP,JSON.stringify(state));}catch(_){}state=E.createInitialState();persist();toast("A new nation has been founded.","success");});
+  $("start-campaign").addEventListener("click",()=>{if(!confirm("Begin this campaign? Your current nation will remain in the recovery backup."))return;try{localStorage.setItem(BACKUP,JSON.stringify(state));}catch(_){}state=E.createInitialState({campaignId:$("campaign-picker").value});persist();toast("Campaign started: "+E.CAMPAIGNS[state.campaign.id].name,"success");});
   $("creator-form").addEventListener("submit",e=>{e.preventDefault();act(()=>{E.registerCreation(state,{creator:$("creator-name").value,title:$("creation-title").value,category:$("creation-category").value,description:$("creation-description").value});e.target.reset();});});
   const assess=()=>{renderAdvice();toast("The local World Director assessed your nation.","success");};
   $("director-run").addEventListener("click",assess);$("director-run-panel").addEventListener("click",assess);
