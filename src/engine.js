@@ -5,12 +5,16 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 2;
+  const SAVE_VERSION = 3;
   const RESOURCE_LIMIT = 1_000_000;
-  const RESOURCE_KEYS = ["food", "materials", "credits", "science", "power", "influence"];
+  const RESOURCE_KEYS = ["food", "materials", "ore", "goods", "credits", "science", "power", "influence"];
+  const MARKET_RESOURCES = ["food", "materials", "ore", "goods"];
   const BUILDINGS = {
     farm: { name: "Farm", cost: { materials: 24, credits: 36 }, production: { food: 12 } },
+    mine: { name: "Mine", cost: { materials: 32, credits: 52 }, production: { ore: 10 } },
     workshop: { name: "Workshop", cost: { materials: 30, credits: 48 }, production: { materials: 9 } },
+    factory: { name: "Factory", cost: { materials: 48, credits: 86 }, production: { goods: 10 }, inputs: { materials: 5, ore: 3, power: 2 } },
+    transport: { name: "Transport Hub", cost: { materials: 38, credits: 62 }, production: { logistics: 1 } },
     market: { name: "Market", cost: { materials: 28, credits: 52 }, production: { credits: 10 } },
     academy: { name: "Academy", cost: { materials: 36, credits: 68 }, production: { science: 5 } },
     power: { name: "Power Grid", cost: { materials: 42, credits: 74 }, production: { power: 4 } },
@@ -19,6 +23,7 @@
   const TECHNOLOGIES = {
     agriculture: { name: "Advanced Agriculture", cost: 28, effect: "farm", factor: 1.5 },
     industry: { name: "Industrial Methods", cost: 34, effect: "workshop", factor: 1.5 },
+    manufacturing: { name: "Precision Manufacturing", cost: 55, effect: "factory", factor: 1.5 },
     commerce: { name: "Trade Networks", cost: 40, effect: "market", factor: 1.5 },
     governance: { name: "Civic Governance", cost: 38, effect: "stability", factor: 1 },
     energy: { name: "Energy Systems", cost: 48, effect: "power", factor: 1.5 },
@@ -78,14 +83,15 @@
       resources: { food: 120, materials: 105, credits: 180, science: 0, power: 20, influence: 20 },
       buildings: { farm: 2, workshop: 1, market: 1, academy: 1, power: 1, housing: 0 },
       technologies: [],
-      market: { stock: { food: 400, materials: 300 }, basePrices: { food: 2, materials: 4 }, prices: { food: 2, materials: 4 }, lastFlow: { food: 0, materials: 0 } },
+      market: { stock: { food: 400, materials: 300, ore: 240, goods: 180 }, basePrices: { food: 2, materials: 4, ore: 5, goods: 8 }, prices: { food: 2, materials: 4, ore: 5, goods: 8 }, lastFlow: { food: 0, materials: 0, ore: 0, goods: 0 } },
       rivals: Object.fromEntries(RIVAL_TEMPLATES.map((r, i) => [r.id, {
         id: r.id, name: r.name, traits: r.traits, population: r.population, stability: 70 + i * 5,
-        resources: { food: 90 + i * 15, materials: 70 + i * 10, credits: 120, science: i * 6, power: 12 },
-        buildings: { farm: 2, workshop: 1, market: 1, academy: i === 2 ? 1 : 0, power: 0, housing: 0 },
-        technologies: [], relation: [15, 5, -5][i], stance: "Cautious", treaties: []
+        resources: { food: 90 + i * 15, materials: 70 + i * 10, ore: 36 + i * 8, goods: 12, credits: 120, science: i * 6, power: 12, influence: 10 },
+        buildings: { farm: 2, mine: 1, workshop: 1, factory: 0, transport: 0, market: 1, academy: i === 2 ? 1 : 0, power: 0, housing: 0 },
+        technologies: [], relation: [15, 5, -5][i], stance: "Cautious", activity: "Maintaining reserves", treaties: []
       }])) ,
       diplomacy: { treaties: [], conflicts: [] },
+      economy: { lastIncome: 0, lastExpenses: 0, lastBalance: 0, workforce: 0, employed: 0, production: { food: 0, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, capacity: 0, logistics: 0 }, consumption: { food: 0, materials: 0, ore: 0, power: 0 }, phase: "stable", deficitTurns: 0, recoveryTurns: 0 },
       campaign: { id: campaignId, completedObjectives: [], status: "active", buildingStart: 6 },
       achievements: [], creations: [], events: [{ turn: 1, text: "Your civilization was founded. The first chapter begins.", type: "milestone" }],
       status: "playing"
@@ -100,6 +106,11 @@
       state.resources.food = 150; state.resources.materials = 135; state.resources.credits = 300; state.resources.science = 18;
       state.buildings.farm = 2; state.buildings.workshop = 2; state.buildings.market = 1; state.buildings.academy = 1; state.buildings.power = 1;
     }
+    state.resources.ore = 48;
+    state.resources.goods = 8;
+    state.buildings.mine = 1;
+    state.buildings.factory = 0;
+    state.buildings.transport = 0;
     state.campaign.buildingStart = Object.values(state.buildings).reduce((a, b) => a + b, 0);
     state.events[0].text = campaignId === "founding" ? state.events[0].text : "Your nation entered the " + CAMPAIGNS[campaignId].name + " campaign.";
     return state;
@@ -130,7 +141,7 @@
         !Array.isArray(normalized.achievements) || !Array.isArray(normalized.creations) || !Array.isArray(normalized.events)) {
       throw new Error("Save is missing world simulation data.");
     }
-    for (const key of ["food", "materials"]) {
+    for (const key of MARKET_RESOURCES) {
       if (!Number.isInteger(normalized.market.stock[key]) || normalized.market.stock[key] < 0 || normalized.market.stock[key] > RESOURCE_LIMIT) throw new Error("Market stock is invalid.");
       if (!Number.isFinite(normalized.market.prices[key]) || normalized.market.prices[key] < 1 || normalized.market.prices[key] > 100) throw new Error("Market price is invalid.");
       if (!Number.isFinite(normalized.market.basePrices[key]) || normalized.market.basePrices[key] < 1 || normalized.market.basePrices[key] > 100) throw new Error("Market base price is invalid.");
@@ -138,9 +149,9 @@
     }
     if (Object.keys(normalized.rivals).length > 50) throw new Error("Save contains too many rival nations.");
     for (const [rivalId, rival] of Object.entries(normalized.rivals)) {
-      if (!rival || typeof rival.name !== "string" || rival.name.length > 48 || !Number.isInteger(rival.population) || rival.population < 1 || rival.population > RESOURCE_LIMIT || !rival.resources || !rival.buildings || typeof rival.stance !== "string" || !Array.isArray(rival.traits) || !Array.isArray(rival.treaties)) throw new Error("Rival nation data is invalid.");
+      if (!rival || typeof rival.name !== "string" || rival.name.length > 48 || !Number.isInteger(rival.population) || rival.population < 1 || rival.population > RESOURCE_LIMIT || !rival.resources || !rival.buildings || typeof rival.stance !== "string" || typeof rival.activity !== "string" || rival.activity.length > 100 || !Array.isArray(rival.traits) || !Array.isArray(rival.treaties)) throw new Error("Rival nation data is invalid.");
       if (!Number.isInteger(rival.relation) || rival.relation < -100 || rival.relation > 100) throw new Error("Diplomatic relation is invalid.");
-      for (const key of ["food", "materials", "credits", "science", "power"]) {
+      for (const key of RESOURCE_KEYS) {
         if (!Number.isInteger(rival.resources[key]) || rival.resources[key] < 0 || rival.resources[key] > RESOURCE_LIMIT) throw new Error("Rival resource value is invalid.");
       }
       for (const id of Object.keys(BUILDINGS)) {
@@ -148,6 +159,15 @@
       }
       if (!Array.isArray(rival.technologies) || rival.technologies.some(id => !TECHNOLOGIES[id])) throw new Error("Rival technology list is invalid.");
       if (rival.id !== rivalId) throw new Error("Rival identity does not match its save key.");
+    }
+    if (!normalized.economy || !["lastIncome", "lastExpenses", "workforce", "employed", "deficitTurns", "recoveryTurns"].every(key => Number.isInteger(normalized.economy[key]) && normalized.economy[key] >= 0 && normalized.economy[key] <= RESOURCE_LIMIT) ||
+        !Number.isInteger(normalized.economy.lastBalance) || Math.abs(normalized.economy.lastBalance) > RESOURCE_LIMIT ||
+        !["stable", "growth", "recession", "recovery"].includes(normalized.economy.phase) || !normalized.economy.production || !normalized.economy.consumption) throw new Error("Economic ledger is invalid.");
+    for (const key of ["food", "materials", "ore", "goods", "credits", "science", "power", "capacity", "logistics"]) {
+      if (!Number.isInteger(normalized.economy.production[key]) || normalized.economy.production[key] < 0 || normalized.economy.production[key] > RESOURCE_LIMIT) throw new Error("Economic production ledger is invalid.");
+    }
+    for (const key of ["food", "materials", "ore", "power"]) {
+      if (!Number.isInteger(normalized.economy.consumption[key]) || normalized.economy.consumption[key] < 0 || normalized.economy.consumption[key] > RESOURCE_LIMIT) throw new Error("Economic consumption ledger is invalid.");
     }
     if (!CAMPAIGNS[normalized.campaign.id] || !["active", "victory", "defeat"].includes(normalized.campaign.status)) throw new Error("Campaign status is invalid.");
     if (!Number.isInteger(normalized.campaign.buildingStart) || normalized.campaign.buildingStart < 0 || normalized.campaign.buildingStart > 100_000) throw new Error("Campaign infrastructure baseline is invalid.");
@@ -172,14 +192,18 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && input.schemaVersion === 1) {
+    if (input && (input.schemaVersion === 1 || input.schemaVersion === 2)) {
       const state = copy(input);
-      state.schemaVersion = SAVE_VERSION;
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
-      state.campaign.buildingStart = Object.values(state.buildings || {}).reduce((a, b) => a + safeInt(b), 0);
+      if (!Number.isInteger(state.campaign.buildingStart)) {
+        state.campaign.buildingStart = ["farm", "workshop", "market", "academy", "power", "housing"]
+          .reduce((sum, id) => sum + safeInt((state.buildings || {})[id], 0, 10_000), 0);
+      }
       state.creations = Array.isArray(state.creations) ? state.creations : [];
       state.achievements = Array.isArray(state.achievements) ? state.achievements : [];
+      state.schemaVersion = SAVE_VERSION;
+      addIndustryDefaults(state);
       return validateSave(state);
     }
     if (input && !("schemaVersion" in input) && input.buildings && input.events) {
@@ -209,9 +233,39 @@
         description: String(c.description || "").slice(0, 500),
         createdTurn: state.turn
       }));
+      state.schemaVersion = SAVE_VERSION;
+      addIndustryDefaults(state);
       return validateSave(state);
     }
     throw new Error("Save is corrupt or from an unsupported version.");
+  }
+
+  function addIndustryDefaults(state) {
+    for (const key of ["ore", "goods"]) state.resources[key] = safeInt(state.resources[key], key === "ore" ? 48 : 8);
+    for (const id of Object.keys(BUILDINGS)) state.buildings[id] = safeInt(state.buildings[id], 0, 10_000);
+    state.market.stock = state.market.stock || {};
+    state.market.basePrices = state.market.basePrices || {};
+    state.market.prices = state.market.prices || {};
+    state.market.lastFlow = state.market.lastFlow || {};
+    for (const [key, stock, price] of [["ore", 240, 5], ["goods", 180, 8]]) {
+      state.market.stock[key] = safeInt(state.market.stock[key], stock);
+      state.market.basePrices[key] = Number.isFinite(state.market.basePrices[key]) ? state.market.basePrices[key] : price;
+      state.market.prices[key] = Number.isFinite(state.market.prices[key]) ? state.market.prices[key] : price;
+      state.market.lastFlow[key] = safeInt(state.market.lastFlow[key], 0);
+    }
+    state.economy = state.economy || { lastIncome: 0, lastExpenses: 0, lastBalance: 0, workforce: 0, employed: 0, production: { food: 0, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, capacity: 0, logistics: 0 }, consumption: { food: 0, materials: 0, ore: 0, power: 0 }, phase: "stable", deficitTurns: 0, recoveryTurns: 0 };
+    state.economy.production = state.economy.production || { food: 0, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, capacity: 0, logistics: 0 };
+    state.economy.consumption = state.economy.consumption || { food: 0, materials: 0, ore: 0, power: 0 };
+    for (const key of ["food", "materials", "ore", "goods", "credits", "science", "power", "capacity", "logistics"]) state.economy.production[key] = safeInt(state.economy.production[key], 0);
+    for (const key of ["food", "materials", "ore", "power"]) state.economy.consumption[key] = safeInt(state.economy.consumption[key], 0);
+    state.economy.phase = ["stable", "growth", "recession", "recovery"].includes(state.economy.phase) ? state.economy.phase : "stable";
+    state.economy.deficitTurns = safeInt(state.economy.deficitTurns, 0, RESOURCE_LIMIT);
+    state.economy.recoveryTurns = safeInt(state.economy.recoveryTurns, 0, 100);
+    for (const rival of Object.values(state.rivals || {})) {
+      for (const key of ["ore", "goods", "influence"]) rival.resources[key] = safeInt(rival.resources[key], key === "ore" ? 36 : 10);
+      for (const id of Object.keys(BUILDINGS)) rival.buildings[id] = safeInt(rival.buildings[id], 0, 10_000);
+      rival.activity = typeof rival.activity === "string" ? rival.activity.slice(0, 100) : "Adapting industry";
+    }
   }
 
   function nextRandom(state) {
@@ -225,16 +279,45 @@
     state.events = state.events.slice(0, 200);
   }
   function hasTech(state, id) { return state.technologies.includes(id); }
+  function factorFor(id, technologies) {
+    return Object.values(TECHNOLOGIES).filter(t => t.effect === id && technologies.includes(Object.keys(TECHNOLOGIES).find(k => TECHNOLOGIES[k] === t)))
+      .reduce((factor, t) => factor * t.factor, 1);
+  }
   function productionFor(buildings, technologies = []) {
-    const production = { food: 0, materials: 0, credits: 0, science: 0, power: 0, capacity: 0 };
+    const production = { food: 0, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, capacity: 0, logistics: 0 };
     for (const [id, definition] of Object.entries(BUILDINGS)) {
-      const level = buildings[id] || 0;
+      const level = Number.isFinite(buildings[id]) ? Math.max(0, Math.floor(buildings[id])) : 0;
       for (const [key, amount] of Object.entries(definition.production)) {
-        const tech = Object.values(TECHNOLOGIES).find(t => t.effect === id && technologies.includes(Object.keys(TECHNOLOGIES).find(k => TECHNOLOGIES[k] === t)));
-        production[key] += Math.floor(level * amount * (tech ? tech.factor : 1));
+        production[key] += Math.floor(level * amount * factorFor(id, technologies));
       }
     }
     return production;
+  }
+  const JOBS_PER_LEVEL = { farm: 4, mine: 5, workshop: 5, factory: 8, transport: 4, market: 3, academy: 4, power: 4, housing: 1 };
+  function workforceFor(buildings) { return Object.entries(JOBS_PER_LEVEL).reduce((sum, [id, jobs]) => sum + safeInt(buildings[id], 0, 10_000) * jobs, 0); }
+  function industrialOutput(resources, buildings, technologies = [], population = RESOURCE_LIMIT) {
+    const base = productionFor(buildings, technologies);
+    const factories = safeInt(buildings.factory, 0, 10_000);
+    const workforce = workforceFor(buildings);
+    const staffing = workforce > 0 ? Math.min(1, Math.max(0, population) / workforce) : 1;
+    for (const key of Object.keys(base)) base[key] = Math.floor(base[key] * staffing);
+    const activeFactories = Math.min(Math.floor(factories * staffing), Math.floor(resources.materials / 5), Math.floor(resources.ore / 3), Math.floor(resources.power / 2));
+    base.goods = Math.floor(activeFactories * 10 * factorFor("factory", technologies));
+    const inputs = { materials: activeFactories * 5, ore: activeFactories * 3, power: activeFactories * 2 };
+    return { production: base, inputs, activeFactories };
+  }
+  function economicSnapshot(state) {
+    const jobs = workforceFor(state.buildings);
+    const employed = Math.min(jobs, state.nation.population);
+    const staffing = jobs > 0 ? Math.min(1, state.nation.population / jobs) : 1;
+    const base = productionFor(state.buildings, state.technologies);
+    const industry = industrialOutput({ ...state.resources,
+      materials: clamp(state.resources.materials + Math.floor(base.materials * staffing), 0, RESOURCE_LIMIT),
+      ore: clamp(state.resources.ore + Math.floor(base.ore * staffing), 0, RESOURCE_LIMIT),
+      power: clamp(state.resources.power + Math.floor(base.power * staffing), 0, RESOURCE_LIMIT)
+    }, state.buildings, state.technologies, state.nation.population);
+    return { production: industry.production, consumption: { food: Math.ceil(state.nation.population / (12 + Math.min(8, industry.production.logistics))), ...industry.inputs },
+      workforce: jobs, employed, requiredJobs: Math.ceil(state.nation.population / 10), activeFactories: industry.activeFactories };
   }
   function build(state, id) {
     const definition = BUILDINGS[id];
@@ -244,16 +327,17 @@
     for (const [key, cost] of Object.entries(definition.cost)) if (state.resources[key] < cost) throw new Error("Not enough " + key + ".");
     for (const [key, cost] of Object.entries(definition.cost)) state.resources[key] -= cost;
     state.buildings[id] = (state.buildings[id] || 0) + 1;
+    if (id === "factory" && !state.achievements.includes("industrialist")) state.achievements.push("industrialist");
     addEvent(state, definition.name + " upgraded to level " + state.buildings[id] + ".", "player");
     updateObjectives(state);
     return state;
   }
   function trade(state, resource, amount) {
-    if (!["food", "materials"].includes(resource) || !Number.isInteger(amount) || amount === 0 || Math.abs(amount) > 1000) throw new Error("Trade order is invalid.");
+    if (!MARKET_RESOURCES.includes(resource) || !Number.isInteger(amount) || amount === 0 || Math.abs(amount) > 1000) throw new Error("Trade order is invalid.");
     if (state.status !== "playing") throw new Error("This campaign has ended.");
     const price = state.market.prices[resource];
     if (amount > 0) {
-      const cost = amount * price;
+      const cost = Math.ceil(amount * price);
       if (state.resources.credits < cost) throw new Error("Not enough credits.");
       if (state.market.stock[resource] < amount) throw new Error("The world market does not have enough stock.");
       if (state.resources[resource] + amount > RESOURCE_LIMIT) throw new Error(resource + " storage limit reached.");
@@ -263,6 +347,7 @@
     } else {
       const quantity = -amount;
       if (state.resources[resource] < quantity) throw new Error("Not enough " + resource + ".");
+      if (state.market.stock[resource] + quantity > RESOURCE_LIMIT) throw new Error("World market storage limit reached.");
       state.resources[resource] -= quantity;
       state.resources.credits = Math.min(RESOURCE_LIMIT, state.resources.credits + Math.floor(quantity * price));
       state.market.stock[resource] = Math.min(RESOURCE_LIMIT, state.market.stock[resource] + quantity);
@@ -386,57 +471,66 @@
   }
   function updateObjectives(state) { resolveObjectives(state); }
   function updateMarket(state, netFlow) {
-    for (const resource of ["food", "materials"]) {
-      const flow = netFlow[resource];
-      state.market.stock[resource] = clamp(state.market.stock[resource] + flow, 0, RESOURCE_LIMIT);
-      state.market.lastFlow[resource] = flow;
+    for (const resource of MARKET_RESOURCES) {
+      const boundedFlow = clamp(Math.trunc(netFlow[resource] || 0), -RESOURCE_LIMIT, RESOURCE_LIMIT);
+      state.market.stock[resource] = clamp(state.market.stock[resource] + boundedFlow, 0, RESOURCE_LIMIT);
+      state.market.lastFlow[resource] = boundedFlow;
       const stock = state.market.stock[resource];
       const scarcity = 1.5 - stock / 800;
-      const demandPressure = flow < 0 ? Math.min(0.75, Math.abs(flow) / 300) : -Math.min(0.45, flow / 400);
+      const demandPressure = boundedFlow < 0 ? Math.min(0.75, Math.abs(boundedFlow) / 300) : -Math.min(0.45, boundedFlow / 400);
       state.market.prices[resource] = Math.round(clamp(state.market.basePrices[resource] * (scarcity + demandPressure), 1, 20) * 100) / 100;
     }
   }
+  function rivalTrade(state, rival, resource, target, worldFlow) {
+    const stock = rival.resources[resource], price = state.market.prices[resource];
+    const available = clamp(state.market.stock[resource] + worldFlow[resource], 0, RESOURCE_LIMIT);
+    if (stock < target && available > 0) {
+      const quantity = Math.min(20, target - stock, available, Math.floor(rival.resources.credits / price));
+      if (quantity > 0) {
+        rival.resources[resource] += quantity;
+        rival.resources.credits = Math.max(0, rival.resources.credits - Math.ceil(quantity * price));
+        worldFlow[resource] -= quantity;
+        rival.stance = "Importing " + resource;
+        rival.activity = "Bought " + quantity + " " + resource + " from the regional market";
+        if (price <= state.market.basePrices[resource]) rival.relation = clamp(rival.relation + 1, -100, 100);
+        else if (price >= state.market.basePrices[resource] * 1.5) rival.relation = clamp(rival.relation - 1, -100, 100);
+        return "import";
+      }
+    } else if (stock > target + 30) {
+      const marketCapacity = Math.max(0, RESOURCE_LIMIT - state.market.stock[resource] - Math.max(0, worldFlow[resource]));
+      const quantity = Math.min(16, stock - target - 15, marketCapacity);
+      if (quantity <= 0) return "steady";
+      rival.resources[resource] -= quantity;
+      rival.resources.credits = Math.min(RESOURCE_LIMIT, rival.resources.credits + Math.floor(quantity * price));
+      worldFlow[resource] += quantity;
+      rival.stance = "Exporting " + resource;
+        rival.activity = "Sold " + quantity + " " + resource + " into the regional market";
+      return "export";
+    }
+    return "steady";
+  }
   function developRivals(state, worldFlow) {
     for (const rival of Object.values(state.rivals)) {
-      const output = productionFor(rival.buildings, rival.technologies);
-      rival.resources.food = clamp(rival.resources.food + output.food, 0, RESOURCE_LIMIT);
-      rival.resources.materials = clamp(rival.resources.materials + output.materials, 0, RESOURCE_LIMIT);
-      rival.resources.credits = Math.min(RESOURCE_LIMIT, rival.resources.credits + output.credits + Math.floor(rival.population / 20));
-      rival.resources.science = clamp(rival.resources.science + output.science, 0, RESOURCE_LIMIT);
-      rival.resources.power = Math.min(RESOURCE_LIMIT, rival.resources.power + output.power);
-      const foodNeed = Math.ceil(rival.population / 12);
-      const foodTarget = Math.ceil(rival.population * 1.5);
-      if (rival.resources.food < foodNeed + 10 && state.market.stock.food > 0) {
-        const quantity = Math.min(30, state.market.stock.food, Math.max(0, foodNeed + 20 - rival.resources.food), Math.floor(rival.resources.credits / state.market.prices.food));
-        if (quantity > 0) {
-          rival.resources.food += quantity;
-          rival.resources.credits -= Math.ceil(quantity * state.market.prices.food);
-          state.market.stock.food -= quantity;
-          rival.stance = "Importing food";
-        }
-      } else if (rival.resources.food > foodTarget + 45) {
-        const quantity = Math.min(20, rival.resources.food - foodTarget - 25);
-        rival.resources.food -= quantity;
-        rival.resources.credits = Math.min(RESOURCE_LIMIT, rival.resources.credits + Math.floor(quantity * state.market.prices.food));
-        state.market.stock.food = Math.min(RESOURCE_LIMIT, state.market.stock.food + quantity);
-        rival.stance = "Exporting food";
+      const industry = industrialOutput(rival.resources, rival.buildings, rival.technologies, rival.population), output = industry.production;
+      for (const resource of ["food", "materials", "ore", "goods", "science", "power"]) {
+        rival.resources[resource] = clamp(rival.resources[resource] + output[resource], 0, RESOURCE_LIMIT);
       }
-      if (rival.resources.materials < 24 && state.market.stock.materials > 0) {
-        const quantity = Math.min(20, state.market.stock.materials, Math.floor(rival.resources.credits / state.market.prices.materials));
-        if (quantity > 0) {
-          rival.resources.materials += quantity;
-          rival.resources.credits -= Math.ceil(quantity * state.market.prices.materials);
-          state.market.stock.materials -= quantity;
-        }
-      } else if (rival.resources.materials > 65) {
-        const quantity = Math.min(18, rival.resources.materials - 45);
-        rival.resources.materials -= quantity;
-        rival.resources.credits = Math.min(RESOURCE_LIMIT, rival.resources.credits + Math.floor(quantity * state.market.prices.materials));
-        state.market.stock.materials = Math.min(RESOURCE_LIMIT, state.market.stock.materials + quantity);
+      rival.resources.materials = Math.max(0, rival.resources.materials - industry.inputs.materials);
+      rival.resources.ore = Math.max(0, rival.resources.ore - industry.inputs.ore);
+      rival.resources.power = Math.max(0, rival.resources.power - industry.inputs.power);
+      rival.resources.credits = Math.min(RESOURCE_LIMIT, rival.resources.credits + output.credits + Math.floor(rival.population / 20));
+      for (const resource of MARKET_RESOURCES) worldFlow[resource] += output[resource] - (industry.inputs[resource] || 0);
+      const foodNeed = Math.ceil(rival.population / (12 + Math.min(8, output.logistics)));
+      const foodTarget = Math.ceil(rival.population * 1.2);
+      const tradeTargets = { food: Math.max(foodNeed + 8, foodTarget), materials: 55, ore: 32, goods: 24 };
+      let importedFood = false, traded = false;
+      for (const resource of MARKET_RESOURCES) {
+        const result = rivalTrade(state, rival, resource, tradeTargets[resource], worldFlow);
+        if (result !== "steady") traded = true;
+        if (resource === "food" && result === "import") importedFood = true;
       }
       rival.resources.food -= foodNeed;
-      worldFlow.food += output.food - foodNeed;
-      worldFlow.materials += output.materials;
+      worldFlow.food -= foodNeed;
       if (rival.resources.food < 0) {
         rival.resources.food = 0;
         rival.stability = Math.max(0, rival.stability - 7);
@@ -449,26 +543,47 @@
         rival.buildings.farm++;
         rival.resources.credits -= 35;
         rival.stance = "Investing in food security";
+        rival.activity = "Expanded agriculture by one farm";
+      } else if (rival.resources.ore < 24 && rival.resources.credits >= 52 && rival.resources.materials >= 32 && rival.buildings.mine < 10_000) {
+        rival.buildings.mine++;
+        rival.resources.credits -= 52; rival.resources.materials -= 32;
+        rival.stance = "Expanding mineral extraction";
+        rival.activity = "Opened a mine to address ore shortages";
       } else if (rival.buildings.academy === 0 && rival.resources.credits >= 68 && rival.resources.materials >= 36) {
         rival.buildings.academy++;
         rival.resources.credits -= 68;
         rival.resources.materials -= 36;
         rival.stance = "Founding a research office";
+        rival.activity = "Built an academy for research";
       } else if (rival.resources.materials < 35 && rival.resources.credits >= 45) {
         rival.buildings.workshop++;
         rival.resources.credits -= 45;
         rival.stance = "Expanding industry";
+        rival.activity = "Expanded materials processing";
+      } else if (rival.traits.includes("industry") && rival.resources.credits >= 86 && rival.resources.materials >= 48 && rival.buildings.factory < 10_000 && rival.resources.ore >= 3) {
+        rival.buildings.factory++;
+        rival.resources.credits -= 86; rival.resources.materials -= 48;
+        rival.stance = "Investing in manufacturing";
+        rival.activity = "Built a factory for manufactured goods";
+      } else if (rival.resources.science >= 55 && rival.buildings.factory > 0 && !rival.technologies.includes("manufacturing")) {
+        rival.resources.science -= 55; rival.technologies.push("manufacturing");
+        rival.stance = "Advancing manufacturing technology";
+        rival.activity = "Researched precision manufacturing";
       } else if (rival.resources.science >= 34 && !rival.technologies.includes("industry")) {
-        rival.resources.science -= 34;
-        rival.technologies.push("industry");
-        rival.stance = "Advancing technology";
+        rival.resources.science -= 34; rival.technologies.push("industry"); rival.stance = "Advancing technology";
+        rival.activity = "Researched industrial methods";
       } else if (rival.resources.credits > 70 && nextRandom(state) > 0.62 && rival.buildings.market < 10_000) {
-        rival.buildings.market++;
-        rival.resources.credits -= 52;
-        rival.stance = "Growing trade";
+        rival.buildings.market++; rival.resources.credits -= 52; rival.stance = "Growing trade"; rival.activity = "Expanded market infrastructure";
+      } else if (rival.traits.includes("diplomacy") && rival.relation >= 65 && !state.diplomacy.treaties.some(t => t.rivalId === rival.id && t.kind === "alliance" && t.status === "active") && nextRandom(state) > 0.75) {
+        state.diplomacy.treaties.push({ id: rival.id + ":alliance", rivalId: rival.id, kind: "alliance", status: "active", startedTurn: state.turn, duration: 12 });
+        rival.treaties.push("alliance"); rival.stance = "Proposing regional alliance";
+        rival.activity = "Formed a strategic alliance";
+        addEvent(state, rival.name + " proposed a strategic alliance.", "diplomacy");
       } else {
         rival.stance = rival.traits.includes("diplomacy") ? "Building partnerships" : rival.traits.includes("security") ? "Guarding borders" : "Developing at home";
+        if (!traded) rival.activity = importedFood ? "Secured food imports" : "Maintained reserves and current industries";
       }
+      if (importedFood && rival.stability < 60) rival.stability = Math.min(100, rival.stability + 2);
       if (rival.stability < 25) rival.stance = "Facing unrest";
     }
   }
@@ -482,33 +597,69 @@
         addEvent(state, treaty.kind + " agreement with " + state.rivals[treaty.rivalId].name + " expired.", "diplomacy");
       }
     }
-    const flow = { food: 0, materials: 0 };
-    const output = productionFor(state.buildings, state.technologies);
-    state.resources.food = clamp(state.resources.food + output.food, 0, RESOURCE_LIMIT);
-    state.resources.materials = clamp(state.resources.materials + output.materials, 0, RESOURCE_LIMIT);
-    state.resources.credits = clamp(state.resources.credits + output.credits + Math.floor(state.nation.population / 20), 0, RESOURCE_LIMIT);
-    state.resources.science = clamp(state.resources.science + output.science, 0, RESOURCE_LIMIT);
-    state.resources.power = clamp(state.resources.power + output.power, 0, RESOURCE_LIMIT);
+    const flow = Object.fromEntries(MARKET_RESOURCES.map(key => [key, 0]));
+    const baseOutput = productionFor(state.buildings, state.technologies);
+    const jobs = workforceFor(state.buildings), employed = Math.min(jobs, state.nation.population);
+    const staffing = jobs > 0 ? Math.min(1, state.nation.population / jobs) : 1;
+    const industry = industrialOutput({ ...state.resources,
+      materials: clamp(state.resources.materials + Math.floor(baseOutput.materials * staffing), 0, RESOURCE_LIMIT),
+      ore: clamp(state.resources.ore + Math.floor(baseOutput.ore * staffing), 0, RESOURCE_LIMIT),
+      power: clamp(state.resources.power + Math.floor(baseOutput.power * staffing), 0, RESOURCE_LIMIT)
+    }, state.buildings, state.technologies, state.nation.population);
+    const output = industry.production;
+    for (const resource of ["food", "materials", "ore", "goods", "science", "power"]) {
+      state.resources[resource] = clamp(state.resources[resource] + output[resource], 0, RESOURCE_LIMIT);
+    }
+    state.resources.materials = Math.max(0, state.resources.materials - industry.inputs.materials);
+    state.resources.ore = Math.max(0, state.resources.ore - industry.inputs.ore);
+    state.resources.power = Math.max(0, state.resources.power - industry.inputs.power);
     const activeTreaties = state.diplomacy.treaties.filter(t => t.status === "active");
-    state.resources.credits = clamp(state.resources.credits + activeTreaties.filter(t => t.kind === "trade").length * 5, 0, RESOURCE_LIMIT);
+    const taxIncome = Math.floor(state.nation.population / 20);
+    const tradeIncome = activeTreaties.filter(t => t.kind === "trade").length * 5;
+    const income = clamp(output.credits + taxIncome + tradeIncome, 0, RESOURCE_LIMIT);
     state.resources.science = clamp(state.resources.science + activeTreaties.filter(t => t.kind === "research").length * 2, 0, RESOURCE_LIMIT);
     state.resources.influence = clamp(state.resources.influence + activeTreaties.filter(t => t.kind === "alliance").length, 0, RESOURCE_LIMIT);
-    const foodNeed = Math.ceil(state.nation.population / 12);
+    const wageExpense = Math.ceil(employed / 10);
+    state.resources.credits = clamp(state.resources.credits + income - wageExpense, 0, RESOURCE_LIMIT);
+    const previousPhase = state.economy.phase;
+    let phase = previousPhase, deficitTurns = state.economy.deficitTurns, recoveryTurns = state.economy.recoveryTurns;
+    const balance = income - wageExpense;
+    if (balance < 0) {
+      deficitTurns++;
+      if (deficitTurns >= 2) phase = "recession";
+      else if (phase !== "recovery") phase = "stable";
+      recoveryTurns = 0;
+    } else if (balance > 0) {
+      deficitTurns = 0;
+      if (previousPhase === "recession") { phase = "recovery"; recoveryTurns = 3; }
+      else if (previousPhase === "recovery" && recoveryTurns > 0) { phase = "recovery"; recoveryTurns--; }
+      else { phase = "growth"; recoveryTurns = 0; }
+    } else {
+      phase = "stable"; deficitTurns = 0; recoveryTurns = 0;
+    }
+    state.economy = { lastIncome: income, lastExpenses: wageExpense, lastBalance: balance,
+      workforce: jobs, employed, requiredJobs: Math.ceil(state.nation.population / 10), production: output, consumption: { food: 0, ...industry.inputs }, phase, deficitTurns, recoveryTurns };
+    if (phase !== previousPhase) addEvent(state, "The national economy entered a period of " + phase + ".", "economy");
+    for (const resource of MARKET_RESOURCES) flow[resource] += output[resource] - (industry.inputs[resource] || 0);
+    const foodNeed = Math.ceil(state.nation.population / (12 + Math.min(8, output.logistics)));
+    state.economy.consumption.food = foodNeed;
     state.resources.food -= foodNeed;
-    flow.food += output.food - foodNeed;
-    flow.materials += output.materials;
+    flow.food -= foodNeed;
     if (state.resources.food < 0) {
       state.resources.food = 0;
       state.nation.stability = Math.max(0, state.nation.stability - 10);
       state.nation.population = Math.max(1, state.nation.population - 5);
       addEvent(state, "Food shortages caused unrest and population loss.", "crisis");
     } else {
-      state.nation.stability = Math.min(100, state.nation.stability + (hasTech(state, "governance") ? 2 : 1));
-      if (state.resources.food > foodNeed * 3 && state.nation.stability >= 45) {
+      state.nation.stability = Math.min(100, state.nation.stability + (jobs >= Math.ceil(state.nation.population / 10) ? (hasTech(state, "governance") ? 2 : 1) : 0));
+      if (state.resources.food > foodNeed * 3 && state.nation.stability >= 45 && phase !== "recession" && jobs >= Math.ceil(state.nation.population / 10)) {
         const populationCap = Math.min(RESOURCE_LIMIT, 250 + (state.buildings.housing || 0) * 50 + (hasTech(state, "medicine") ? 100 : 0));
         state.nation.population = Math.min(populationCap, state.nation.population + 2 + (hasTech(state, "medicine") ? 1 : 0) + Math.floor((state.buildings.housing || 0) / 2));
       }
     }
+    if (jobs < Math.ceil(state.nation.population / 10)) state.nation.stability = Math.max(0, state.nation.stability - 1);
+    if (phase === "recession") state.nation.stability = Math.max(0, state.nation.stability - 2);
+    else if (phase === "recovery") state.nation.stability = Math.min(100, state.nation.stability + 1);
     if (state.resources.power < state.nation.population / 10) state.nation.stability = Math.max(0, state.nation.stability - 2);
     developRivals(state, flow);
     for (const conflict of state.diplomacy.conflicts) {
@@ -579,6 +730,6 @@
     SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS,
     createInitialState, validateSave, migrateSave, productionFor, build, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation,
-    deleteCreation, advanceTurn, exportSave, saveWithRecovery, addEvent, hasTech
+    deleteCreation, advanceTurn, exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech
   };
 });

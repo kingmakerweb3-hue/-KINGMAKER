@@ -16,8 +16,8 @@ Open <http://127.0.0.1:4173>. The server only binds to loopback.
 
 - **Advance World** resolves production and consumption, rival decisions, market supply and prices, diplomacy, agreements, conflicts, and world events.
 - **Nation** lets you rename the nation, set its government, and build infrastructure.
-- **Economy** lets you buy and sell food and materials against finite world-market stock.
-- **Diplomacy** lets you send aid, recall an envoy, offer agreements, and manage conflict.
+- **Economy** lets you build mines, factories, transport hubs, and other industries; buy and sell food, materials, ore, and goods against shared finite world-market stock; and review the national income and wage ledger.
+- **Diplomacy** lets you send aid, recall an envoy, offer agreements, and manage conflict. Each rival turn reports its latest market, investment, or research action.
 - **Research** spends science to unlock production and resilience effects.
 - **Campaign** offers three scenarios with objectives, achievements, victory, and defeat.
 - **World Director** gives local rule-based advice based on current game state.
@@ -40,7 +40,7 @@ See [`docs/gameplay.md`](docs/gameplay.md) for economy, technology, diplomacy, c
 
 ## Save data
 
-Current saves use schema version 2. The importer validates bounds and required objects before replacing the active game, and it migrates saves from both the v0.3 prototype and the first KINGMAKER v1 development save format. Automatic local saves keep a previous safe copy for recovery. Export backups regularly if you clear browser storage or change devices.
+Current saves use schema version 3. The importer validates bounds and required objects before replacing the active game, and it migrates saves from the v0.3 prototype and earlier development schemas 1 and 2. Automatic local saves keep a previous safe copy for recovery. Export backups regularly if you clear browser storage or change devices.
 
 ## Development status
 

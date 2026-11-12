@@ -16,6 +16,9 @@ test("save validation rejects unsafe resource values and unsupported versions", 
   state.resources.food = 1;
   state.schemaVersion = 999;
   assert.throws(() => Engine.validateSave(state), /version is not supported/);
+  state.schemaVersion = Engine.SAVE_VERSION;
+  state.economy.production.ore = Engine.RESOURCE_LIMIT + 1;
+  assert.throws(() => Engine.validateSave(state), /production ledger/);
 });
 
 test("save rotation backs up only a validated prior save", () => {
@@ -34,6 +37,27 @@ test("save rotation backs up only a validated prior save", () => {
   Engine.saveWithRecovery(storage, state, "primary", "recovery");
   assert.equal(values.get("recovery"), prior);
   assert.equal(Engine.migrateSave(JSON.parse(values.get("primary"))).turn, 3);
+});
+
+test("version 2 saves migrate to industrial schema without losing the scenario baseline", () => {
+  const old = Engine.createInitialState({ seed: 6 });
+  old.schemaVersion = 2;
+  const buildingStart = old.campaign.buildingStart;
+  delete old.resources.ore; delete old.resources.goods;
+  delete old.economy;
+  for (const key of ["ore", "goods"]) {
+    delete old.market.stock[key]; delete old.market.basePrices[key]; delete old.market.prices[key]; delete old.market.lastFlow[key];
+  }
+  for (const rival of Object.values(old.rivals)) {
+    delete rival.resources.ore; delete rival.resources.goods; delete rival.resources.influence;
+    delete rival.buildings.mine; delete rival.buildings.factory; delete rival.buildings.transport;
+    delete rival.activity;
+  }
+  const migrated = Engine.migrateSave(old);
+  assert.equal(migrated.schemaVersion, 3);
+  assert.equal(migrated.campaign.buildingStart, buildingStart);
+  assert.equal(migrated.resources.ore, 48);
+  assert.equal(migrated.rivals.aurelia.activity, "Adapting industry");
 });
 
 test("legacy v0.3 saves migrate while keeping player progress", () => {
@@ -74,12 +98,135 @@ test("market buys and sells respect affordability, stock and inventory", () => {
   assert.equal(state.market.stock.food, oldStock - 5);
 });
 
+test("ore and manufactured goods can be traded with integer-safe currency", () => {
+  const state = Engine.createInitialState();
+  state.market.prices.ore = 1.25;
+  const before = state.resources.credits;
+  Engine.trade(state, "ore", 1);
+  assert.equal(state.resources.credits, before - 2);
+  assert.equal(state.resources.ore, 49);
+  Engine.trade(state, "goods", -1);
+  assert.equal(state.resources.goods, 7);
+  assert.ok(Number.isInteger(state.resources.credits));
+});
+
+test("factories convert materials, ore, and power into goods and award industrial progress", () => {
+  const state = Engine.createInitialState({ seed: 31 });
+  Engine.build(state, "factory");
+  assert.ok(state.achievements.includes("industrialist"));
+  const before = { ...state.resources };
+  Engine.advanceTurn(state);
+  assert.equal(state.resources.goods, before.goods + 10);
+  assert.equal(state.economy.consumption.materials, 5);
+  assert.equal(state.economy.consumption.ore, 3);
+  assert.equal(state.economy.consumption.power, 2);
+  assert.equal(state.economy.production.goods, 10);
+  assert.ok(state.resources.materials < before.materials + 9);
+});
+
+test("precision manufacturing increases working factory output", () => {
+  const state = Engine.createInitialState({ seed: 33 });
+  state.buildings.factory = 1;
+  state.resources.science = Engine.TECHNOLOGIES.manufacturing.cost;
+  const baseOutput = Engine.economicSnapshot(state).production.goods;
+  Engine.research(state, "manufacturing");
+  assert.equal(baseOutput, 10);
+  assert.equal(Engine.economicSnapshot(state).production.goods, 15);
+});
+
+test("factories pause when any required input is unavailable and transport reduces food demand", () => {
+  const state = Engine.createInitialState({ seed: 32 });
+  state.buildings.factory = 2;
+  state.buildings.mine = 0; state.buildings.workshop = 0;
+  state.resources.ore = 2;
+  state.resources.materials = 0;
+  const beforeGoods = state.resources.goods;
+  assert.equal(Engine.economicSnapshot(state).activeFactories, 0);
+  state.buildings.transport = 4;
+  assert.equal(Engine.economicSnapshot(state).consumption.food, Math.ceil(state.nation.population / 16));
+  Engine.advanceTurn(state);
+  assert.equal(state.resources.goods, beforeGoods);
+});
+
+test("persistent wage deficits cause recession and positive cash flow starts recovery", () => {
+  const state = Engine.createInitialState({ seed: 14 });
+  for (const id of Object.keys(state.buildings)) state.buildings[id] = 0;
+  state.buildings.academy = 15;
+  state.resources.credits = 0;
+  Engine.advanceTurn(state);
+  assert.equal(state.economy.phase, "stable");
+  Engine.advanceTurn(state);
+  assert.equal(state.economy.phase, "recession");
+  const stabilityDuringRecession = state.nation.stability;
+  Engine.advanceTurn(state);
+  assert.ok(state.nation.stability < stabilityDuringRecession);
+  state.buildings.market = 1;
+  Engine.advanceTurn(state);
+  assert.equal(state.economy.phase, "recovery");
+  assert.equal(Engine.validateSave(state).economy.phase, "recovery");
+});
+
+test("workforce shortages reduce industrial output and restrict population growth", () => {
+  const state = Engine.createInitialState({ seed: 22 });
+  for (const id of Object.keys(state.buildings)) state.buildings[id] = 0;
+  state.buildings.farm = 100;
+  const economy = Engine.economicSnapshot(state);
+  assert.equal(economy.workforce, 400);
+  assert.equal(economy.employed, state.nation.population);
+  assert.equal(economy.production.food, 300);
+
+  for (const id of Object.keys(state.buildings)) state.buildings[id] = 0;
+  state.resources.food = 100;
+  const population = state.nation.population;
+  const stability = state.nation.stability;
+  Engine.advanceTurn(state);
+  assert.equal(state.nation.population, population);
+  assert.ok(state.nation.stability < stability);
+});
+
+test("scarce ore costs more than abundant ore and rival imports compete for finite stock", () => {
+  const scarce = Engine.createInitialState({ seed: 9 });
+  const abundant = Engine.createInitialState({ seed: 9 });
+  for (const state of [scarce, abundant]) {
+    state.buildings.mine = 0;
+    for (const rival of Object.values(state.rivals)) {
+      for (const id of Object.keys(rival.buildings)) rival.buildings[id] = 0;
+      rival.resources.ore = 0; rival.resources.food = 500; rival.resources.materials = 0; rival.resources.credits = 150;
+    }
+    state.resources.ore = 0;
+    state.market.stock.ore = state === scarce ? 20 : 300;
+  }
+  Engine.advanceTurn(scarce);
+  Engine.advanceTurn(abundant);
+  assert.ok(scarce.market.prices.ore > abundant.market.prices.ore);
+  assert.ok(scarce.rivals.aurelia.resources.ore > scarce.rivals.northreach.resources.ore);
+  assert.match(scarce.rivals.aurelia.activity, /Bought|mine|shortage/i);
+  assert.ok(scarce.rivals.aurelia.relation > 15);
+});
+
+test("a trusted diplomatic rival can independently form a strategic alliance", () => {
+  const state = Engine.createInitialState({ seed: 1327 });
+  const rival = state.rivals.aurelia;
+  rival.relation = 80;
+  rival.resources.credits = 0;
+  rival.buildings.academy = 1;
+  for (const id of Object.keys(rival.buildings)) if (id !== "academy") rival.buildings[id] = 0;
+  Engine.advanceTurn(state);
+  assert.ok(state.diplomacy.treaties.some(t => t.rivalId === rival.id && t.kind === "alliance" && t.status === "active"));
+  assert.ok(rival.treaties.includes("alliance"));
+  assert.equal(rival.activity, "Formed a strategic alliance");
+});
+
 test("storage caps reject trades without partially charging the player", () => {
   const state = Engine.createInitialState();
   state.resources.food = Engine.RESOURCE_LIMIT;
   const credits = state.resources.credits;
   assert.throws(() => Engine.trade(state, "food", 10), /storage limit/);
   assert.equal(state.resources.credits, credits);
+  state.resources.food = 120;
+  state.market.stock.food = Engine.RESOURCE_LIMIT;
+  assert.throws(() => Engine.trade(state, "food", -10), /market storage limit/);
+  assert.equal(state.resources.food, 120);
 });
 
 test("a trade action can immediately complete a campaign supply objective", () => {
@@ -127,7 +274,8 @@ test("trade and research agreements pay benefits while an alliance strengthens i
   Engine.offerTreaty(state, "aurelia", "alliance");
   const before = {...state.resources};
   Engine.advanceTurn(state);
-  assert.ok(state.resources.credits >= before.credits + 20);
+  assert.ok(state.economy.lastIncome >= 20);
+  assert.equal(state.economy.lastBalance, state.economy.lastIncome - state.economy.lastExpenses);
   assert.equal(state.resources.science, before.science + 7);
   assert.equal(state.resources.influence, before.influence + 1);
 });
@@ -187,12 +335,23 @@ test("v0.3 saves with negative relations migrate without losing the sign", () =>
 
 test("version 1 saves migrate forward and preserve a safe campaign baseline", () => {
   const old = Engine.createInitialState();
+  delete old.resources.ore; delete old.resources.goods;
+  delete old.buildings.mine; delete old.buildings.factory; delete old.buildings.transport;
+  for (const rival of Object.values(old.rivals)) {
+    delete rival.resources.ore; delete rival.resources.goods; delete rival.resources.influence;
+    delete rival.buildings.mine; delete rival.buildings.factory; delete rival.buildings.transport;
+  }
+  for (const key of ["ore", "goods"]) {
+    delete old.market.stock[key]; delete old.market.basePrices[key]; delete old.market.prices[key]; delete old.market.lastFlow[key];
+  }
   old.schemaVersion = 1;
   delete old.campaign.buildingStart;
   const migrated = Engine.migrateSave(old);
   assert.equal(migrated.schemaVersion, Engine.SAVE_VERSION);
   assert.equal(migrated.campaign.buildingStart, 6);
   assert.equal(migrated.nation.name, "New Horizon");
+  assert.equal(migrated.resources.ore, 48);
+  assert.equal(migrated.buildings.mine, 0);
 });
 
 test("campaign scenarios start with distinct playable objectives and valid saves", () => {
