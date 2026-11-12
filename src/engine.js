@@ -560,10 +560,25 @@
   }
   function exportSave(state) { return JSON.stringify(validateSave(state), null, 2); }
 
+  function saveWithRecovery(storage, state, primaryKey = "kingmaker_save_v1", backupKey = "kingmaker_save_recovery") {
+    const serialized = JSON.stringify(validateSave(state));
+    const prior = storage.getItem(primaryKey);
+    if (prior) {
+      try {
+        migrateSave(JSON.parse(prior));
+        storage.setItem(backupKey, prior);
+      } catch (_) {
+        // Keep the existing recovery copy when the primary save is damaged.
+      }
+    }
+    storage.setItem(primaryKey, serialized);
+    return serialized;
+  }
+
   return {
     SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS,
     createInitialState, validateSave, migrateSave, productionFor, build, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation,
-    deleteCreation, advanceTurn, exportSave, addEvent, hasTech
+    deleteCreation, advanceTurn, exportSave, saveWithRecovery, addEvent, hasTech
   };
 });

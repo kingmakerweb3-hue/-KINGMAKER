@@ -21,11 +21,8 @@
     return E.createInitialState();
   }
   function persist() {
-    try {
-      const valid=E.validateSave(state),prior=localStorage.getItem(KEY);
-      if(prior)localStorage.setItem(BACKUP,prior);
-      localStorage.setItem(KEY,JSON.stringify(valid)); render();
-    } catch(e) { toast("Could not save safely: "+e.message+". Export before leaving.","error"); }
+    try { E.saveWithRecovery(localStorage,state,KEY,BACKUP); render(); }
+    catch(e) { toast("Could not save safely: "+e.message+". Export before leaving.","error"); }
   }
   function act(fn) { try { fn(); persist(); beep(); } catch(e) { toast(e.message,"error"); } }
   function beep() {

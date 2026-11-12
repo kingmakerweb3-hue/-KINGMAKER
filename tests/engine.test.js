@@ -18,6 +18,24 @@ test("save validation rejects unsafe resource values and unsupported versions", 
   assert.throws(() => Engine.validateSave(state), /version is not supported/);
 });
 
+test("save rotation backs up only a validated prior save", () => {
+  const state = Engine.createInitialState({ seed: 1 });
+  const prior = Engine.exportSave(state);
+  const values = new Map([["primary", prior], ["recovery", "older recovery"]]);
+  const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+  state.turn++;
+  Engine.saveWithRecovery(storage, state, "primary", "recovery");
+  assert.equal(Engine.migrateSave(JSON.parse(values.get("recovery"))).turn, 1);
+  assert.equal(Engine.migrateSave(JSON.parse(values.get("primary"))).turn, 2);
+
+  values.set("primary", "{corrupt");
+  values.set("recovery", prior);
+  state.turn++;
+  Engine.saveWithRecovery(storage, state, "primary", "recovery");
+  assert.equal(values.get("recovery"), prior);
+  assert.equal(Engine.migrateSave(JSON.parse(values.get("primary"))).turn, 3);
+});
+
 test("legacy v0.3 saves migrate while keeping player progress", () => {
   const migrated = Engine.migrateSave({
     turn: 9, name: "Test Nation", food: 66, materials: 51, credits: 88,
