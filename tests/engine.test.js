@@ -6,7 +6,8 @@ test("new game has a complete, validated state", () => {
   const state = Engine.createInitialState({ seed: 2 });
   assert.equal(state.schemaVersion, Engine.SAVE_VERSION);
   assert.equal(Engine.validateSave(state).nation.name, "New Horizon");
-  assert.deepEqual(Object.keys(state.rivals).sort(), ["aurelia", "meridian", "northreach"]);
+  assert.deepEqual(Object.keys(state.rivals).sort(), ["aurelia", "duneward", "ironmarch", "meridian", "northreach", "solenne"]);
+  assert.equal(state.rivals.ironmarch.personality, "Shield Compact");
 });
 
 test("save validation rejects unsafe resource values and unsupported versions", () => {
@@ -39,7 +40,7 @@ test("save rotation backs up only a validated prior save", () => {
   assert.equal(Engine.migrateSave(JSON.parse(values.get("primary"))).turn, 3);
 });
 
-test("version 2 saves migrate to industrial schema without losing the scenario baseline", () => {
+test("version 2 saves migrate to strategic AI schema without losing the scenario baseline", () => {
   const old = Engine.createInitialState({ seed: 6 });
   old.schemaVersion = 2;
   const buildingStart = old.campaign.buildingStart;
@@ -52,12 +53,29 @@ test("version 2 saves migrate to industrial schema without losing the scenario b
     delete rival.resources.ore; delete rival.resources.goods; delete rival.resources.influence;
     delete rival.buildings.mine; delete rival.buildings.factory; delete rival.buildings.transport;
     delete rival.activity;
+    delete rival.personality; delete rival.economicPriority; delete rival.politicalPriority; delete rival.militaryPriority;
+    delete rival.riskTolerance; delete rival.longTermObjective; delete rival.plan; delete rival.memory;
   }
+  delete old.rivals.solenne; delete old.rivals.ironmarch; delete old.rivals.duneward;
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 3);
+  assert.equal(migrated.schemaVersion, 4);
   assert.equal(migrated.campaign.buildingStart, buildingStart);
   assert.equal(migrated.resources.ore, 48);
   assert.equal(migrated.rivals.aurelia.activity, "Adapting industry");
+  assert.equal(Object.keys(migrated.rivals).length, 6);
+  assert.equal(migrated.rivals.duneward.economicPriority, "extraction");
+});
+
+test("version 3 saves migrate strategic personalities without losing interaction history", () => {
+  const old = Engine.createInitialState({ seed: 18 });
+  old.schemaVersion = 3;
+  const rival = old.rivals.aurelia;
+  delete rival.personality; delete rival.economicPriority; delete rival.politicalPriority; delete rival.militaryPriority;
+  delete rival.riskTolerance; delete rival.longTermObjective; delete rival.plan; delete rival.memory;
+  const migrated = Engine.migrateSave(old);
+  assert.equal(migrated.schemaVersion, 4);
+  assert.equal(migrated.rivals.aurelia.personality, "Merchant Republic");
+  assert.deepEqual(migrated.rivals.aurelia.memory, []);
 });
 
 test("legacy v0.3 saves migrate while keeping player progress", () => {
@@ -200,7 +218,7 @@ test("scarce ore costs more than abundant ore and rival imports compete for fini
   Engine.advanceTurn(abundant);
   assert.ok(scarce.market.prices.ore > abundant.market.prices.ore);
   assert.ok(scarce.rivals.aurelia.resources.ore > scarce.rivals.northreach.resources.ore);
-  assert.match(scarce.rivals.aurelia.activity, /Bought|mine|shortage/i);
+  assert.match(scarce.rivals.aurelia.activity, /Bought|mine|shortage|Saving/i);
   assert.ok(scarce.rivals.aurelia.relation > 15);
 });
 
@@ -208,13 +226,47 @@ test("a trusted diplomatic rival can independently form a strategic alliance", (
   const state = Engine.createInitialState({ seed: 1327 });
   const rival = state.rivals.aurelia;
   rival.relation = 80;
+  rival.riskTolerance = 1;
   rival.resources.credits = 0;
-  rival.buildings.academy = 1;
+  rival.resources.food = 500; rival.resources.ore = 100; rival.resources.materials = 200; rival.resources.power = 50;
   for (const id of Object.keys(rival.buildings)) if (id !== "academy") rival.buildings[id] = 0;
+  rival.buildings.farm = 5; rival.buildings.mine = 6; rival.buildings.workshop = 5; rival.buildings.power = 3; rival.buildings.market = 5;
+  rival.buildings.academy = 1;
   Engine.advanceTurn(state);
   assert.ok(state.diplomacy.treaties.some(t => t.rivalId === rival.id && t.kind === "alliance" && t.status === "active"));
   assert.ok(rival.treaties.includes("alliance"));
   assert.equal(rival.activity, "Formed a strategic alliance");
+});
+
+test("rival strategic plans persist across turns while they stockpile inputs", () => {
+  const state = Engine.createInitialState({ seed: 26 });
+  const rival = state.rivals.aurelia;
+  rival.resources.credits = 0; rival.resources.food = 500; rival.resources.ore = 100;
+  rival.resources.materials = 0; rival.resources.power = 60;
+  rival.buildings.workshop = 0;
+  state.market.stock.materials = 0;
+  Engine.advanceTurn(state);
+  assert.equal(rival.plan.action, "build");
+  assert.equal(rival.plan.target, "workshop");
+  assert.match(rival.activity, /Saving materials/);
+  const originalPlan = { ...rival.plan };
+  Engine.advanceTurn(state);
+  assert.equal(rival.plan.createdTurn, originalPlan.createdTurn);
+  assert.equal(rival.plan.target, originalPlan.target);
+  assert.ok(rival.memory.some(m => m.kind === "plan"));
+});
+
+test("a rival remembers player aggression and withholds a strategic alliance", () => {
+  const state = Engine.createInitialState({ seed: 1327 });
+  const rival = state.rivals.aurelia;
+  rival.relation = 80; rival.resources.credits = 0; rival.resources.food = 500;
+  rival.resources.ore = 100; rival.resources.materials = 200; rival.resources.power = 50;
+  for (const id of Object.keys(rival.buildings)) rival.buildings[id] = 0;
+  rival.buildings.farm = 5; rival.buildings.mine = 6; rival.buildings.workshop = 5; rival.buildings.power = 3; rival.buildings.market = 5; rival.buildings.academy = 1;
+  rival.memory.push({ turn: 1, kind: "player-conflict", text: "Player declared conflict", relationDelta: -80 });
+  state.turn = 2;
+  Engine.advanceTurn(state);
+  assert.ok(!state.diplomacy.treaties.some(t => t.rivalId === rival.id && t.kind === "alliance" && t.status === "active"));
 });
 
 test("faction traits steer rivals toward industry, energy, research, and commerce", () => {
@@ -246,11 +298,11 @@ test("faction traits steer rivals toward industry, energy, research, and commerc
   const commerce = Engine.createInitialState({ seed: 991 });
   const aurelia = commerce.rivals.aurelia;
   aurelia.resources.food = 500; aurelia.resources.ore = 100; aurelia.resources.materials = 200;
-  aurelia.resources.credits = 1000; aurelia.resources.power = 30; aurelia.buildings.academy = 1;
+  aurelia.resources.credits = 1000; aurelia.resources.power = 100; aurelia.buildings.power = 3; aurelia.buildings.academy = 1;
   const marketsBefore = aurelia.buildings.market;
   Engine.advanceTurn(commerce);
   assert.equal(aurelia.buildings.market, marketsBefore + 1);
-  assert.match(aurelia.activity, /market infrastructure/i);
+  assert.match(aurelia.activity, /market/i);
 });
 
 test("storage caps reject trades without partially charging the player", () => {

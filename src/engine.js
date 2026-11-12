@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 3;
+  const SAVE_VERSION = 4;
   const RESOURCE_LIMIT = 1_000_000;
   const RESOURCE_KEYS = ["food", "materials", "ore", "goods", "credits", "science", "power", "influence"];
   const MARKET_RESOURCES = ["food", "materials", "ore", "goods"];
@@ -62,10 +62,26 @@
     }
   };
   const RIVAL_TEMPLATES = [
-    { id: "aurelia", name: "Aurelia", population: 115, traits: ["commerce", "diplomacy"] },
-    { id: "northreach", name: "Northreach", population: 92, traits: ["industry", "security"] },
-    { id: "meridian", name: "Meridian", population: 104, traits: ["research", "agriculture"] }
+    { id: "aurelia", name: "Aurelia", population: 115, traits: ["commerce", "diplomacy"], personality: "Merchant Republic", economicPriority: "commerce", politicalPriority: "diplomacy", militaryPriority: "defense", riskTolerance: 0.35, longTermObjective: "Control regional trade", buildings: { market: 2 }, resources: { credits: 210, goods: 18 } },
+    { id: "northreach", name: "Northreach", population: 92, traits: ["industry", "security"], personality: "Forge Directorate", economicPriority: "industry", politicalPriority: "cautious", militaryPriority: "energy defense", riskTolerance: 0.55, longTermObjective: "Build a self-reliant industrial base", buildings: { workshop: 2, mine: 2 }, resources: { materials: 120, ore: 80, power: 18 } },
+    { id: "meridian", name: "Meridian", population: 104, traits: ["research", "agriculture"], personality: "Scholastic League", economicPriority: "research", politicalPriority: "cooperation", militaryPriority: "defense", riskTolerance: 0.3, longTermObjective: "Lead the region in technology", buildings: { academy: 2, farm: 2 }, resources: { science: 28, food: 160 } },
+    { id: "solenne", name: "Solenne", population: 128, traits: ["agriculture", "diplomacy"], personality: "Granary Federation", economicPriority: "agriculture", politicalPriority: "diplomacy", militaryPriority: "defense", riskTolerance: 0.25, longTermObjective: "Secure regional food abundance", buildings: { farm: 4, transport: 1 }, resources: { food: 260, materials: 90 } },
+    { id: "ironmarch", name: "Ironmarch", population: 110, traits: ["military", "industry", "security"], personality: "Shield Compact", economicPriority: "defense", politicalPriority: "hardline", militaryPriority: "readiness", riskTolerance: 0.75, longTermObjective: "Maintain the strongest defensive force", buildings: { workshop: 2, power: 2, factory: 1 }, resources: { materials: 120, ore: 80, power: 38, credits: 180 } },
+    { id: "duneward", name: "Duneward", population: 98, traits: ["expansionist", "commerce"], personality: "Frontier Dominion", economicPriority: "extraction", politicalPriority: "opportunistic", militaryPriority: "expansion", riskTolerance: 0.8, longTermObjective: "Expand mineral output and influence", buildings: { mine: 3, farm: 1 }, resources: { ore: 150, materials: 90 } }
   ];
+
+  function createRival(template, index = 0) {
+    return {
+      id: template.id, name: template.name, traits: template.traits.slice(), personality: template.personality,
+      economicPriority: template.economicPriority, politicalPriority: template.politicalPriority,
+      militaryPriority: template.militaryPriority, riskTolerance: template.riskTolerance,
+      longTermObjective: template.longTermObjective, plan: null, memory: [],
+      population: template.population, stability: 70 + index * 3,
+      resources: { food: 90 + index * 15, materials: 70 + index * 10, ore: 36 + index * 8, goods: 12, credits: 120, science: index * 6, power: 12, influence: 10, ...template.resources },
+      buildings: { farm: 2, mine: 1, workshop: 1, factory: 0, transport: 0, market: 1, academy: 0, power: 0, housing: 0, ...template.buildings },
+      technologies: [], relation: [15, 5, -5, 10, -5, 0][index] ?? 0, stance: "Cautious", activity: "Maintaining reserves", treaties: []
+    };
+  }
 
   function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
   function safeInt(value, fallback = 0, max = RESOURCE_LIMIT) {
@@ -84,12 +100,7 @@
       buildings: { farm: 2, workshop: 1, market: 1, academy: 1, power: 1, housing: 0 },
       technologies: [],
       market: { stock: { food: 400, materials: 300, ore: 240, goods: 180 }, basePrices: { food: 2, materials: 4, ore: 5, goods: 8 }, prices: { food: 2, materials: 4, ore: 5, goods: 8 }, lastFlow: { food: 0, materials: 0, ore: 0, goods: 0 } },
-      rivals: Object.fromEntries(RIVAL_TEMPLATES.map((r, i) => [r.id, {
-        id: r.id, name: r.name, traits: r.traits, population: r.population, stability: 70 + i * 5,
-        resources: { food: 90 + i * 15, materials: 70 + i * 10, ore: 36 + i * 8, goods: 12, credits: 120, science: i * 6, power: 12, influence: 10 },
-        buildings: { farm: 2, mine: 1, workshop: 1, factory: 0, transport: 0, market: 1, academy: i === 2 ? 1 : 0, power: 0, housing: 0 },
-        technologies: [], relation: [15, 5, -5][i], stance: "Cautious", activity: "Maintaining reserves", treaties: []
-      }])) ,
+      rivals: Object.fromEntries(RIVAL_TEMPLATES.map((r, i) => [r.id, createRival(r, i)])),
       diplomacy: { treaties: [], conflicts: [] },
       economy: { lastIncome: 0, lastExpenses: 0, lastBalance: 0, workforce: 0, employed: 0, production: { food: 0, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, capacity: 0, logistics: 0 }, consumption: { food: 0, materials: 0, ore: 0, power: 0 }, phase: "stable", deficitTurns: 0, recoveryTurns: 0 },
       campaign: { id: campaignId, completedObjectives: [], status: "active", buildingStart: 6 },
@@ -149,7 +160,11 @@
     }
     if (Object.keys(normalized.rivals).length > 50) throw new Error("Save contains too many rival nations.");
     for (const [rivalId, rival] of Object.entries(normalized.rivals)) {
-      if (!rival || typeof rival.name !== "string" || rival.name.length > 48 || !Number.isInteger(rival.population) || rival.population < 1 || rival.population > RESOURCE_LIMIT || !rival.resources || !rival.buildings || typeof rival.stance !== "string" || typeof rival.activity !== "string" || rival.activity.length > 100 || !Array.isArray(rival.traits) || !Array.isArray(rival.treaties)) throw new Error("Rival nation data is invalid.");
+      if (!rival || typeof rival.name !== "string" || rival.name.length > 48 || !Number.isInteger(rival.population) || rival.population < 1 || rival.population > RESOURCE_LIMIT || !rival.resources || !rival.buildings || typeof rival.stance !== "string" || typeof rival.activity !== "string" || rival.activity.length > 100 || !Array.isArray(rival.traits) || !Array.isArray(rival.treaties) || typeof rival.personality !== "string" || rival.personality.length > 48 || typeof rival.economicPriority !== "string" || rival.economicPriority.length > 48 || typeof rival.politicalPriority !== "string" || rival.politicalPriority.length > 48 || typeof rival.militaryPriority !== "string" || rival.militaryPriority.length > 48 || !Number.isFinite(rival.riskTolerance) || rival.riskTolerance < 0 || rival.riskTolerance > 1 || typeof rival.longTermObjective !== "string" || rival.longTermObjective.length > 128 || !Array.isArray(rival.memory) || rival.memory.length > 30) throw new Error("Rival nation data is invalid.");
+      if (rival.plan !== null && (!rival.plan || !["build", "research"].includes(rival.plan.action) || typeof rival.plan.target !== "string" || rival.plan.target.length > 48 || typeof rival.plan.reason !== "string" || rival.plan.reason.length > 180 || !Number.isInteger(rival.plan.createdTurn) || rival.plan.createdTurn < 1 || rival.plan.createdTurn > normalized.turn || !Number.isInteger(rival.plan.reviewTurn) || rival.plan.reviewTurn < rival.plan.createdTurn || rival.plan.reviewTurn > normalized.turn + 4 ||
+          (rival.plan.action === "build" && (!BUILDINGS[rival.plan.target] || !Number.isInteger(rival.plan.targetLevel) || rival.plan.targetLevel < 1 || rival.plan.targetLevel > 10_000)) ||
+          (rival.plan.action === "research" && !TECHNOLOGIES[rival.plan.target]))) throw new Error("Rival strategic plan is invalid.");
+      if (rival.memory.some(item => !item || !Number.isInteger(item.turn) || item.turn < 1 || item.turn > normalized.turn || typeof item.kind !== "string" || item.kind.length > 32 || typeof item.text !== "string" || item.text.length > 180 || !Number.isInteger(item.relationDelta) || Math.abs(item.relationDelta) > 200)) throw new Error("Rival historical memory is invalid.");
       if (!Number.isInteger(rival.relation) || rival.relation < -100 || rival.relation > 100) throw new Error("Diplomatic relation is invalid.");
       for (const key of RESOURCE_KEYS) {
         if (!Number.isInteger(rival.resources[key]) || rival.resources[key] < 0 || rival.resources[key] > RESOURCE_LIMIT) throw new Error("Rival resource value is invalid.");
@@ -192,7 +207,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && (input.schemaVersion === 1 || input.schemaVersion === 2)) {
+    if (input && [1, 2, 3].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -261,10 +276,23 @@
     state.economy.phase = ["stable", "growth", "recession", "recovery"].includes(state.economy.phase) ? state.economy.phase : "stable";
     state.economy.deficitTurns = safeInt(state.economy.deficitTurns, 0, RESOURCE_LIMIT);
     state.economy.recoveryTurns = safeInt(state.economy.recoveryTurns, 0, 100);
-    for (const rival of Object.values(state.rivals || {})) {
+    state.rivals = state.rivals || {};
+    RIVAL_TEMPLATES.forEach((template, index) => {
+      if (!state.rivals[template.id]) state.rivals[template.id] = createRival(template, index);
+    });
+    for (const rival of Object.values(state.rivals)) {
       for (const key of ["ore", "goods", "influence"]) rival.resources[key] = safeInt(rival.resources[key], key === "ore" ? 36 : 10);
       for (const id of Object.keys(BUILDINGS)) rival.buildings[id] = safeInt(rival.buildings[id], 0, 10_000);
       rival.activity = typeof rival.activity === "string" ? rival.activity.slice(0, 100) : "Adapting industry";
+      const template = RIVAL_TEMPLATES.find(r => r.id === rival.id) || RIVAL_TEMPLATES[0];
+      rival.personality = typeof rival.personality === "string" ? rival.personality.slice(0, 48) : template.personality;
+      rival.economicPriority = typeof rival.economicPriority === "string" ? rival.economicPriority.slice(0, 48) : template.economicPriority;
+      rival.politicalPriority = typeof rival.politicalPriority === "string" ? rival.politicalPriority.slice(0, 48) : template.politicalPriority;
+      rival.militaryPriority = typeof rival.militaryPriority === "string" ? rival.militaryPriority.slice(0, 48) : template.militaryPriority;
+      rival.riskTolerance = Number.isFinite(rival.riskTolerance) ? clamp(rival.riskTolerance, 0, 1) : template.riskTolerance;
+      rival.longTermObjective = typeof rival.longTermObjective === "string" ? rival.longTermObjective.slice(0, 128) : template.longTermObjective;
+      rival.plan = rival.plan && typeof rival.plan === "object" ? rival.plan : null;
+      rival.memory = Array.isArray(rival.memory) ? rival.memory.slice(0, 30) : [];
     }
   }
 
@@ -328,6 +356,7 @@
     for (const [key, cost] of Object.entries(definition.cost)) state.resources[key] -= cost;
     state.buildings[id] = (state.buildings[id] || 0) + 1;
     if (id === "factory" && !state.achievements.includes("industrialist")) state.achievements.push("industrialist");
+    for (const rival of Object.values(state.rivals)) rememberRival(rival, state.turn, "player-investment", "The player expanded " + definition.name.toLowerCase());
     addEvent(state, definition.name + " upgraded to level " + state.buildings[id] + ".", "player");
     updateObjectives(state);
     return state;
@@ -353,6 +382,7 @@
       state.market.stock[resource] = Math.min(RESOURCE_LIMIT, state.market.stock[resource] + quantity);
     }
     addEvent(state, (amount > 0 ? "Bought " : "Sold ") + Math.abs(amount) + " " + resource + " at " + price + " credits each.", "trade");
+    for (const rival of Object.values(state.rivals)) rememberRival(rival, state.turn, "player-trade", "The player " + (amount > 0 ? "imported " : "exported ") + Math.abs(amount) + " " + resource);
     updateObjectives(state);
     return state;
   }
@@ -365,6 +395,7 @@
     state.technologies.push(id);
     if (id === "governance") state.nation.stability = Math.min(100, state.nation.stability + 10);
     addEvent(state, "Researched " + technology.name + ".", "research");
+    for (const rival of Object.values(state.rivals)) rememberRival(rival, state.turn, "player-research", "The player researched " + technology.name);
     updateObjectives(state);
     return state;
   }
@@ -374,9 +405,11 @@
     if (state.status !== "playing") throw new Error("This campaign has ended.");
     if (!Number.isInteger(credits) || credits < 10 || credits > 500 || state.resources.credits < credits) throw new Error("Gift amount is invalid or unaffordable.");
     state.resources.credits -= credits;
-    rival.relation = clamp(rival.relation + Math.max(2, Math.floor(credits / 5)), -100, 100);
+    const relationGain = Math.max(2, Math.floor(credits / 5));
+    rival.relation = clamp(rival.relation + relationGain, -100, 100);
     state.resources.influence = Math.min(RESOURCE_LIMIT, state.resources.influence + Math.floor(credits / 10));
     addEvent(state, "Sent " + credits + " credits in aid to " + rival.name + ".", "diplomacy");
+    rememberRival(rival, state.turn, "player-aid", "The player sent " + credits + " credits in aid", relationGain);
     updateObjectives(state);
     return state;
   }
@@ -390,6 +423,7 @@
     state.diplomacy.treaties.push({ id, rivalId, kind, status: "active", startedTurn: state.turn, duration: kind === "alliance" ? 12 : 5 });
     rival.treaties.push(kind);
     addEvent(state, rival.name + " signed a " + kind + " agreement.", "diplomacy");
+    rememberRival(rival, state.turn, "agreement", "Signed a " + kind + " agreement with the player");
     updateObjectives(state);
     return state;
   }
@@ -410,6 +444,7 @@
     addEvent(state, "Prior agreements with " + rival.name + " were voided by the conflict.", "diplomacy");
     state.diplomacy.conflicts.push({ rivalId, status: "active", startedTurn: state.turn, playerScore: 0, rivalScore: 0 });
     addEvent(state, "Conflict declared with " + rival.name + ". Armies are mobilizing.", "conflict");
+    rememberRival(rival, state.turn, "player-conflict", "The player declared conflict and voided prior agreements", -80);
     return state;
   }
   function makePeace(state, rivalId) {
@@ -422,6 +457,7 @@
     conflict.endedTurn = state.turn;
     state.rivals[rivalId].relation = Math.max(-25, state.rivals[rivalId].relation);
     addEvent(state, "A peace accord ended the conflict with " + state.rivals[rivalId].name + ".", "diplomacy");
+    rememberRival(state.rivals[rivalId], state.turn, "peace", "The player negotiated an end to conflict");
     return state;
   }
   function registerCreation(state, creation) {
@@ -477,7 +513,10 @@
       state.market.lastFlow[resource] = boundedFlow;
       const stock = state.market.stock[resource];
       const scarcity = 1.5 - stock / 800;
-      const demandPressure = boundedFlow < 0 ? Math.min(0.75, Math.abs(boundedFlow) / 300) : -Math.min(0.45, boundedFlow / 400);
+      // Stock is the dominant price signal. Flow adds a smaller short-term
+      // adjustment so one large import turn cannot make an abundant market
+      // more expensive than a genuinely depleted one.
+      const demandPressure = boundedFlow < 0 ? Math.min(0.3, Math.abs(boundedFlow) / 500) : -Math.min(0.2, boundedFlow / 500);
       state.market.prices[resource] = Math.round(clamp(state.market.basePrices[resource] * (scarcity + demandPressure), 1, 20) * 100) / 100;
     }
   }
@@ -492,8 +531,8 @@
         worldFlow[resource] -= quantity;
         rival.stance = "Importing " + resource;
         rival.activity = "Bought " + quantity + " " + resource + " from the regional market";
-        if (price <= state.market.basePrices[resource]) rival.relation = clamp(rival.relation + 1, -100, 100);
-        else if (price >= state.market.basePrices[resource] * 1.5) rival.relation = clamp(rival.relation - 1, -100, 100);
+        if (price <= state.market.basePrices[resource]) { rival.relation = clamp(rival.relation + 1, -100, 100); rememberRival(rival, state.turn, "fair-market", "Affordable " + resource + " imports eased regional pressure", 1); }
+        else if (price >= state.market.basePrices[resource] * 1.5) { rival.relation = clamp(rival.relation - 1, -100, 100); rememberRival(rival, state.turn, "price-pressure", "High " + resource + " prices strained the relationship", -1); }
         return "import";
       }
     } else if (stock > target + 30) {
@@ -519,6 +558,81 @@
     return [...new Set(priorities)].map(id => [id, TECHNOLOGIES[id]])
       .find(([id, technology]) => technology && !rival.technologies.includes(id) &&
         (id !== "manufacturing" || rival.buildings.factory > 0) && rival.resources.science >= technology.cost);
+  }
+  function rememberRival(rival, turn, kind, text, relationDelta = 0) {
+    rival.memory.unshift({ turn, kind: String(kind).slice(0, 32), text: String(text).slice(0, 180), relationDelta: safeInt(relationDelta, 0, 200) * (relationDelta < 0 ? -1 : 1) });
+    rival.memory = rival.memory.slice(0, 30);
+  }
+  function planRival(state, rival, foodNeed, foodTarget) {
+    const current = rival.plan;
+    const currentComplete = current && (current.action === "build"
+      ? rival.buildings[current.target] >= current.targetLevel
+      : rival.technologies.includes(current.target));
+    const urgentFood = rival.resources.food < foodNeed + 8;
+    const urgentPower = rival.resources.power < 3 && rival.buildings.power === 0;
+    if (current && !currentComplete && state.turn <= current.reviewTurn && !urgentFood && !urgentPower) return current;
+    const candidates = [];
+    const addBuild = (building, score, reason) => {
+      if (score > 0 && rival.buildings[building] < 10_000) candidates.push({ action: "build", target: building, targetLevel: rival.buildings[building] + 1, score, reason });
+    };
+    if (rival.resources.food < foodNeed + 8) addBuild("farm", 110, "Prevent food shortage and unrest");
+    else if (rival.resources.food < foodTarget) addBuild("farm", 82, "Rebuild the strategic food reserve");
+    else if (rival.traits.includes("agriculture") && rival.buildings.farm < 5) addBuild("farm", 43, "Use the agricultural specialization");
+    if (rival.resources.ore < 12) addBuild("mine", 100, "Secure ore for industry");
+    else if (rival.resources.ore < 24) addBuild("mine", 78, "Reduce dependence on scarce ore imports");
+    else if (rival.traits.includes("expansionist") && rival.buildings.mine < 6) addBuild("mine", 48 + Math.round(rival.riskTolerance * 10), "Expand strategic mineral reserves");
+    const energyTarget = Math.ceil(rival.population / 8) + (rival.buildings.factory || 0) * 2;
+    if (rival.resources.power < 3) addBuild("power", 100, "Restore energy supply");
+    else if (rival.resources.power < energyTarget) addBuild("power", 80, "Protect industry from energy shortages");
+    else if (rival.traits.includes("security") && rival.buildings.power < 3) addBuild("power", 42, "Strengthen defensive energy reserves");
+    if (rival.resources.materials < 20) addBuild("workshop", 95, "Restore construction and manufacturing inputs");
+    else if (rival.resources.materials < 35) addBuild("workshop", 77, "Rebuild construction material reserves");
+    else if (rival.traits.includes("industry") && rival.buildings.workshop < 5) addBuild("workshop", 38, "Expand domestic materials processing");
+    if (rival.traits.includes("industry") && rival.resources.ore >= 3 && rival.buildings.factory < 5) addBuild("factory", 52 + Math.round(rival.riskTolerance * 12), "Develop the industrial specialization");
+    if (rival.traits.includes("research") && rival.buildings.academy < 4) addBuild("academy", rival.buildings.academy === 0 ? 72 : 40, "Build long-term research capacity");
+    if ((rival.traits.includes("commerce") || rival.traits.includes("diplomacy")) && rival.buildings.market < 5) addBuild("market", 40, "Expand regional trade capacity");
+    if (rival.population >= 150 && rival.resources.food >= foodTarget && rival.buildings.transport < 8) addBuild("transport", 62, "Lower future food demand through logistics");
+    const technology = rivalTechnologyChoice(rival);
+    if (technology) candidates.push({ action: "research", target: technology[0], score: rival.traits.includes("research") ? 76 : 55, reason: "Convert accumulated science into a lasting advantage" });
+    candidates.sort((a, b) => b.score - a.score || a.target.localeCompare(b.target));
+    const chosen = candidates[0];
+    if (!chosen) { rival.plan = null; return null; }
+    const { score, ...plan } = chosen;
+    rival.plan = { ...plan, createdTurn: state.turn, reviewTurn: state.turn + 3 };
+    rememberRival(rival, state.turn, "plan", "Plan: " + plan.reason + " (review turn " + (state.turn + 3) + ")");
+    return rival.plan;
+  }
+  function executeRivalPlan(state, rival, plan) {
+    if (!plan) return false;
+    if (plan.action === "build") {
+      const building = BUILDINGS[plan.target];
+      if (!building || rival.buildings[plan.target] >= plan.targetLevel) return false;
+      if (Object.entries(building.cost).some(([resource, cost]) => rival.resources[resource] < cost)) {
+        rival.stance = "Stockpiling for " + building.name;
+        rival.activity = "Saving materials and credits for " + building.name;
+        return true;
+      }
+      for (const [resource, cost] of Object.entries(building.cost)) rival.resources[resource] -= cost;
+      rival.buildings[plan.target]++;
+      rival.stance = "Investing in " + building.name.toLowerCase();
+      rival.activity = "Built " + building.name + " to advance its long-term plan";
+      rememberRival(rival, state.turn, "investment", rival.activity);
+      return true;
+    }
+    const technology = TECHNOLOGIES[plan.target];
+    if (!technology || rival.technologies.includes(plan.target)) return false;
+    if (rival.resources.science < technology.cost) {
+      rival.stance = "Saving science for " + technology.name;
+      rival.activity = "Accumulating science for " + technology.name;
+      return true;
+    }
+    rival.resources.science -= technology.cost;
+    rival.technologies.push(plan.target);
+    if (plan.target === "governance") rival.stability = Math.min(100, rival.stability + 10);
+    rival.stance = "Advancing " + technology.name;
+    rival.activity = "Researched " + technology.name;
+    rememberRival(rival, state.turn, "research", rival.activity);
+    return true;
   }
   function developRivals(state, worldFlow) {
     for (const rival of Object.values(state.rivals)) {
@@ -550,56 +664,16 @@
         rival.stability = Math.min(100, rival.stability + 1);
         if (rival.resources.food > 25 && rival.stability > 50) rival.population = Math.min(RESOURCE_LIMIT, rival.population + 1 + (rival.technologies.includes("medicine") ? 1 : 0) + Math.floor((rival.buildings.housing || 0) / 2));
       }
-      if (rival.resources.food < foodTarget && rival.resources.credits >= 35 && rival.buildings.farm < 10_000) {
-        rival.buildings.farm++;
-        rival.resources.credits -= 35;
-        rival.stance = "Investing in food security";
-        rival.activity = "Expanded agriculture by one farm";
-      } else if (rival.resources.ore < 24 && rival.resources.credits >= 52 && rival.resources.materials >= 32 && rival.buildings.mine < 10_000) {
-        rival.buildings.mine++;
-        rival.resources.credits -= 52; rival.resources.materials -= 32;
-        rival.stance = "Expanding mineral extraction";
-        rival.activity = "Opened a mine to address ore shortages";
-      } else if (rival.population >= 150 && rival.resources.food > foodTarget && rival.resources.credits >= 62 && rival.resources.materials >= 38 && rival.buildings.transport < 8) {
-        rival.buildings.transport++;
-        rival.resources.credits -= 62; rival.resources.materials -= 38;
-        rival.stance = "Improving regional logistics";
-        rival.activity = "Built a transport hub to lower food demand";
-      } else if (rival.buildings.academy === 0 && rival.resources.credits >= 68 && rival.resources.materials >= 36) {
-        rival.buildings.academy++;
-        rival.resources.credits -= 68;
-        rival.resources.materials -= 36;
-        rival.stance = "Founding a research office";
-        rival.activity = "Built an academy for research";
-      } else if (rival.resources.materials < 35 && rival.resources.credits >= 45) {
-        rival.buildings.workshop++;
-        rival.resources.credits -= 45;
-        rival.stance = "Expanding industry";
-        rival.activity = "Expanded materials processing";
-      } else if (rival.resources.power < Math.ceil(rival.population / 8) && rival.resources.credits >= 74 && rival.resources.materials >= 42 && rival.buildings.power < 10_000) {
-        rival.buildings.power++;
-        rival.resources.credits -= 74; rival.resources.materials -= 42;
-        rival.stance = "Securing energy supply";
-        rival.activity = "Built a power grid to support industry";
-      } else if (rival.traits.includes("industry") && rival.resources.credits >= 86 && rival.resources.materials >= 48 && rival.buildings.factory < 10_000 && rival.resources.ore >= 3) {
-        rival.buildings.factory++;
-        rival.resources.credits -= 86; rival.resources.materials -= 48;
-        rival.stance = "Investing in manufacturing";
-        rival.activity = "Built a factory for manufactured goods";
-      } else if (rivalTechnologyChoice(rival)) {
-        const [technologyId, technology] = rivalTechnologyChoice(rival);
-        rival.resources.science -= technology.cost; rival.technologies.push(technologyId);
-        if (technologyId === "governance") rival.stability = Math.min(100, rival.stability + 10);
-        rival.stance = "Advancing " + technology.name;
-        rival.activity = "Researched " + technology.name;
-      } else if ((rival.traits.includes("commerce") || rival.traits.includes("diplomacy")) && rival.resources.credits > 70 && nextRandom(state) > 0.62 && rival.buildings.market < 10_000) {
-        rival.buildings.market++; rival.resources.credits -= 52; rival.stance = "Growing trade"; rival.activity = "Expanded market infrastructure";
-      } else if (rival.traits.includes("diplomacy") && rival.relation >= 65 && !state.diplomacy.treaties.some(t => t.rivalId === rival.id && t.kind === "alliance" && t.status === "active") && nextRandom(state) > 0.75) {
+      const plan = planRival(state, rival, foodNeed, foodTarget);
+      const executedPlan = executeRivalPlan(state, rival, plan);
+      const rememberedConflict = rival.memory.some(m => m.kind === "player-conflict" && state.turn - m.turn < 24);
+      if (!executedPlan && rival.traits.includes("diplomacy") && !rememberedConflict && rival.relation >= 65 && !state.diplomacy.treaties.some(t => t.rivalId === rival.id && t.kind === "alliance" && t.status === "active") && nextRandom(state) > (0.82 - rival.riskTolerance * 0.18)) {
         state.diplomacy.treaties.push({ id: rival.id + ":alliance", rivalId: rival.id, kind: "alliance", status: "active", startedTurn: state.turn, duration: 12 });
         rival.treaties.push("alliance"); rival.stance = "Proposing regional alliance";
         rival.activity = "Formed a strategic alliance";
+        rememberRival(rival, state.turn, "alliance", "Formed a strategic alliance with the player");
         addEvent(state, rival.name + " proposed a strategic alliance.", "diplomacy");
-      } else {
+      } else if (!executedPlan) {
         rival.stance = rival.traits.includes("diplomacy") ? "Building partnerships" : rival.traits.includes("security") ? "Guarding borders" : "Developing at home";
         if (!traded) rival.activity = importedFood ? "Secured food imports" : "Maintained reserves and current industries";
       }
