@@ -92,7 +92,7 @@
     }).join("");
   }
   function renderResearch() {
-    $("technology-list").innerHTML=Object.entries(E.TECHNOLOGIES).map(([id,t])=>{const done=state.technologies.includes(id),effect=t.effect==="stability"?"Raises stability and improves recovery.":t.effect==="growth"?"Improves population growth with food surplus.":"Increases "+t.effect+" output by "+Math.round((t.factor-1)*100)+"%.";return '<article class="list-card"><div><h3>'+esc(t.name)+(done?' <span class="level">Researched</span>':"")+'</h3><p>'+effect+'</p><small>Cost: '+t.cost+' science</small></div><button data-action="research" data-id="'+id+'" '+(done||state.resources.science<t.cost?"disabled":"")+'>'+(done?"Complete":"Research")+'</button></article>';}).join("");
+    $("technology-list").innerHTML=Object.entries(E.TECHNOLOGIES).map(([id,t])=>{const done=state.technologies.includes(id),effect=t.effect==="stability"?"Raises stability and improves recovery.":t.effect==="growth"?"Improves population growth with food surplus.":t.effect==="mine"?"Increases ore extraction by 50%.":t.effect==="transport"?"Increases food logistics capacity by 50%.":t.effect==="housing"?"Increases housing capacity by 50%.":"Increases "+t.effect+" output by "+Math.round((t.factor-1)*100)+"%.";return '<article class="list-card"><div><h3>'+esc(t.name)+(done?' <span class="level">Researched</span>':"")+'</h3><p>'+effect+'</p><small>Cost: '+t.cost+' science</small></div><button data-action="research" data-id="'+id+'" '+(done||state.resources.science<t.cost?"disabled":"")+'>'+(done?"Complete":"Research")+'</button></article>';}).join("");
   }
   function renderCampaign() {
     const c=E.CAMPAIGNS[state.campaign.id]; $("campaign-name").textContent=c.name;$("campaign-description").textContent=c.description;
