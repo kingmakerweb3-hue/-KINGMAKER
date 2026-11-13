@@ -41,7 +41,10 @@
     commerce: { name: "Trade Networks", cost: 40, effect: "market", factor: 1.5 },
     governance: { name: "Civic Governance", cost: 38, effect: "stability", factor: 1 },
     energy: { name: "Energy Systems", cost: 48, effect: "power", factor: 1.5 },
-    medicine: { name: "Public Health", cost: 44, effect: "growth", factor: 1 }
+    medicine: { name: "Public Health", cost: 44, effect: "growth", factor: 1 },
+    extraction: { name: "Advanced Extraction", cost: 42, effect: "mine", factor: 1.5 },
+    logistics: { name: "Integrated Logistics", cost: 46, effect: "transport", factor: 1.5 },
+    urbanism: { name: "Sustainable Urbanism", cost: 50, effect: "housing", factor: 1.5 }
   };
   const CAMPAIGNS = {
     founding: {
@@ -999,11 +1002,11 @@
   }
   function rivalTechnologyChoice(rival) {
     const priorities = [];
-    if (rival.traits.includes("industry")) priorities.push("manufacturing", "industry", "energy");
-    if (rival.traits.includes("agriculture")) priorities.push("agriculture", "medicine", "governance");
-    if (rival.traits.includes("research")) priorities.push("agriculture", "industry", "energy", "manufacturing", "medicine", "governance", "commerce");
-    if (rival.traits.includes("security")) priorities.push("energy", "governance", "industry");
-    if (rival.traits.includes("commerce")) priorities.push("commerce", "industry", "agriculture");
+    if (rival.traits.includes("industry")) priorities.push("manufacturing", "industry", "energy", "extraction");
+    if (rival.traits.includes("agriculture")) priorities.push("agriculture", "medicine", "governance", "logistics", "urbanism");
+    if (rival.traits.includes("research")) priorities.push("agriculture", "industry", "energy", "manufacturing", "medicine", "governance", "commerce", "extraction", "logistics", "urbanism");
+    if (rival.traits.includes("security")) priorities.push("energy", "governance", "industry", "urbanism");
+    if (rival.traits.includes("commerce")) priorities.push("commerce", "industry", "agriculture", "logistics", "extraction");
     return [...new Set(priorities)].map(id => [id, TECHNOLOGIES[id]])
       .find(([id, technology]) => technology && !rival.technologies.includes(id) &&
         (id !== "manufacturing" || rival.buildings.factory > 0) && rival.resources.science >= technology.cost);
