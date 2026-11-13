@@ -44,7 +44,7 @@ Events that need a player decision display their affected nations and response c
 | Public Health | 44 | Raises population growth and population capacity |
 | Advanced Extraction | 42 | Mine output +50% |
 | Integrated Logistics | 46 | Transport Hub logistics output +50%, reducing food demand |
-| Sustainable Urbanism | 50 | Housing capacity output +50% |
+| Sustainable Urbanism | 50 | Housing capacity output +50%; national wage upkeep −10% |
 
 ## Creator Studio
 
