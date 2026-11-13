@@ -416,6 +416,38 @@ test("technology effects alter production and require science", () => {
   assert.ok(Engine.productionFor(state.buildings, state.technologies).food > base);
 });
 
+test("all ten innovation families have bounded, researchable effects", () => {
+  const state = Engine.createInitialState({ seed: 91 });
+  assert.equal(Object.keys(Engine.TECHNOLOGIES).length, 10);
+  const cases = [
+    ["agriculture", "farm", "food"],
+    ["industry", "workshop", "materials"],
+    ["manufacturing", "factory", "goods"],
+    ["commerce", "market", "credits"],
+    ["energy", "power", "power"],
+    ["extraction", "mine", "ore"],
+    ["logistics", "transport", "logistics"],
+    ["urbanism", "housing", "capacity"]
+  ];
+  for (const [id, building, output] of cases) {
+    const buildings = { [building]: 2 };
+    const base = Engine.productionFor(buildings, [])[output];
+    const technology = Engine.TECHNOLOGIES[id];
+    state.resources.science = technology.cost;
+    Engine.research(state, id);
+    const improved = Engine.productionFor(buildings, state.technologies)[output];
+    assert.ok(improved > base, id + " must improve its advertised production effect");
+  }
+  state.resources.science = Engine.TECHNOLOGIES.governance.cost;
+  const stability = state.nation.stability;
+  Engine.research(state, "governance");
+  assert.equal(state.nation.stability, Math.min(100, stability + 10));
+  state.resources.science = Engine.TECHNOLOGIES.medicine.cost;
+  Engine.research(state, "medicine");
+  assert.equal(state.technologies.length, 10);
+  assert.equal(Engine.validateSave(state).technologies.length, 10);
+});
+
 test("turns simulate rivals, market flow and deterministic events", () => {
   const a = Engine.createInitialState({ seed: 44 });
   const b = Engine.createInitialState({ seed: 44 });
