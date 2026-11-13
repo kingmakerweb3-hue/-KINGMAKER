@@ -453,6 +453,21 @@ test("all ten innovation families enforce prerequisites and produce their advert
   assert.equal(Engine.validateSave(state).technologies.length, 10);
 });
 
+test("Sustainable Urbanism increases housing capacity and reduces national wage upkeep", () => {
+  const standard = Engine.createInitialState({ seed: 77 });
+  const efficient = Engine.createInitialState({ seed: 77 });
+  for (const state of [standard, efficient]) {
+    state.nation.population = 300;
+    state.buildings = { farm: 5, mine: 5, workshop: 5, factory: 5, transport: 5, market: 5, academy: 5, power: 5, housing: 5 };
+  }
+  efficient.technologies = ["agriculture", "industry", "energy", "commerce", "governance", "medicine", "logistics", "urbanism"];
+  assert.ok(Engine.productionFor(efficient.buildings, efficient.technologies).capacity >
+    Engine.productionFor(efficient.buildings, []).capacity);
+  Engine.advanceTurn(standard);
+  Engine.advanceTurn(efficient);
+  assert.ok(efficient.economy.lastExpenses < standard.economy.lastExpenses);
+});
+
 test("turns simulate rivals, market flow and deterministic events", () => {
   const a = Engine.createInitialState({ seed: 44 });
   const b = Engine.createInitialState({ seed: 44 });
