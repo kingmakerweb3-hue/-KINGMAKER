@@ -44,4 +44,4 @@ Current saves use schema version 7. The importer validates bounded creator publi
 
 ## Development status
 
-The current build is an in-progress v1 foundation. It includes three local campaigns and simulation systems; additional balancing, broader content, and release verification remain before calling v1.0 complete.
+The current development branch includes three playable local campaigns, six rival nations, a demand-driven Creator Studio economy, ten research technologies with prerequisites, versioned save migration, and 50 automated engine tests. GitHub Actions checks syntax and the test suite on Node.js 20 and 22. Desktop and mobile browser acceptance, extended balance review, and release verification remain outstanding; this is not yet declared a finished v1.0 release.
