@@ -42,6 +42,9 @@ Events that need a player decision display their affected nations and response c
 | Civic Governance | 38 | Stability +10 immediately and +2 recovery per turn |
 | Energy Systems | 48 | Power Grid output +50% |
 | Public Health | 44 | Raises population growth and population capacity |
+| Advanced Extraction | 42 | Mine output +50% |
+| Integrated Logistics | 46 | Transport Hub logistics output +50%, reducing food demand |
+| Sustainable Urbanism | 50 | Housing capacity output +50% |
 
 ## Creator Studio
 
