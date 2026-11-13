@@ -416,18 +416,18 @@ test("technology effects alter production and require science", () => {
   assert.ok(Engine.productionFor(state.buildings, state.technologies).food > base);
 });
 
-test("all ten innovation families have bounded, researchable effects", () => {
+test("all ten innovation families enforce prerequisites and produce their advertised effects", () => {
   const state = Engine.createInitialState({ seed: 91 });
   assert.equal(Object.keys(Engine.TECHNOLOGIES).length, 10);
+  assert.throws(() => Engine.research(state, "industry"), /prerequisite missing/);
   const cases = [
     ["agriculture", "farm", "food"],
     ["industry", "workshop", "materials"],
+    ["energy", "power", "power"],
     ["manufacturing", "factory", "goods"],
     ["commerce", "market", "credits"],
-    ["energy", "power", "power"],
     ["extraction", "mine", "ore"],
-    ["logistics", "transport", "logistics"],
-    ["urbanism", "housing", "capacity"]
+    ["logistics", "transport", "logistics"]
   ];
   for (const [id, building, output] of cases) {
     const buildings = { [building]: 2 };
@@ -444,6 +444,10 @@ test("all ten innovation families have bounded, researchable effects", () => {
   assert.equal(state.nation.stability, Math.min(100, stability + 10));
   state.resources.science = Engine.TECHNOLOGIES.medicine.cost;
   Engine.research(state, "medicine");
+  state.resources.science = Engine.TECHNOLOGIES.urbanism.cost;
+  const housingBase = Engine.productionFor({ housing: 2 }, [])[ "capacity" ];
+  Engine.research(state, "urbanism");
+  assert.ok(Engine.productionFor({ housing: 2 }, state.technologies).capacity > housingBase);
   assert.equal(state.technologies.length, 10);
   assert.equal(Engine.validateSave(state).technologies.length, 10);
 });
