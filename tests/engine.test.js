@@ -469,7 +469,7 @@ test("diplomatic gifts improve standing and treaty thresholds are enforced", () 
 });
 
 test("trade and research agreements pay benefits while an alliance strengthens influence", () => {
-  const state = Engine.createInitialState();
+  const state = Engine.createInitialState({ seed: 44 });
   const rival = state.rivals.aurelia;
   rival.relation = 50;
   Engine.offerTreaty(state, "aurelia", "trade");
