@@ -1,0 +1,32 @@
+name: KINGMAKER quality checks
+
+on:
+  push:
+    branches:
+      - codex/kingmaker-v1-development
+  pull_request:
+    branches:
+      - codex/kingmaker-v1-development
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Node ${{ matrix.node }} · syntax and engine tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - name: Check out development branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Check JavaScript syntax
+        run: npm run check
+      - name: Run automated engine tests
+        run: npm test
