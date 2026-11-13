@@ -214,6 +214,7 @@ test("factories convert materials, ore, and power into goods and award industria
 test("precision manufacturing increases working factory output", () => {
   const state = Engine.createInitialState({ seed: 33 });
   state.buildings.factory = 1;
+  state.technologies.push("agriculture", "industry", "energy");
   state.resources.science = Engine.TECHNOLOGIES.manufacturing.cost;
   const baseOutput = Engine.economicSnapshot(state).production.goods;
   Engine.research(state, "manufacturing");
