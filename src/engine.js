@@ -36,15 +36,15 @@
   };
   const TECHNOLOGIES = {
     agriculture: { name: "Advanced Agriculture", cost: 28, effect: "farm", factor: 1.5 },
-    industry: { name: "Industrial Methods", cost: 34, effect: "workshop", factor: 1.5 },
-    manufacturing: { name: "Precision Manufacturing", cost: 55, effect: "factory", factor: 1.5 },
+    industry: { name: "Industrial Methods", cost: 34, effect: "workshop", factor: 1.5, requires: ["agriculture"] },
+    manufacturing: { name: "Precision Manufacturing", cost: 55, effect: "factory", factor: 1.5, requires: ["industry", "energy"] },
     commerce: { name: "Trade Networks", cost: 40, effect: "market", factor: 1.5 },
     governance: { name: "Civic Governance", cost: 38, effect: "stability", factor: 1 },
-    energy: { name: "Energy Systems", cost: 48, effect: "power", factor: 1.5 },
-    medicine: { name: "Public Health", cost: 44, effect: "growth", factor: 1 },
-    extraction: { name: "Advanced Extraction", cost: 42, effect: "mine", factor: 1.5 },
-    logistics: { name: "Integrated Logistics", cost: 46, effect: "transport", factor: 1.5 },
-    urbanism: { name: "Sustainable Urbanism", cost: 50, effect: "housing", factor: 1.5 }
+    energy: { name: "Energy Systems", cost: 48, effect: "power", factor: 1.5, requires: ["industry"] },
+    medicine: { name: "Public Health", cost: 44, effect: "growth", factor: 1, requires: ["agriculture", "governance"] },
+    extraction: { name: "Advanced Extraction", cost: 42, effect: "mine", factor: 1.5, requires: ["industry"] },
+    logistics: { name: "Integrated Logistics", cost: 46, effect: "transport", factor: 1.5, requires: ["commerce"] },
+    urbanism: { name: "Sustainable Urbanism", cost: 50, effect: "housing", factor: 1.5, requires: ["medicine", "logistics"] }
   };
   const CAMPAIGNS = {
     founding: {
@@ -665,6 +665,8 @@
     const technology = TECHNOLOGIES[id];
     if (!technology) throw new Error("Unknown technology.");
     if (state.technologies.includes(id)) throw new Error("Technology already researched.");
+    const missing = (technology.requires || []).filter(required => !state.technologies.includes(required));
+    if (missing.length) throw new Error("Research prerequisite missing: " + missing.map(required => TECHNOLOGIES[required].name).join(", ") + ".");
     if (state.resources.science < technology.cost) throw new Error("Not enough science.");
     state.resources.science -= technology.cost;
     state.technologies.push(id);
@@ -1009,7 +1011,8 @@
     if (rival.traits.includes("commerce")) priorities.push("commerce", "industry", "agriculture", "logistics", "extraction");
     return [...new Set(priorities)].map(id => [id, TECHNOLOGIES[id]])
       .find(([id, technology]) => technology && !rival.technologies.includes(id) &&
-        (id !== "manufacturing" || rival.buildings.factory > 0) && rival.resources.science >= technology.cost);
+        (id !== "manufacturing" || rival.buildings.factory > 0) &&
+        (technology.requires || []).every(required => rival.technologies.includes(required)) && rival.resources.science >= technology.cost);
   }
   function rememberRival(rival, turn, kind, text, relationDelta = 0) {
     rival.memory.unshift({ turn, kind: String(kind).slice(0, 32), text: String(text).slice(0, 180), relationDelta: safeInt(relationDelta, 0, 200) * (relationDelta < 0 ? -1 : 1) });
