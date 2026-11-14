@@ -1,3 +1,10 @@
+## World Engine 2.5 — Alliance council and diplomatic trust
+
+- Added persistent diplomatic trust scores alongside relationship ratings.
+- Added diplomatic summits with eligibility, credit and influence costs to build trust.
+- Defensive alliances now require meaningful relations and established trust, rather than being an immediate purchase.
+- Added alliance termination, diplomatic consequences, and a persistent alliance council record.
+
 ## World Engine 2.4 — Strategic rival intelligence
 
 - Replaced random rival posture rolls with focus-driven decisions based on each nation's treasury, food, materials, and defence strength.
@@ -34,7 +41,7 @@
 
 KINGMAKER is a browser-based nation-building and world-strategy game prototype. Build an economy, develop infrastructure, research technology, manage rival nations, expand territory, form alliances, wage simulated campaigns, and shape a national legacy.
 
-## Current build: World Engine 2.4
+## Current build: World Engine 2.5
 
 ### Playable systems
 - **Nation management** — name your nation and choose a government style.
@@ -171,7 +178,7 @@ This is a playable single-player prototype, not a finished online commercial rel
 5. Multiplayer server architecture, moderation, security, and release operations.
 
 ---
-**KINGMAKER World Engine 2.4** — a playable single-player prototype under active development.
+**KINGMAKER World Engine 2.5** — a playable single-player prototype under active development.
 
 ## Automated browser checks
 
