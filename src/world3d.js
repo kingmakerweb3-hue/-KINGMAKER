@@ -3,7 +3,8 @@
   const WORLD_VERSION = 1;
   const REGION_NAMES = ["Aurelian Reach","The Verdant Crown","Sable Highlands","Azure Coast","Ember Basin","Northern Marches","Jade Peninsula","The Glass Desert","Crescent Isles","Western Steppe","Ironwood Vale","Southern Archipelago"];
   const NATION_NAMES = ["Asteria","Veyr","Caldrin","Orinth","Myr","Talassar","Eldoria","Kharad"];
-  const RESOURCES = ["Fertile soil","Iron","Copper","Coal","Timber","Stone","Fresh water","Rare crystals"];\n  const CITY_NAMES = ["Dawnport","Kingsfall","Highgarden","Stonewatch","Silverkeep","Ravenmoor","Brightwater","Ironhaven","Goldcrest","Westreach","Northgate","Sunspire","Ashford","Windmere","Oakheart","Emberfall"];
+  const RESOURCES = ["Fertile soil","Iron","Copper","Coal","Timber","Stone","Fresh water","Rare crystals"];
+  const CITY_NAMES = ["Dawnport","Kingsfall","Highgarden","Stonewatch","Silverkeep","Ravenmoor","Brightwater","Ironhaven","Goldcrest","Westreach","Northgate","Sunspire","Ashford","Windmere","Oakheart","Emberfall"];
   function random(seed) {
     let x = seed >>> 0;
     return function () { x += 0x6D2B79F5; let t=x; t=Math.imul(t^(t>>>15),t|1); t^=t+Math.imul(t^(t>>>7),t|61); return ((t^(t>>>14))>>>0)/4294967296; };
@@ -13,7 +14,9 @@
     for(let i=0;i<REGION_NAMES.length;i++){
       const roll=rand(), count=2+Math.floor(rand()*4), resources=[];
       while(resources.length<3){const item=RESOURCES[Math.floor(rand()*RESOURCES.length)];if(!resources.includes(item))resources.push(item);}
-      const population=180000+Math.floor(rand()*2200000), latitude=-68+rand()*136, longitude=-180+rand()*360;\n      const cities=Array.from({length:count},(_,j)=>({id:"city-"+(i+1)+"-"+(j+1),name:CITY_NAMES[Math.floor(rand()*CITY_NAMES.length)]+" "+(j?"":""),population:Math.floor(population/count*(.45+rand())),type:j===0?"Capital":"Settlement",latitude:Math.max(-80,Math.min(80,latitude+(rand()-.5)*12)),longitude:((longitude+(rand()-.5)*22+540)%360)-180}));\n      regions.push({id:"region-"+(i+1),name:REGION_NAMES[i],biome:roll<.18?"Tundra":roll<.38?"Temperate":roll<.58?"Forest":roll<.76?"Grassland":roll<.9?"Desert":"Tropical",population,cities,cityCount:count,latitude,longitude,resources,owner:i<8?NATION_NAMES[i]:"Unclaimed",development:Math.floor(rand()*70)+15});
+      const population=180000+Math.floor(rand()*2200000), latitude=-68+rand()*136, longitude=-180+rand()*360;
+      const cities=Array.from({length:count},(_,j)=>({id:"city-"+(i+1)+"-"+(j+1),name:CITY_NAMES[Math.floor(rand()*CITY_NAMES.length)]+(j?" "+(j+1):""),population:Math.floor(population/count*(.45+rand())),type:j===0?"Capital":"Settlement",latitude:Math.max(-80,Math.min(80,latitude+(rand()-.5)*12)),longitude:((longitude+(rand()-.5)*22+540)%360)-180}));
+      regions.push({id:"region-"+(i+1),name:REGION_NAMES[i],biome:roll<.18?"Tundra":roll<.38?"Temperate":roll<.58?"Forest":roll<.76?"Grassland":roll<.9?"Desert":"Tropical",population,cities,cityCount:count,latitude,longitude,resources,owner:i<8?NATION_NAMES[i]:"Unclaimed",development:Math.floor(rand()*70)+15});
     }
     return {version:WORLD_VERSION,seed:seed>>>0,generatedAtTurn:1,regions,nations:NATION_NAMES.map((name,i)=>({id:"nation-"+i,name,capital:regions[i].name,regionId:regions[i].id,population:regions[i].population,government:["Republic","Federation","Council","Monarchy"][Math.floor(rand()*4)]})),worldAge:0};
   }
