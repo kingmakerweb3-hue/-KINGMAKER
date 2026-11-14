@@ -582,6 +582,40 @@
     return Object.values(TECHNOLOGIES).filter(t => t.effect === id && technologies.includes(Object.keys(TECHNOLOGIES).find(k => TECHNOLOGIES[k] === t)))
       .reduce((factor, t) => factor * t.factor, 1);
   }
+  const RESOURCE_SITE_OUTPUT = {
+    "Fertile soil": { food: 4 }, "Fresh water": { food: 3 },
+    Iron: { ore: 4 }, Copper: { ore: 4 }, Coal: { power: 3 },
+    Timber: { materials: 3 }, Stone: { materials: 3 }, "Rare crystals": { science: 2 }
+  };
+  function resourceExtractionOutput(mapWorld) {
+    const output = { food: 0, materials: 0, ore: 0, science: 0, power: 0 };
+    for (const region of mapWorld && Array.isArray(mapWorld.regions) ? mapWorld.regions : []) {
+      for (const node of Array.isArray(region.resourceNodes) ? region.resourceNodes : []) {
+        if (!node || node.operational !== true) continue;
+        const yieldByResource = RESOURCE_SITE_OUTPUT[node.resource];
+        if (!yieldByResource) continue;
+        for (const [key, amount] of Object.entries(yieldByResource)) output[key] += amount;
+      }
+    }
+    return output;
+  }
+  function developResourceSite(state, regionId, nodeId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (!state.mapWorld || !Array.isArray(state.mapWorld.regions)) throw new Error("No generated world is available.");
+    const region = state.mapWorld.regions.find(item => item.id === regionId);
+    if (!region) throw new Error("Region not found.");
+    if (region.owner !== "Unclaimed") throw new Error("Extraction sites can only be established in unclaimed regions.");
+    const node = Array.isArray(region.resourceNodes) ? region.resourceNodes.find(item => item.id === nodeId) : null;
+    if (!node || !RESOURCE_SITE_OUTPUT[node.resource]) throw new Error("Resource deposit not found.");
+    if (node.operational === true) throw new Error("This resource deposit is already operational.");
+    if (state.resources.materials < 35 || state.resources.credits < 55) throw new Error("Establishing an extraction site requires 35 materials and 55 credits.");
+    state.resources.materials -= 35;
+    state.resources.credits -= 55;
+    node.operational = true;
+    node.operatedSinceTurn = state.turn;
+    addEvent(state, "Established a " + node.resource.toLowerCase() + " extraction site in " + region.name + ".", "economy");
+    return node;
+  }
   function productionFor(buildings, technologies = []) {
     const production = { food: 0, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, capacity: 0, logistics: 0 };
     for (const [id, definition] of Object.entries(BUILDINGS)) {
@@ -617,6 +651,7 @@
       power: clamp(state.resources.power + Math.floor(base.power * staffing), 0, RESOURCE_LIMIT)
     }, state.buildings, state.technologies, state.nation.population);
     for (const [resource, amount] of Object.entries(creator.production)) industry.production[resource] += amount;
+    for (const [resource, amount] of Object.entries(resourceExtractionOutput(state.mapWorld))) industry.production[resource] += amount;
     return { production: industry.production, consumption: { food: Math.ceil(state.nation.population / (12 + Math.min(8, industry.production.logistics))), ...industry.inputs },
       workforce: jobs, employed, requiredJobs: Math.ceil(state.nation.population / 10), activeFactories: industry.activeFactories };
   }
@@ -1194,6 +1229,7 @@
     }, state.buildings, state.technologies, state.nation.population);
     const output = industry.production;
     for (const [resource, amount] of Object.entries(creator.production)) output[resource] += amount;
+    for (const [resource, amount] of Object.entries(resourceExtractionOutput(state.mapWorld))) output[resource] += amount;
     if (worldEventActiveThisTurn(state, "industrial_revolution")) output.goods = Math.floor(output.goods * 1.3);
     for (const resource of ["food", "materials", "ore", "goods", "science", "power"]) {
       state.resources[resource] = clamp(state.resources[resource] + output[resource], 0, RESOURCE_LIMIT);
@@ -1319,7 +1355,7 @@
   return {
     SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, productionFor, build, trade,
+    createInitialState, validateSave, migrateSave, productionFor, developResourceSite, build, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
