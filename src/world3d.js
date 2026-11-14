@@ -6,7 +6,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   const host=document.getElementById("world3d-viewport");
   if(!host)return;
   let scene,camera,renderer,controls,landGroup,buildingGroup,peopleGroup,roadGroup;
-  let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock;
+  let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,raycaster,groundPlane,previewMarker;
   const COLORS={farm:0xc6a35d,mine:0x78838d,workshop:0x9c7652,factory:0x697b8e,transport:0x9b9b8b,market:0xc49b52,academy:0x8b80b8,power:0x75b9c9,housing:0xd6c5a3};
   const material=(color,roughness=.86)=>new THREE.MeshStandardMaterial({color,roughness});
   const boxGeo=new THREE.BoxGeometry(1,1,1);
@@ -67,11 +67,18 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const cap=new THREE.Mesh(new THREE.ConeGeometry(1.15,.8,4),material(0x9b493d));cap.position.y=3.2;cap.rotation.y=Math.PI/4;keep.add(cap);keep.position.set(0,.1,0);buildingGroup.add(keep);
     for(let i=0;i<12;i++){const p=new THREE.Mesh(new THREE.SphereGeometry(.12,8,6),material(0x34495e));p.position.set(Math.cos(i)*3,.18,Math.sin(i)*3);peopleGroup.add(p);}
     clock=new THREE.Clock();
+    raycaster=new THREE.Raycaster();groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
+    previewMarker=new THREE.Mesh(new THREE.RingGeometry(.55,.78,32),new THREE.MeshBasicMaterial({color:0xffd36e,side:THREE.DoubleSide}));previewMarker.rotation.x=-Math.PI/2;previewMarker.visible=false;scene.add(previewMarker);
+    renderer.domElement.addEventListener("pointermove",updatePlacementPreview);
+    renderer.domElement.addEventListener("pointerdown",placeSelectedBuilding);
     resizeObserver=new ResizeObserver(resize);resizeObserver.observe(host);resize();
     document.getElementById("world3d-home")?.addEventListener("click",()=>{camera.position.set(17,15,20);controls.target.set(0,0,0);controls.update();});
     document.getElementById("world3d-rotate")?.addEventListener("click",e=>{autoRotate=!autoRotate;controls.autoRotate=autoRotate;e.currentTarget.setAttribute("aria-pressed",String(autoRotate));e.currentTarget.textContent="Auto-rotate: "+(autoRotate?"on":"off");});
     animate();
   }
+  function updatePlacementPreview(event){if(!selectedBuilding||!renderer)return;const rect=renderer.domElement.getBoundingClientRect();const pointer=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-((event.clientY-rect.top)/rect.height)*2+1);raycaster.setFromCamera(pointer,camera);const point=new THREE.Vector3();if(raycaster.ray.intersectPlane(groundPlane,point)&&Math.hypot(point.x,point.z)<13.2){previewMarker.position.set(point.x,.045,point.z);previewMarker.visible=true;}else previewMarker.visible=false;}
+  function placeSelectedBuilding(event){if(!selectedBuilding||event.button!==0)return;const rect=renderer.domElement.getBoundingClientRect();const pointer=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-((event.clientY-rect.top)/rect.height)*2+1);raycaster.setFromCamera(pointer,camera);const point=new THREE.Vector3();if(!raycaster.ray.intersectPlane(groundPlane,point)||Math.hypot(point.x,point.z)>13.2)return;window.dispatchEvent(new CustomEvent("kingmaker:place-building",{detail:{type:selectedBuilding,x:point.x,z:point.z}}));}
+  function selectBuilding(type){selectedBuilding=type||null;if(previewMarker)previewMarker.visible=false;const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent=selectedBuilding?"Tap an open spot on the island to build a "+selectedBuilding+".":"Select a structure to begin.";document.querySelectorAll("[data-world-build]").forEach(button=>button.classList.toggle("selected",button.dataset.worldBuild===selectedBuilding));if(renderer)renderer.domElement.style.cursor=selectedBuilding?"crosshair":"grab";}
   function resize(){if(!renderer||!host.clientWidth)return;const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
   function animate(){
     animationId=requestAnimationFrame(animate);const t=clock.getElapsedTime();controls.update();
@@ -93,6 +100,6 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   }
   function dispose(){cancelAnimationFrame(animationId);resizeObserver?.disconnect();renderer?.dispose();controls?.dispose();}
   window.addEventListener("pagehide",dispose,{once:true});
-  try{createScene();window.KingmakerWorld3D={update};if(lastState)update(lastState);}
+  try{createScene();window.KingmakerWorld3D={update,selectBuilding};if(lastState)update(lastState);}
   catch(error){host.innerHTML='<div class="world3d-loading">3D world could not initialize. Try a browser with WebGL enabled.</div>';const status=document.getElementById("world3d-status");if(status)status.textContent="3D ENGINE UNAVAILABLE";console.error("KINGMAKER 3D:",error);}
 })();
