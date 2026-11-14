@@ -178,5 +178,37 @@
   const assess=()=>{renderAdvice();toast("The local World Director assessed your nation.","success");};
   $("director-run").addEventListener("click",assess);$("director-run-panel").addEventListener("click",assess);
   $("sound-toggle").addEventListener("click",e=>{soundOn=!soundOn;e.currentTarget.setAttribute("aria-pressed",String(soundOn));e.currentTarget.textContent=soundOn?"Sound: on":"Sound: off";beep();});
-  state=load();render();persist();
+  function showBootFailure(error) {
+    const message = error && error.message ? error.message : String(error || "Unknown startup error");
+    let panel = document.getElementById("boot-error");
+    if (!panel) {
+      panel = document.createElement("section");
+      panel.id = "boot-error";
+      panel.className = "boot-error";
+      panel.setAttribute("role", "alert");
+      document.body.prepend(panel);
+    }
+    panel.innerHTML = '<div class="boot-error-card"><p class="eyebrow">KINGMAKER STARTUP CHECK</p><h1>The game could not start.</h1><p>We caught a startup problem instead of leaving you with a blank screen. Refresh the page once. If it continues, send the diagnostic code below.</p><code></code><button type="button" id="boot-reload">Reload game</button></div>';
+    panel.querySelector("code").textContent = message.slice(0, 500);
+    panel.querySelector("#boot-reload").addEventListener("click", () => location.reload());
+  }
+  window.addEventListener("error", event => {
+    if (event && event.message) showBootFailure(event.message);
+  });
+  window.addEventListener("unhandledrejection", event => {
+    showBootFailure(event.reason);
+  });
+  try {
+    if (!E || typeof E.createInitialState !== "function" || typeof E.advanceTurn !== "function") {
+      throw new Error("Game engine failed to load. Check that src/engine.js is reachable.");
+    }
+    state=load();
+    render();
+    persist();
+    document.documentElement.dataset.gameReady = "true";
+  } catch (error) {
+    document.documentElement.dataset.gameReady = "false";
+    showBootFailure(error);
+    console.error("KINGMAKER startup failed:", error);
+  }
 })();
