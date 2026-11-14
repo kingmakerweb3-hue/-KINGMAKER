@@ -39,6 +39,7 @@ Events that need a player decision display their affected nations and response c
 | Advanced Agriculture | 28 | Farm output +50% |
 | Industrial Methods | 34 | Workshop output +50% |
 | Trade Networks | 40 | Market output +50% |
+| Precision Manufacturing | 55 | Factory output +50% (requires Industrial Methods and Energy Systems) |
 | Civic Governance | 38 | Stability +10 immediately and +2 recovery per turn |
 | Energy Systems | 48 | Power Grid output +50% |
 | Public Health | 44 | Raises population growth and population capacity |
