@@ -772,3 +772,23 @@ test("a long-running deterministic world remains inside the save schema", () => 
   assert.ok(state.turn > 100);
   assert.ok(Object.values(state.rivals).every(r => r.resources.food >= 0 && r.resources.materials >= 0 && r.resources.credits >= 0));
 });
+
+
+test("procedural map world is saved separately from the simulation event world", () => {
+  const state = Engine.createInitialState({ seed: 812 });
+  const eventWorld = state.world;
+  state.mapWorld = {
+    version: 1, seed: 812,
+    regions: [{ id: "region-test", name: "Test Reach", cities: [{ id: "city-test", name: "Testport" }] }],
+    nations: []
+  };
+  const exported = JSON.parse(Engine.exportSave(state));
+  assert.deepEqual(exported.mapWorld, state.mapWorld);
+  assert.deepEqual(exported.world, eventWorld);
+  const imported = Engine.migrateSave(exported);
+  assert.deepEqual(imported.mapWorld, state.mapWorld);
+  assert.deepEqual(imported.world.activeEvents, eventWorld.activeEvents);
+  Engine.advanceTurn(imported);
+  assert.ok(Array.isArray(imported.world.activeEvents));
+  assert.equal(imported.mapWorld.regions[0].id, "region-test");
+});
