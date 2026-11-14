@@ -93,7 +93,8 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const stats=document.getElementById("world3d-stats");
     if(stats)stats.innerHTML=[["Citizens",state.nation.population],["Infrastructure",total+" levels"],["Stability",state.nation.stability+"%"],["Territory", "1 island · 6 neighbors"]].map(([label,value])=>'<div class="world3d-stat"><b>'+String(value).replace(/[&<>]/g,"")+'</b><small>'+label+'</small></div>').join("");
     if(!buildingGroup)return;
-    clearGroup(buildingGroup);
+    clearGroup(buildingGroup);clearGroup(playerRoadGroup);
+    (state.world?.placedRoads||[]).forEach(road=>makePlayerRoad(road.from,road.to));
     const capital=new THREE.Group();const base=new THREE.Mesh(boxGeo,material(0xe4dcc7));base.scale.set(1.7,2.8,1.7);base.position.y=1.4;capital.add(base);
     const roof=new THREE.Mesh(new THREE.ConeGeometry(1.25,.9,4),material(0x9d4e3f));roof.position.y=3.25;roof.rotation.y=Math.PI/4;capital.add(roof);buildingGroup.add(capital);
     let index=0;const placedByType={};for(const [type,count] of Object.entries(state.buildings||{})){for(let i=0;i<Math.min(Number(count)||0,18);i++){const n=placedByType[type]||0;const saved=(state.world?.placedBuildings||[]).filter(p=>p.type===type)[n];makeBuilding(type,index++,total,saved);placedByType[type]=n+1;}}
