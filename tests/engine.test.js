@@ -947,12 +947,12 @@ test("public health policy improves citizen safety and population growth, and po
   assert.throws(() => Engine.validateSave(loaded), /National policy state is invalid/);
 });
 
-test("version 8 saves migrate through national policies into schema version 10", () => {
+test("version 8 saves migrate through national policies and elections into schema version 11", () => {
   const old = Engine.createInitialState({ seed: 904 });
   old.schemaVersion = 8;
   delete old.policies;
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 10);
+  assert.equal(migrated.schemaVersion, 11);
   assert.deepEqual(Object.keys(migrated.policies).sort(), ["food_assistance", "industry_incentive", "public_health", "research_fund"]);
   assert.ok(Object.values(migrated.policies).every(policy => policy === null));
 });
