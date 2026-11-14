@@ -135,9 +135,10 @@
     const citizens=state.citizens||[];
     const avg=citizens.length?Math.round(citizens.reduce((sum,c)=>sum+c.mood,0)/citizens.length):0;
     const responsive=citizens.filter(c=>Object.values(c.needs).some(value=>value<35)).length;
+    const mandate=E.civicMandate(state);
     const rows=citizens.slice(0,8).map(c=>{const friends=(c.relationships||[]).filter(r=>r.affinity>=70).length;return '<div class="citizen-row"><strong>'+esc(c.name)+'</strong><span>'+esc(c.role)+' · Lv '+(c.careerLevel||1)+'</span><span>'+esc(c.activity)+'</span><b>'+c.mood+'% mood · '+friends+' friends</b><small>'+esc(c.goal)+' · '+(c.careerXp||0)+' career XP · '+(c.civicTrust??50)+'% civic trust</small></div>';}).join("");
     const host=$("director-citizens");
-    if(host) host.innerHTML='<section class="intel-panel"><div class="section-heading"><div><span class="eyebrow">CIVILIAN AGENTS</span><h3>Living population</h3></div><strong>'+citizens.length+' agents · '+avg+'% average mood</strong></div><p>'+responsive+' agents currently responding to unmet needs. Agents form persistent friendships, socialize over time, advance careers through sustained wellbeing, pursue personal aspirations, and adjust civic trust as conditions and policies change.</p><div class="citizen-list">'+rows+'</div></section>';
+    if(host) host.innerHTML='<section class="intel-panel"><div class="section-heading"><div><span class="eyebrow">CIVILIAN AGENTS</span><h3>Living population</h3></div><strong>'+citizens.length+' agents · '+avg+'% average mood</strong></div><p>'+responsive+' agents currently responding to unmet needs. Agents form persistent friendships, socialize over time, advance careers through sustained wellbeing, pursue personal aspirations, and adjust civic trust as conditions and policies change.</p><div class="intel-summary"><div><small>PUBLIC APPROVAL</small><strong>'+mandate.approval+'%</strong></div><div><small>AVERAGE CIVIC TRUST</small><strong>'+mandate.trust+'%</strong></div><div><small>GOVERNING MANDATE</small><strong>'+esc(mandate.mandate)+'</strong></div><div><small>TOP PUBLIC CONCERN</small><strong>'+esc(mandate.leadingConcern)+'</strong></div></div><div class="citizen-list">'+rows+'</div></section>';
   }
   function renderDirectorIntelligence() {
     const report=E.worldIntelligence(state), p=report.player;
