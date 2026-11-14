@@ -136,7 +136,12 @@
   let generatedWorld = window.KingmakerWorld3D.generate(481516);
   let selectedRegionId = generatedWorld.regions[0].id;
   let planetRenderer = null;
-  function syncGeneratedWorld() {\n    generatedWorld=state.world&&state.world.version===window.KingmakerWorld3D.WORLD_VERSION&&Array.isArray(state.world.regions)?state.world:window.KingmakerWorld3D.generate(state.seed);\n    state.world=generatedWorld;selectedRegionId=generatedWorld.regions[0].id;\n    if(planetRenderer&&planetRenderer.destroy)planetRenderer.destroy();planetRenderer=null;\n  }\n  function renderGeneratedWorld() {
+  function syncGeneratedWorld() {
+    generatedWorld=state.world&&state.world.version===window.KingmakerWorld3D.WORLD_VERSION&&Array.isArray(state.world.regions)?state.world:window.KingmakerWorld3D.generate(state.seed);
+    state.world=generatedWorld;selectedRegionId=generatedWorld.regions[0].id;
+    if(planetRenderer&&planetRenderer.destroy)planetRenderer.destroy();planetRenderer=null;
+  }
+  function renderGeneratedWorld() {
     $("world-seed").textContent = generatedWorld.seed;
     $("region-count").textContent = generatedWorld.regions.length;
     $("generated-nations").textContent = generatedWorld.nations.length;
