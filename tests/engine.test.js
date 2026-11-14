@@ -844,3 +844,13 @@ test("schema 8 saves migrate with the original regional map",()=>{
  assert.equal(migrated.territories.length,7);
  assert.doesNotThrow(()=>Engine.validateSave(migrated));
 });
+
+test("owned regions contribute their advertised bonus to the national economy",()=>{
+ const state=Engine.createInitialState({seed:104});
+ const before=Engine.economicSnapshot(state);
+ const region=state.territories.find(r=>r.owner==="player");
+ region.bonus="food";region.value=4;
+ Engine.advanceTurn(state);
+ assert.equal(state.economy.production.food,before.production.food+4);
+ assert.doesNotThrow(()=>Engine.validateSave(state));
+});
