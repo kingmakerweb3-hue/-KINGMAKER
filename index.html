@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101827"><meta name="description" content="Build a nation, develop an economy, research technologies, expand territory and shape the world in KINGMAKER."><link rel="manifest" href="manifest.json">
-<title>KINGMAKER — World Engine v0.6</title>
+<title>KINGMAKER — World Engine v0.7</title>
 <style>
 :root{--bg:#0b1220;--panel:#121d30;--panel2:#18263d;--line:#2a3a55;--text:#edf3ff;--muted:#9fb0ca;--gold:#e7bd62;--green:#70d6a1;--red:#ff8d8d;--blue:#83b7ff}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#172843 0,#0b1220 58%);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
@@ -24,7 +24,7 @@ footer{border-top:1px solid var(--line);padding:20px;text-align:center;color:var
 <body>
 <header><div class="brand"><div class="sigil">K</div><div><h1>KINGMAKER</h1><div class="tag">PLAY THE WORLD · BUILD THE FUTURE · OWN YOUR CREATION</div></div></div></header>
 <main>
-<section class="hero"><div><div class="eyebrow">WORLD ENGINE · PLAYABLE BUILD 0.6</div><h2>Your nation is only<br>the beginning.</h2><p>Build an economy, develop infrastructure, research technology, trade with rival nations and register original creator assets. The world advances when you advance it.</p></div><div class="actions"><button class="primary" onclick="advanceTurn()">Advance World ▸</button><button onclick="exportSave()">Export Save</button><button onclick="document.getElementById('importFile').click()">Import Save</button><input id="importFile" type="file" accept="application/json" class="hidden" onchange="importSave(event)"></div></section>
+<section class="hero"><div><div class="eyebrow">WORLD ENGINE · PLAYABLE BUILD 0.7</div><h2>Your nation is only<br>the beginning.</h2><p>Build an economy, develop infrastructure, research technology, trade with rival nations and register original creator assets. The world advances when you advance it.</p></div><div class="actions"><button class="primary" onclick="advanceTurn()">Advance World ▸</button><button onclick="exportSave()">Export Save</button><button onclick="document.getElementById('importFile').click()">Import Save</button><input id="importFile" type="file" accept="application/json" class="hidden" onchange="importSave(event)"></div></section>
 <div class="metrics" id="metrics"></div>
 <nav class="tabs">
 <button class="active" data-tab="overview">World Overview</button><button data-tab="nation">My Nation</button><button data-tab="market">Trade & Diplomacy</button><button data-tab="research">Research</button><button data-tab="director">AI World Director</button><button data-tab="military">Military & Treaties</button><button data-tab="studio">Creator Studio</button><button data-tab="history">World History</button><button data-tab="campaign">Campaign & Achievements</button>
@@ -406,6 +406,69 @@ resolveBattle=function(name){
 if("serviceWorker" in navigator && (location.protocol==="https:"||location.hostname==="localhost")){
  window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(err){console.warn("KINGMAKER offline support could not be enabled:",err)})});
 }
+
+
+/* KINGMAKER v0.7 — persistent rival nation simulation */
+state.npcData=state.npcData||{};
+const rivalProfiles={
+ Aurelia:{focus:"Commerce",treasury:180,food:90,materials:70,strength:34,relations:15},
+ Northreach:{focus:"Defence",treasury:130,food:110,materials:95,strength:48,relations:5},
+ Meridian:{focus:"Research",treasury:210,food:75,materials:80,strength:27,relations:-5}
+};
+Object.keys(rivalProfiles).forEach(function(name){
+ if(!state.npcData[name])state.npcData[name]={...rivalProfiles[name]};
+});
+function simulateRivalTurn(){
+ Object.keys(rivalProfiles).forEach(function(name){
+  const rival=state.npcData[name],profile=rivalProfiles[name];
+  rival.treasury=Math.max(0,rival.treasury+ (profile.focus==="Commerce"?16:profile.focus==="Research"?9:11));
+  rival.food=Math.max(0,rival.food+(profile.focus==="Defence"?9:5)-4);
+  rival.materials=Math.max(0,rival.materials+(profile.focus==="Defence"?8:4));
+  const roll=Math.random();
+  if(roll<.22){
+   rival.strength=Math.min(100,rival.strength+(profile.focus==="Defence"?4:2));
+   state.npc[name]="Strengthening borders";
+  }else if(roll<.48){
+   rival.treasury=Math.max(0,rival.treasury-18);
+   rival.materials+=5;
+   state.npc[name]="Investing in industry";
+  }else if(roll<.72){
+   state.relations[name]=Math.min(100,(state.relations[name]||0)+2);
+   state.npc[name]="Seeking diplomacy";
+  }else{
+   rival.food=Math.max(0,rival.food-3);
+   state.npc[name]="Expanding trade";
+  }
+  if(rival.food===0){rival.strength=Math.max(5,rival.strength-2);state.npc[name]="Facing supply pressure";}
+ });
+}
+const advanceBeforeRivalEconomy=advanceTurn;
+advanceTurn=function(){
+ advanceBeforeRivalEconomy();
+ simulateRivalTurn();
+ if(state.turn%5===0){
+  const strongest=Object.keys(state.npcData).sort((a,b)=>state.npcData[b].strength-state.npcData[a].strength)[0];
+  log("Regional intelligence: "+strongest+" currently fields the strongest neighboring force.");
+ }
+ save();
+};
+const renderBeforeRivalEconomy=render;
+render=function(){
+ renderBeforeRivalEconomy();
+ if($("worldMap")){
+  const entries=Object.keys(state.npcData).map(function(name){
+   const n=state.npcData[name];
+   return '<div class="card span-6"><div class="row"><b>'+esc(name)+'</b><span class="pill">'+esc(state.npc[name]||"Independent")+'</span></div><p class="muted small">National focus: '+esc(rivalProfiles[name].focus)+'</p><div class="row small"><span>Treasury: '+n.treasury+'</span><span>Food: '+n.food+'</span><span>Materials: '+n.materials+'</span></div><p class="small">Defence rating: <b>'+n.strength+'</b> · Relations: <b>'+(state.relations[name]||0)+'</b></p></div>';
+  }).join("");
+  $("worldMap").innerHTML+='<div class="card span-12"><h3>Independent Rival Nations</h3><p class="muted small">Neighboring economies and defence ratings evolve every world turn.</p><div class="grid">'+entries+'</div></div>';
+ }
+ if($("rivalPanel")){
+  Object.keys(state.npcData).forEach(function(name){
+   const card=[...$("rivalPanel").querySelectorAll(".item")].find(el=>el.textContent.includes(name));
+   if(card){const intel=card.querySelector("p");if(intel)intel.innerHTML+=' · Treasury '+state.npcData[name].treasury+' · Defence '+state.npcData[name].strength;}
+  });
+ }
+};
 
 </script>
 </body>
