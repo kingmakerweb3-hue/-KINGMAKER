@@ -45,5 +45,5 @@ test("startup failures have a visible recovery screen instead of a silent blank 
   assert.match(app, /function showBootFailure/);
   assert.match(app, /KINGMAKER startup failed/);
   assert.match(app, /boot-reload/);
-  assert.match(css, /\\.boot-error/);
+  assert.match(css, /\.boot-error/);
 });
