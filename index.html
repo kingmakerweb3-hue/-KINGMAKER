@@ -931,6 +931,7 @@ function runGameDiagnostics(){
  check("Rival diplomacy",Array.isArray(rivalNames)&&rivalNames.every(n=>state.relations&&Number.isFinite(Number(state.relations[n]))),"Three rival relationship records checked");
  check("Victory conditions",Array.isArray(victoryPaths)&&victoryPaths.length===4&&Array.isArray(state.victories),"Four victory paths · claimed: "+state.victories.length);
  check("Campaign milestones",Array.isArray(campaignGoals)&&Array.isArray(state.completedMissions),"Milestones: "+campaignGoals.length+" · completed: "+state.completedMissions.length);
+ check("Save migration",typeof normalizeImportedSave==="function"&&Array.isArray(state.victories)&&Array.isArray(state.marketLedger),"Versioned import and legacy-save defaults available");
  let storageOK=false,storageDetail="Browser storage unavailable";
  try{const key="kingmaker_qa_probe",old=localStorage.getItem(key);localStorage.setItem(key,"ok");storageOK=localStorage.getItem(key)==="ok";if(old===null)localStorage.removeItem(key);else localStorage.setItem(key,old);storageDetail=storageOK?"Local storage read/write passed":"Local storage test failed";}catch(e){storageDetail="Storage blocked: "+e.message;}
  check("Local save storage",storageOK,storageDetail);
