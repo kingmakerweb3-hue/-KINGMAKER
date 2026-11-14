@@ -137,8 +137,8 @@
   let selectedRegionId = generatedWorld.regions[0].id;
   let planetRenderer = null;
   function syncGeneratedWorld() {
-    generatedWorld=state.world&&state.world.version===window.KingmakerWorld3D.WORLD_VERSION&&Array.isArray(state.world.regions)?state.world:window.KingmakerWorld3D.generate(state.seed);
-    state.world=generatedWorld;selectedRegionId=generatedWorld.regions[0].id;
+    generatedWorld=state.mapWorld&&state.mapWorld.version===window.KingmakerWorld3D.WORLD_VERSION&&Array.isArray(state.mapWorld.regions)?state.mapWorld:window.KingmakerWorld3D.generate(state.seed);
+    state.mapWorld=generatedWorld;selectedRegionId=generatedWorld.regions[0].id;
     if(planetRenderer&&planetRenderer.destroy)planetRenderer.destroy();planetRenderer=null;
   }
   function renderGeneratedWorld() {
@@ -200,9 +200,9 @@
     const n=region.cities.length+1,offset=(n%5)*1.15;
     region.cities.push({id:region.id+"-city-"+n,name:"New Settlement "+n,population:10000,type:"Settlement",latitude:Math.max(-80,Math.min(80,region.latitude+offset)),longitude:((region.longitude+offset+540)%360)-180});
     region.population+=10000;region.cityCount=region.cities.length;region.development=Math.min(100,region.development+3);
-    state.world=generatedWorld;if(planetRenderer&&planetRenderer.destroy)planetRenderer.destroy();planetRenderer=null;persist();toast("Settlement founded in "+region.name+".","success");
+    state.mapWorld=generatedWorld;if(planetRenderer&&planetRenderer.destroy)planetRenderer.destroy();planetRenderer=null;persist();toast("Settlement founded in "+region.name+".","success");
   });
-  $("regenerate-world").addEventListener("click",()=>{generatedWorld=window.KingmakerWorld3D.generate(Math.floor(Math.random()*4294967295));selectedRegionId=generatedWorld.regions[0].id;state.world=generatedWorld;if(planetRenderer&&planetRenderer.destroy)planetRenderer.destroy();planetRenderer=null;persist();toast("A new world was generated and saved to your campaign.","success");});
+  $("regenerate-world").addEventListener("click",()=>{generatedWorld=window.KingmakerWorld3D.generate(Math.floor(Math.random()*4294967295));selectedRegionId=generatedWorld.regions[0].id;state.mapWorld=generatedWorld;if(planetRenderer&&planetRenderer.destroy)planetRenderer.destroy();planetRenderer=null;persist();toast("A new world was generated and saved to your campaign.","success");});
   $("advance-turn").addEventListener("click",()=>act(()=>E.advanceTurn(state)));
   $("save-profile").addEventListener("click",()=>{const name=$("nation-name").value.trim();if(!name||name.length>48)return toast("Nation name must contain 1–48 characters.","error");state.nation.name=name;state.nation.government=$("government").value;E.addEvent(state,"National charter updated.","player");persist();toast("Nation charter saved.","success");});
   $("export-save").addEventListener("click",exportSave);$("import-save").addEventListener("click",()=>$("import-file").click());$("import-file").addEventListener("change",e=>importSave(e.target.files[0]));
@@ -213,6 +213,6 @@
   $("director-run").addEventListener("click",assess);$("director-run-panel").addEventListener("click",assess);
   $("sound-toggle").addEventListener("click",e=>{soundOn=!soundOn;e.currentTarget.setAttribute("aria-pressed",String(soundOn));e.currentTarget.textContent=soundOn?"Sound: on":"Sound: off";beep();});
   state=load();
-  generatedWorld=state.world&&state.world.version===window.KingmakerWorld3D.WORLD_VERSION&&Array.isArray(state.world.regions)?state.world:window.KingmakerWorld3D.generate(state.seed);
-  selectedRegionId=generatedWorld.regions[0].id;state.world=generatedWorld;render();persist();
+  generatedWorld=state.mapWorld&&state.mapWorld.version===window.KingmakerWorld3D.WORLD_VERSION&&Array.isArray(state.mapWorld.regions)?state.mapWorld:window.KingmakerWorld3D.generate(state.seed);
+  selectedRegionId=generatedWorld.regions[0].id;state.mapWorld=generatedWorld;render();persist();
 })();
