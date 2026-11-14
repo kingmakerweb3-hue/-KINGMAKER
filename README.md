@@ -60,6 +60,15 @@ This is a playable single-player prototype, not a finished online commercial rel
 - Online accounts, cloud saves, cross-device sync, live multiplayer, and hosted backend services are not implemented.
 - Service-worker offline support requires HTTPS or localhost hosting and should be verified after deployment.
 
+## World Engine 1.8 — Save migration and protection
+
+- Save exports now use a versioned KINGMAKER save envelope with export timestamp and state.
+- Import accepts both legacy raw-state JSON saves and the new versioned format.
+- Import validates core state structure and numeric values, fills missing fields for older saves, and normalizes key arrays.
+- Import is limited to 2 MB and requires confirmation before replacing the current local nation.
+- Browser storage failures now produce a visible warning instead of failing silently.
+- Saves remain local to the browser/device; exporting a file is required to move progress between devices.
+
 ## World Engine 1.7 — Advanced research branches
 
 - Expanded the technology tree with National Logistics, Public Health, and Renewable Energy.
