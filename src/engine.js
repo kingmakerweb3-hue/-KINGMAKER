@@ -1345,6 +1345,31 @@
     resolveObjectives(state);
     return state;
   }
+  function worldIntelligence(state) {
+    const assess = (id, nation, resources, buildings, technologies, relation) => {
+      const population = Math.max(1, safeInt(nation.population, 1, RESOURCE_LIMIT));
+      const food = Math.max(0, safeInt(resources.food, 0, RESOURCE_LIMIT));
+      const power = Math.max(0, safeInt(resources.power, 0, RESOURCE_LIMIT));
+      const credits = Math.max(0, safeInt(resources.credits, 0, RESOURCE_LIMIT));
+      const science = Math.max(0, safeInt(resources.science, 0, RESOURCE_LIMIT));
+      const infrastructure = Object.values(buildings).reduce((sum, value) => sum + safeInt(value, 0, 10_000), 0);
+      const foodRunway = Math.round(food / Math.max(1, Math.ceil(population / 12)) * 10) / 10;
+      const powerCoverage = Math.round(power / Math.max(1, population / 10) * 100);
+      const score = Math.round(Math.log1p(population) * 8 + Math.log1p(credits) * 5 + Math.log1p(science) * 3 + infrastructure * 1.5 + technologies.length * 4 + Math.min(30, foodRunway * 3) + Math.min(20, powerCoverage / 5));
+      const risks = [];
+      if (foodRunway < 2) risks.push("critical food reserves"); else if (foodRunway < 5) risks.push("low food reserves");
+      if (powerCoverage < 100) risks.push("power deficit");
+      if (nation.stability !== undefined && nation.stability < 45) risks.push("political instability");
+      if (relation !== null && relation <= -25) risks.push("hostile relations");
+      return { id, population, food, foodRunway, powerCoverage, credits, science, infrastructure, technologies: technologies.length, stability: nation.stability ?? null, relation, score, risks };
+    };
+    const player = assess("player", state.nation, state.resources, state.buildings, state.technologies, null);
+    const rivals = Object.values(state.rivals).map(r => ({ ...assess(r.id, r, r.resources, r.buildings, r.technologies, r.relation), name: r.name, stance: r.stance || "Developing", activity: r.activity || "No recent activity", intent: r.plan ? { action: r.plan.action, target: r.plan.target, reason: r.plan.reason, reviewTurn: r.plan.reviewTurn } : null, traits: (r.traits || []).slice(0, 4) }));
+    const rankings = [{ ...player, name: state.nation.name }, ...rivals].sort((a, b) => b.score - a.score);
+    const threats = rivals.filter(r => r.relation <= -25 || state.diplomacy.conflicts.some(c => c.rivalId === r.id && c.status === "active")).sort((a, b) => a.relation - b.relation || b.score - a.score);
+    return { turn: state.turn, regionalPower: rankings.map((r, index) => ({ id: r.id, name: r.name, rank: index + 1, score: r.score, relation: r.relation, risks: r.risks })), player: { ...player, rank: rankings.findIndex(r => r.id === "player") + 1 }, rivals: rivals.sort((a, b) => b.score - a.score), threats: threats.map(r => ({ id: r.id, name: r.name, relation: r.relation, risks: r.risks })), regionalAverageStability: Math.round(([state.nation, ...Object.values(state.rivals)].reduce((sum, n) => sum + (n.stability || 0), 0) / (Object.keys(state.rivals).length + 1))) };
+  }
+
   function exportSave(state) { return JSON.stringify(validateSave(state), null, 2); }
 
   function saveWithRecovery(storage, state, primaryKey = "kingmaker_save_v1", backupKey = "kingmaker_save_recovery") {
@@ -1369,6 +1394,6 @@
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
-    exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech
+    exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech, worldIntelligence
   };
 });
