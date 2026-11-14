@@ -57,7 +57,7 @@
       c.needs.belonging = clamp(c.needs.belonging + (context.communityServices ? 3 : -1), 0, 100);
       const average = Object.values(c.needs).reduce((a,b)=>a+b,0)/4;
       c.mood = Math.round(clamp(average, 0, 100));
-      if (c.needs.food < 25) {
+      if (food === 0 || c.needs.food < 25) {
         c.lastDecision = "Searched for food";
         remember(c, turn, "Food shortage affected daily life");
         events.push({ citizenId:c.id, type:"shortage", detail:c.lastDecision });
@@ -78,7 +78,7 @@
     const jobs = {};
     for (const c of living) jobs[c.job] = (jobs[c.job] || 0) + 1;
     const averageMood = living.length ? Math.round(living.reduce((n,c)=>n+c.mood,0)/living.length) : 0;
-    const foodAtRisk = living.filter(c=>c.needs.food<25).length;
+    const foodAtRisk = living.filter(c=>c.needs.food<25 || c.lastDecision === "Searched for food").length;
     return { population:living.length, averageMood, foodAtRisk, employment:living.length-(jobs.unemployed||0), jobs };
   }
 
