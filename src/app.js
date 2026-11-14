@@ -212,5 +212,7 @@
   const assess=()=>{renderAdvice();toast("The local World Director assessed your nation.","success");};
   $("director-run").addEventListener("click",assess);$("director-run-panel").addEventListener("click",assess);
   $("sound-toggle").addEventListener("click",e=>{soundOn=!soundOn;e.currentTarget.setAttribute("aria-pressed",String(soundOn));e.currentTarget.textContent=soundOn?"Sound: on":"Sound: off";beep();});
-  state=load();\n  generatedWorld=state.world&&state.world.version===window.KingmakerWorld3D.WORLD_VERSION&&Array.isArray(state.world.regions)?state.world:window.KingmakerWorld3D.generate(state.seed);\n  selectedRegionId=generatedWorld.regions[0].id;state.world=generatedWorld;render();persist();
+  state=load();
+  generatedWorld=state.world&&state.world.version===window.KingmakerWorld3D.WORLD_VERSION&&Array.isArray(state.world.regions)?state.world:window.KingmakerWorld3D.generate(state.seed);
+  selectedRegionId=generatedWorld.regions[0].id;state.world=generatedWorld;render();persist();
 })();
