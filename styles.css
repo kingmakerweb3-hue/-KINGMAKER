@@ -57,3 +57,28 @@ button{min-height:38px}
   .event-choice button{min-height:46px}
   .world-map{touch-action:pan-y}
 }
+
+
+/* Startup failure panel: never leave players with a silent blank screen. */
+.boot-error {
+  position: fixed;
+  z-index: 9999;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #090f19;
+  color: #f4f0e7;
+}
+.boot-error-card {
+  width: min(100%, 620px);
+  padding: clamp(24px, 5vw, 48px);
+  border: 1px solid #725c36;
+  border-radius: 18px;
+  background: #131e2d;
+  box-shadow: 0 24px 80px #0009;
+}
+.boot-error-card h1 { margin: 8px 0 12px; font-size: clamp(28px, 5vw, 42px); }
+.boot-error-card p { line-height: 1.65; color: #c2ccda; }
+.boot-error-card code { display: block; margin: 18px 0; padding: 14px; overflow-wrap: anywhere; border-radius: 8px; background: #080e17; color: #f0c879; }
+.boot-error-card button { padding: 12px 20px; border: 0; border-radius: 8px; background: #e5bd6a; color: #101827; font-weight: 800; cursor: pointer; }
