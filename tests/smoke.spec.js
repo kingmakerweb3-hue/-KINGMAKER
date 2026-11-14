@@ -57,7 +57,7 @@ test('legacy saves are migrated without losing valid progress', async ({ page })
   await expect(page.locator('#nationName')).toHaveValue('Legacy Realm');
   await expect(page.locator('#season')).toContainText('TURN 9');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save')));
-  expect(saved.credits).toBe(420);
+  expect(saved.credits).toBe(455); // Includes the one-time founder campaign reward.
   expect(saved.buildings.workshop).toBe(1);
   expect(saved.relations.Meridian).toBe(-5);
   expect(Array.isArray(saved.victories)).toBeTruthy();
@@ -206,7 +206,7 @@ test('World Council opens on turn five and records a declined agenda', async ({ 
 test('World Council contribution spends resources and improves relations', async ({ page }) => {
   await page.addInitScript(() => {
     const s=JSON.parse(localStorage.getItem('kingmaker_save')||'{}');
-    s.turn=4;s.food=50;s.credits=100;
+    s.turn=4;s.food=45;s.credits=100;
     localStorage.setItem('kingmaker_save',JSON.stringify(s));
   });
   await page.goto('/');
@@ -234,7 +234,7 @@ test('intelligence operation reveals rival reserves and records a report', async
   await page.evaluate(()=>{Math.random=()=>0;});
   await page.getByRole('button',{name:'Gather intelligence · 25 credits'}).first().click();
   const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('kingmaker_save')));
-  expect(saved.credits).toBe(75);
+  expect(saved.credits).toBe(110); // 100 initial + 35 founder reward - 25 operation.
   expect(saved.intelligenceBureau.reports[0].success).toBeTruthy();
   expect(saved.intelligenceBureau.reports[0].detail).toContain('treasury 120');
 });
@@ -247,10 +247,10 @@ test('counterintelligence upgrades spend resources and operation cooldown applie
   });
   await page.goto('/');
   await page.locator('[data-tab="market"]').click();
-  await page.getByRole('button',{name:'Upgrade defence · 45 credits + 12 materials'}).click();
+  await page.getByRole('button',{name:'Upgrade agency · 45 credits + 12 materials'}).click();
   let saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('kingmaker_save')));
   expect(saved.intelligenceBureau.level).toBe(1);
-  expect(saved.credits).toBe(105);
+  expect(saved.credits).toBe(140); // 150 initial + 35 founder reward - 45 upgrade.
   await page.getByRole('button',{name:'Gather intelligence · 25 credits'}).first().click();
   await expect(page.getByRole('button',{name:'Gather intelligence · 25 credits'}).first()).toBeDisabled();
 });
