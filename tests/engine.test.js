@@ -947,12 +947,12 @@ test("public health policy improves citizen safety and population growth, and po
   assert.throws(() => Engine.validateSave(loaded), /National policy state is invalid/);
 });
 
-test("version 8 saves migrate through national policies and elections into schema version 11", () => {
+test("version 8 saves migrate through national policies, elections, and political pressure into schema version 12", () => {
   const old = Engine.createInitialState({ seed: 904 });
   old.schemaVersion = 8;
   delete old.policies;
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 11);
+  assert.equal(migrated.schemaVersion, 12);
   assert.deepEqual(Object.keys(migrated.policies).sort(), ["food_assistance", "industry_incentive", "public_health", "research_fund"]);
   assert.ok(Object.values(migrated.policies).every(policy => policy === null));
 });
@@ -978,7 +978,7 @@ test("citizens autonomously develop careers and adjust civic trust in response t
   assert.equal(saved.citizens[0].aspiration, citizen.aspiration);
 });
 
-test("version 9 citizen saves migrate to the autonomous career schema", () => {
+test("version 9 citizen saves migrate to the current autonomous career schema", () => {
   const old = Engine.createInitialState({ seed: 5511 });
   old.schemaVersion = 9;
   old.citizens.forEach(c => { delete c.careerLevel; delete c.careerXp; delete c.civicTrust; delete c.aspiration; });
@@ -1023,7 +1023,7 @@ test("elections resolve on schedule, change leadership, affect stability, and pe
   assert.deepEqual(saved.election, state.election);
 });
 
-test("version 10 saves migrate to election-enabled schema 11", () => {
+test("version 10 saves migrate through elections into political schema 12", () => {
   const old = Engine.createInitialState({ seed: 8814 });
   old.schemaVersion = 10;
   delete old.election;
