@@ -1028,7 +1028,7 @@ test("version 10 saves migrate through elections into political schema 12", () =
   old.schemaVersion = 10;
   delete old.election;
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 11);
+  assert.equal(migrated.schemaVersion, 12);
   assert.equal(migrated.election.incumbent, "civic");
   assert.equal(migrated.election.electionsHeld, 0);
   assert.equal(migrated.election.lastResult, null);
