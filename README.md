@@ -60,6 +60,15 @@ This is a playable single-player prototype, not a finished online commercial rel
 - Online accounts, cloud saves, cross-device sync, live multiplayer, and hosted backend services are not implemented.
 - Service-worker offline support requires HTTPS or localhost hosting and should be verified after deployment.
 
+## World Engine 2.0 — Quality console and stability checks
+
+- Corrected the browser document title to World Engine 2.0.
+- Added a Quality Console with 13 non-destructive browser smoke checks.
+- Diagnostics inspect navigation panels, required interface elements, core function availability, nation-state numeric integrity, building inventory, research tree, territories, rival diplomacy, victory paths, campaign milestones, browser storage, and service-worker support.
+- Results are shown as pass/fail cards with a summary count.
+- Running diagnostics does not advance turns, spend resources, or intentionally change the nation save.
+- These checks are a browser-side smoke test and do not replace manual gameplay testing across browsers and devices.
+
 ## World Engine 1.9 — Victory paths and endgame
 
 - Added four optional victory paths: Economic Supremacy, Military Dominance, Diplomatic Unity, and Scientific Renaissance.
