@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101827"><meta name="description" content="Build a nation, develop an economy, research technologies, expand territory and shape the world in KINGMAKER."><link rel="manifest" href="manifest.json">
-<title>KINGMAKER — World Engine v2.3</title>
+<title>KINGMAKER — World Engine v2.4</title>
 <style>
 :root{--bg:#0b1220;--panel:#121d30;--panel2:#18263d;--line:#2a3a55;--text:#edf3ff;--muted:#9fb0ca;--gold:#e7bd62;--green:#70d6a1;--red:#ff8d8d;--blue:#83b7ff}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#172843 0,#0b1220 58%);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
@@ -456,25 +456,28 @@ Object.keys(rivalProfiles).forEach(function(name){
 function simulateRivalTurn(){
  Object.keys(rivalProfiles).forEach(function(name){
   const rival=state.npcData[name],profile=rivalProfiles[name];
-  rival.treasury=Math.max(0,rival.treasury+ (profile.focus==="Commerce"?16:profile.focus==="Research"?9:11));
-  rival.food=Math.max(0,rival.food+(profile.focus==="Defence"?9:5)-4);
-  rival.materials=Math.max(0,rival.materials+(profile.focus==="Defence"?8:4));
-  const roll=Math.random();
-  if(roll<.22){
-   rival.strength=Math.min(100,rival.strength+(profile.focus==="Defence"?4:2));
-   state.npc[name]="Strengthening borders";
-  }else if(roll<.48){
-   rival.treasury=Math.max(0,rival.treasury-18);
-   rival.materials+=5;
-   state.npc[name]="Investing in industry";
-  }else if(roll<.72){
-   state.relations[name]=Math.min(100,(state.relations[name]||0)+2);
-   state.npc[name]="Seeking diplomacy";
-  }else{
-   rival.food=Math.max(0,rival.food-3);
-   state.npc[name]="Expanding trade";
+  rival.treasury=Math.max(0,(Number(rival.treasury)||0)+(profile.focus==="Commerce"?16:profile.focus==="Research"?9:11));
+  rival.food=Math.max(0,(Number(rival.food)||0)+(profile.focus==="Defence"?9:5)-4);
+  rival.materials=Math.max(0,(Number(rival.materials)||0)+(profile.focus==="Defence"?8:4));
+  rival.strength=Math.max(0,Number(rival.strength)||0);
+  rival.research=Math.max(0,Number(rival.research)||0);
+  let action="Maintaining reserves";
+  if(rival.food<25&&rival.treasury>=8){
+   rival.treasury-=8;rival.food+=18;action="Securing food supplies";
+  }else if(profile.focus==="Commerce"){
+   if(rival.treasury>=35){rival.treasury-=25;rival.materials+=9;action="Expanding commercial infrastructure";}
+   else if((Number(state.relations[name])||0)<60){state.relations[name]=Math.min(100,(Number(state.relations[name])||0)+2);action="Opening diplomatic trade channels";}
+   else{rival.treasury+=8;action="Growing trade reserves";}
+  }else if(profile.focus==="Defence"){
+   if(rival.treasury>=25&&rival.materials>=12){rival.treasury-=20;rival.materials-=12;rival.strength=Math.min(100,rival.strength+6);action="Reinforcing border defences";}
+   else{rival.strength=Math.min(100,rival.strength+2);action="Conducting military drills";}
+  }else if(profile.focus==="Research"){
+   if(rival.treasury>=30&&rival.materials>=10){rival.treasury-=20;rival.materials-=10;rival.research+=8;action="Funding scientific research";}
+   else{rival.research+=3;action="Training research scholars";}
   }
-  if(rival.food===0){rival.strength=Math.max(5,rival.strength-2);state.npc[name]="Facing supply pressure";}
+  if(rival.food===0){rival.strength=Math.max(5,rival.strength-2);action="Facing supply pressure";}
+  rival.lastAction=action;
+  state.npc[name]=action;
  });
 }
 const advanceBeforeRivalEconomy=advanceTurn;
