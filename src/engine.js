@@ -172,7 +172,7 @@
       campaign: { id: campaignId, completedObjectives: [], status: "active", phaseIndex: 0, buildingStart: 6, progress: { tradeVolume: 0, agreementsSigned: 0, crisesSurvived: 0, peacefulDisputes: 0 } },
       achievements: [], creations: [], events: [{ id: "history-1-0", turn: 1, text: "Your civilization was founded. The first chapter begins.", type: "milestone", details: { summary: "A new campaign begins with a developing economy and six neighboring nations.", affectedNationIds: ["player"] } }],
       creatorEconomy: { nextAdoptionId: 1, publications: [], commissions: [], adoptions: [], totalRoyalties: 0, royaltyTurn: 1, lastTurnRoyalties: 0 },
-      world: { nextEventId: 1, activeEvents: [], processedEventIds: [] },
+      world: { nextEventId: 1, activeEvents: [], processedEventIds: [], placedBuildings: [] },
       status: "playing"
     };
     if (campaignId === "longwinter") {
@@ -202,6 +202,8 @@
     if (!Number.isInteger(input.seed) || input.seed < 0 || input.seed > 0xffffffff) throw new Error("World seed is invalid.");
     if (!input.nation || typeof input.nation !== "object" || !input.resources || !input.buildings) throw new Error("Save is missing nation, resources, or building data.");
     const normalized = copy(input);
+    normalized.world = normalized.world || { nextEventId: 1, activeEvents: [], processedEventIds: [] };
+    if (!Array.isArray(normalized.world.placedBuildings)) normalized.world.placedBuildings = [];
     if (typeof normalized.nation.name !== "string" || normalized.nation.name.trim().length < 1 || normalized.nation.name.length > 48) throw new Error("Nation name must contain 1–48 characters.");
     if (typeof normalized.nation.government !== "string" || normalized.nation.government.length > 48) throw new Error("Government style is invalid.");
     if (!Number.isInteger(normalized.nation.population) || normalized.nation.population < 1 || normalized.nation.population > RESOURCE_LIMIT) throw new Error("Population is outside safe limits.");
@@ -231,6 +233,7 @@
         !Array.isArray(normalized.world.processedEventIds) || normalized.world.processedEventIds.length > 500 ||
         new Set(normalized.world.processedEventIds).size !== normalized.world.processedEventIds.length ||
         normalized.world.processedEventIds.some(id => typeof id !== "string" || id.length > 64)) throw new Error("World event state is invalid.");
+    if (normalized.world.placedBuildings.length > 10000 || normalized.world.placedBuildings.some(p => !p || !BUILDINGS[p.type] || !Number.isFinite(p.x) || !Number.isFinite(p.z) || Math.abs(p.x) > 13.2 || Math.abs(p.z) > 13.2)) throw new Error("Building placement data is invalid.");
     for (const event of normalized.world.activeEvents) {
       const definition = event && WORLD_EVENT_CATALOG[event.key];
       if (!definition || typeof event.id !== "string" || event.id.length > 64 ||
