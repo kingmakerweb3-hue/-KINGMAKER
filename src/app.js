@@ -138,8 +138,14 @@
     $("military-summary").innerHTML='<div class="rowline"><span>Active troops</span><b>'+num(m.troops)+'</b></div><div class="rowline"><span>Training</span><b>'+m.training+'/5</b></div><div class="rowline"><span>Fortification</span><b>'+m.fortification+'/5</b></div><div class="rowline"><span>Battle record</span><b>'+m.battlesWon+' wins · '+m.battlesLost+' losses</b></div>';
     $("military-actions").innerHTML='<button data-action="recruit" '+(m.troops>=10000||state.resources.credits<30||state.resources.materials<2?'disabled':'')+'>Recruit 10 troops · 30 cr / 2 mat</button><button data-action="train-army" '+(m.training>=5||state.resources.credits<45*m.training||state.resources.goods<5?'disabled':'')+'>Train army · '+(45*m.training)+' cr / 5 goods</button><button data-action="fortify" '+(m.fortification>=5||state.resources.credits<55*(m.fortification+1)||state.resources.materials<20*(m.fortification+1)?'disabled':'')+'>Upgrade defenses · '+(55*(m.fortification+1))+' cr / '+(20*(m.fortification+1))+' mat</button>';
   }
+  function renderTerritories() {
+    const ownerName=id=>id==="player"?state.nation.name:(state.rivals[id]?state.rivals[id].name:"Unclaimed");
+    $("territory-list").innerHTML=state.territories.map(r=>'<article class="list-card"><div><h3>'+esc(r.name)+' <span class="level">'+esc(r.terrain)+'</span></h3><p>Owner: '+esc(ownerName(r.owner))+' · '+r.value+' '+esc(r.bonus)+' / turn</p><small>Defense: '+r.troops+' · Claim: '+r.cost.credits+' credits + '+r.cost.materials+' materials</small></div>'+(r.owner==="player"?"<span class=\"tag\">CONTROLLED</span>":r.owner==="neutral"?'<button data-action="claim-territory" data-id="'+r.id+'">Secure region</button>':'<button data-action="territory-battle" data-id="'+r.id+'">Campaign for region</button>')+'</article>').join("");
+    const count=state.territories.filter(r=>r.owner==="player").length;
+    $("territory-count").textContent=count+" / "+state.territories.length+" regions controlled";
+  }
   function render() {
-    renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderMilitary();renderWorldEvents();renderResearch();renderCampaign();renderCreator();renderAdvice();renderHistory();
+    renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderMilitary();renderTerritories();renderWorldEvents();renderResearch();renderCampaign();renderCreator();renderAdvice();renderHistory();
     $("turn-label").textContent="TURN "+state.turn;$("game-banner").textContent=state.status==="playing"?state.nation.name+" · "+state.nation.government:"Campaign "+state.status;
     $("game-banner").className="game-banner "+state.status;$("advance-turn").disabled=state.status!=="playing";tab(activeTab);
   }
@@ -168,6 +174,8 @@
       if(action==="train-army")E.trainArmy(state);
       if(action==="fortify")E.fortifyNation(state);
       if(action==="battle"){const result=E.resolveBattle(state,id);toast(result.won?"Battle won · "+result.attack+" vs "+result.defense:"Battle lost · "+result.attack+" vs "+result.defense,result.won?"success":"warning");}
+      if(action==="claim-territory")E.claimTerritory(state,id);
+      if(action==="territory-battle"){const result=E.resolveTerritoryBattle(state,id);toast(result.won?"Region captured · "+result.attack+" vs "+result.defense:"Campaign failed · "+result.attack+" vs "+result.defense,result.won?"success":"warning");}
       if(action==="event-choice")E.resolveWorldEvent(state,eventId,choice);
       if(action==="delete-creation")E.deleteCreation(state,id);
       if(action==="commission-creation")E.commissionCreation(state,id);
