@@ -34,3 +34,25 @@ test("generated cities have stable unique IDs and globe-safe coordinates", () =>
 test("different seeds produce different world populations", () => {
   assert.notDeepEqual(World.generate(1).regions, World.generate(2).regions);
 });
+
+
+test("regions contain spatially placed resource deposits and settlements within their Voronoi borders", () => {
+  const world = World.generate(481516);
+  for (const region of world.regions) {
+    assert.equal(region.resourceNodes.length, 3);
+    for (const node of region.resourceNodes) {
+      assert.ok(node.id && node.resource && node.quantity >= 40 && node.quantity <= 199);
+      assert.equal(World.regionAt(world, node.latitude, node.longitude).id, region.id);
+    }
+    for (const city of region.cities) {
+      assert.equal(World.regionAt(world, city.latitude, city.longitude).id, region.id);
+    }
+  }
+});
+
+test("spherical region borders produce finite line vertices", () => {
+  const borders = World.buildBorders(World.generate(481516));
+  assert.ok(borders.length > 100);
+  assert.equal(borders.length % 6, 0);
+  assert.ok(Array.from(borders).every(Number.isFinite));
+});
