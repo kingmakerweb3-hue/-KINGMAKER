@@ -831,3 +831,20 @@ test("road segments connect nearby districts and improve logistics and income", 
   assert.ok(state.economy.production.logistics >= 2);
   assert.ok(state.economy.production.credits >= 4);
 });
+
+test("world intelligence ranks nations and exposes transparent risk and rival intent", () => {
+  const state = Engine.createInitialState({ seed: 914 });
+  const report = Engine.worldIntelligence(state);
+  assert.equal(report.turn, state.turn);
+  assert.equal(report.regionalPower.length, Object.keys(state.rivals).length + 1);
+  assert.equal(report.regionalPower[0].rank, 1);
+  assert.equal(report.regionalPower.filter(n => n.id === "player").length, 1);
+  assert.ok(report.player.foodRunway >= 0);
+  assert.ok(report.player.powerCoverage >= 0);
+  assert.ok(report.rivals.every(r => typeof r.activity === "string" && Array.isArray(r.risks)));
+  state.rivals.northreach.relation = -60;
+  state.rivals.northreach.resources.food = 0;
+  const updated = Engine.worldIntelligence(state);
+  assert.ok(updated.threats.some(t => t.id === "northreach"));
+  assert.ok(updated.rivals.find(r => r.id === "northreach").risks.includes("critical food reserves"));
+});
