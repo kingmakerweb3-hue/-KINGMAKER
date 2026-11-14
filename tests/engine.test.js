@@ -952,7 +952,7 @@ test("version 8 saves migrate through national policies, elections, and politica
   old.schemaVersion = 8;
   delete old.policies;
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 13);
+  assert.equal(migrated.schemaVersion, 14);
   assert.deepEqual(Object.keys(migrated.policies).sort(), ["food_assistance", "industry_incentive", "public_health", "research_fund"]);
   assert.ok(Object.values(migrated.policies).every(policy => policy === null));
 });
@@ -983,7 +983,7 @@ test("version 9 citizen saves migrate to the current autonomous career schema", 
   old.schemaVersion = 9;
   old.citizens.forEach(c => { delete c.careerLevel; delete c.careerXp; delete c.civicTrust; delete c.aspiration; });
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 13);
+  assert.equal(migrated.schemaVersion, 14);
   assert.ok(migrated.citizens.every(c => c.careerLevel === 1 && c.careerXp === 0 && c.civicTrust === 50 && c.aspiration));
 });
 
@@ -1028,7 +1028,7 @@ test("version 10 saves migrate through elections into government schema 13", () 
   old.schemaVersion = 10;
   delete old.election;
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 13);
+  assert.equal(migrated.schemaVersion, 14);
   assert.equal(migrated.election.incumbent, "civic");
   assert.equal(migrated.election.electionsHeld, 0);
   assert.equal(migrated.election.lastResult, null);
@@ -1082,7 +1082,7 @@ test("version 11 saves migrate through political pressure into schema 13", () =>
   old.schemaVersion = 11;
   delete old.politics;
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 13);
+  assert.equal(migrated.schemaVersion, 14);
   assert.equal(migrated.politics.governmentStatus, "stable");
   assert.equal(migrated.politics.protests, 0);
 });
@@ -1149,7 +1149,42 @@ test("version 12 saves migrate to the cabinet governance schema 13", () => {
   old.schemaVersion = 12;
   delete old.governance;
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 13);
+  assert.equal(migrated.schemaVersion, 14);
   assert.equal(migrated.governance.decisionsMade, 0);
   assert.equal(migrated.governance.lastPolicy, null);
+});
+
+
+test("governing party manifestos are measured and affect incumbent election support", () => {
+  const fulfilled = Engine.createInitialState({ seed: 14001 });
+  fulfilled.turn = 12; fulfilled.election.nextElectionTurn = 12;
+  fulfilled.citizens.forEach(c => { c.needs.belonging = 90; c.civicTrust = 90; });
+  assert.equal(Engine.evaluatePartyManifesto(fulfilled).status, "fulfilled");
+  const failed = Engine.createInitialState({ seed: 14002 });
+  failed.turn = 12; failed.election.nextElectionTurn = 12;
+  failed.citizens.forEach(c => { c.needs.belonging = 10; c.civicTrust = 10; });
+  assert.equal(Engine.evaluatePartyManifesto(failed).status, "broken");
+  assert.ok(Engine.electionForecast(fulfilled).voteShares.civic > Engine.electionForecast(failed).voteShares.civic);
+});
+
+test("election resolution records manifesto delivery and issues the winner a new promise", () => {
+  const state = Engine.createInitialState({ seed: 14003 });
+  state.turn = 12; state.election.nextElectionTurn = 12;
+  state.citizens.forEach(c => { c.needs.belonging = 85; c.civicTrust = 85; });
+  const result = Engine.resolveElection(state);
+  assert.ok(state.events.some(event => event.type === "manifesto"));
+  assert.equal(state.election.manifesto.party, result.winner);
+  assert.equal(state.election.manifesto.status, "active");
+  assert.equal(state.election.manifesto.targetTurn, state.election.nextElectionTurn);
+  const loaded = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(loaded.election.manifesto, state.election.manifesto);
+});
+
+test("schema 13 saves migrate with a current party manifesto", () => {
+  const old = Engine.createInitialState({ seed: 14004 });
+  old.schemaVersion = 13; delete old.election.manifesto;
+  const migrated = Engine.migrateSave(old);
+  assert.equal(migrated.schemaVersion, 14);
+  assert.equal(migrated.election.manifesto.party, "civic");
+  assert.equal(migrated.election.manifesto.status, "active");
 });
