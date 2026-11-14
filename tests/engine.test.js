@@ -772,3 +772,43 @@ test("a long-running deterministic world remains inside the save schema", () => 
   assert.ok(state.turn > 100);
   assert.ok(Object.values(state.rivals).every(r => r.resources.food >= 0 && r.resources.materials >= 0 && r.resources.credits >= 0));
 });
+
+test("military recruitment, training and fortification enforce costs", () => {
+  const state = Engine.createInitialState({ seed: 91 });
+  const credits = state.resources.credits, materials = state.resources.materials;
+  Engine.recruitTroops(state, 10);
+  assert.equal(state.military.troops, 34);
+  assert.equal(state.resources.credits, credits - 30);
+  assert.equal(state.resources.materials, materials - 2);
+  Engine.trainArmy(state);
+  assert.equal(state.military.training, 2);
+  Engine.fortifyNation(state);
+  assert.equal(state.military.fortification, 2);
+  assert.throws(() => Engine.recruitTroops(state, 0), /Recruit between/);
+  assert.doesNotThrow(() => Engine.validateSave(state));
+});
+
+test("battle resolution requires active conflict and applies casualties and rewards", () => {
+  const state = Engine.createInitialState({ seed: 92 });
+  assert.throws(() => Engine.resolveBattle(state, "aurelia"), /active conflict/);
+  state.rivals.aurelia.relation = -30;
+  Engine.declareConflict(state, "aurelia");
+  state.resources.power = 30;
+  state.military.troops = 120;
+  const result = Engine.resolveBattle(state, "aurelia");
+  assert.equal(result.won, true);
+  assert.equal(state.military.battlesWon, 1);
+  assert.ok(state.military.troops < 120);
+  assert.equal(state.resources.influence, 24);
+  assert.doesNotThrow(() => Engine.validateSave(state));
+});
+
+test("schema 7 saves migrate with a starter army", () => {
+  const state = Engine.createInitialState({ seed: 93 });
+  delete state.military;
+  state.schemaVersion = 7;
+  const migrated = Engine.migrateSave(state);
+  assert.equal(migrated.schemaVersion, Engine.SAVE_VERSION);
+  assert.equal(migrated.military.troops, 24);
+  assert.doesNotThrow(() => Engine.validateSave(migrated));
+});
