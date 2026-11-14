@@ -840,7 +840,7 @@ function normalizeImportedSave(raw){
   if(!merged[key]||typeof merged[key]!=="object"||Array.isArray(merged[key]))merged[key]={...initial[key]};
   else merged[key]={...(initial[key]||{}),...merged[key]};
  }
- for(const key of ["tech","events","creators","territories","tradeAgreements","marketLedger","rivalHistory","campaignCompleted","districts"]){
+ for(const key of ["tech","events","creators","territories","tradeAgreements","marketLedger","rivalHistory","campaignCompleted","districts","victories"]){
   if(!Array.isArray(merged[key]))merged[key]=Array.isArray(initial[key])?[...initial[key]]:[];
  }
  for(const key of Object.keys(initial.buildings))if(!Number.isFinite(Number(merged.buildings[key]))||Number(merged.buildings[key])<0)merged.buildings[key]=initial.buildings[key];
