@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101827"><meta name="description" content="Build a nation, develop an economy, research technologies, expand territory and shape the world in KINGMAKER."><link rel="manifest" href="manifest.json">
-<title>KINGMAKER — World Engine v1.0</title>
+<title>KINGMAKER — World Engine v1.1</title>
 <style>
 :root{--bg:#0b1220;--panel:#121d30;--panel2:#18263d;--line:#2a3a55;--text:#edf3ff;--muted:#9fb0ca;--gold:#e7bd62;--green:#70d6a1;--red:#ff8d8d;--blue:#83b7ff}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#172843 0,#0b1220 58%);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
@@ -20,14 +20,14 @@ label{display:block;font-size:12px;color:var(--muted);margin:8px 0 5px}input,sel
 .notice{border-left:3px solid var(--gold);padding:10px 13px;background:#211f1a;color:#d9d0b9;border-radius:7px;font-size:12px;margin-top:16px}
 footer{border-top:1px solid var(--line);padding:20px;text-align:center;color:var(--muted);font-size:12px}
 @media(max-width:800px){.span-8,.span-6,.span-4,.span-3{grid-column:span 12}.metrics{grid-template-columns:repeat(2,1fr)}.hero{display:block}.hero .actions{margin-top:16px}}
-.world-atlas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.atlas-tile{min-height:112px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;padding:13px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(145deg,#1b2a40,#121d2e)}.atlas-tile.owned{border-color:#55bd91;background:linear-gradient(145deg,#173b35,#142b31)}.atlas-tile .tile-name{font-weight:700}.atlas-tile .tile-meta{font-size:12px;color:var(--muted)}.atlas-tile button{width:100%;padding:7px;font-size:12px}@media(max-width:620px){.world-atlas{grid-template-columns:repeat(2,minmax(0,1fr))}}</style></head>
+.world-atlas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.atlas-tile{min-height:112px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;padding:13px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(145deg,#1b2a40,#121d2e)}.atlas-tile.owned{border-color:#55bd91;background:linear-gradient(145deg,#173b35,#142b31)}.atlas-tile .tile-name{font-weight:700}.atlas-tile .tile-meta{font-size:12px;color:var(--muted)}.atlas-tile button{width:100%;padding:7px;font-size:12px}@media(max-width:620px){.world-atlas{grid-template-columns:repeat(2,minmax(0,1fr))}}.city-map{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0}.city-tile{min-height:110px;border:1px solid var(--line);border-radius:12px;padding:12px;background:linear-gradient(145deg,#263a50,#142235);display:flex;flex-direction:column;justify-content:space-between}.city-tile b{font-size:13px}.city-tile span{font-size:11px;color:var(--muted)}.city-tile .district-icon{font-size:22px}.city-tile.empty{border-style:dashed;opacity:.65}@media(max-width:620px){.city-map{grid-template-columns:repeat(2,minmax(0,1fr))}}</style></head>
 <body>
 <header><div class="brand"><div class="sigil">K</div><div><h1>KINGMAKER</h1><div class="tag">PLAY THE WORLD · BUILD THE FUTURE · OWN YOUR CREATION</div></div></div></header>
 <main>
-<section class="hero"><div><div class="eyebrow">WORLD ENGINE · PLAYABLE BUILD 1.0</div><h2>Your nation is only<br>the beginning.</h2><p>Build an economy, develop infrastructure, research technology, trade with rival nations and register original creator assets. The world advances when you advance it.</p></div><div class="actions"><button class="primary" onclick="advanceTurn()">Advance World ▸</button><button onclick="exportSave()">Export Save</button><button onclick="document.getElementById('importFile').click()">Import Save</button><input id="importFile" type="file" accept="application/json" class="hidden" onchange="importSave(event)"></div></section>
+<section class="hero"><div><div class="eyebrow">WORLD ENGINE · PLAYABLE BUILD 1.1</div><h2>Your nation is only<br>the beginning.</h2><p>Build an economy, develop infrastructure, research technology, trade with rival nations and register original creator assets. The world advances when you advance it.</p></div><div class="actions"><button class="primary" onclick="advanceTurn()">Advance World ▸</button><button onclick="exportSave()">Export Save</button><button onclick="document.getElementById('importFile').click()">Import Save</button><input id="importFile" type="file" accept="application/json" class="hidden" onchange="importSave(event)"></div></section>
 <div class="metrics" id="metrics"></div>
 <nav class="tabs">
-<button class="active" data-tab="overview">World Overview</button><button data-tab="nation">My Nation</button><button data-tab="market">Trade & Diplomacy</button><button data-tab="research">Research</button><button data-tab="director">AI World Director</button><button data-tab="military">Military & Treaties</button><button data-tab="studio">Creator Studio</button><button data-tab="history">World History</button><button data-tab="campaign">Campaign & Achievements</button><button data-tab="government">Citizens & Government</button>
+<button class="active" data-tab="overview">World Overview</button><button data-tab="nation">My Nation</button><button data-tab="market">Trade & Diplomacy</button><button data-tab="research">Research</button><button data-tab="director">AI World Director</button><button data-tab="military">Military & Treaties</button><button data-tab="studio">Creator Studio</button><button data-tab="history">World History</button><button data-tab="campaign">Campaign & Achievements</button><button data-tab="government">Citizens & Government</button><button data-tab="city">Capital City</button>
 </nav>
 <section id="overview" class="tab grid">
 <div class="card span-8"><div class="row"><h3>World Situation</h3><span class="pill" id="season"></span></div><p class="muted small">A living simulation prototype. NPC nations produce, consume and compete as each world turn passes.</p><div id="worldMap" class="grid"></div></div>
@@ -94,8 +94,14 @@ footer{border-top:1px solid var(--line);padding:20px;text-align:center;color:var
  <div class="card span-4"><h3>Government Policies</h3><p class="muted small">Choose one national priority. Changing policy costs 15 credits.</p><div id="policyChoices" class="stack"></div></div>
  <div class="card span-12"><h3>Public Sentiment</h3><div id="happinessPanel"></div></div>
 </section>
+
+<section id="city" class="tab grid hidden">
+ <div class="card span-8"><div class="row"><h3>Capital City</h3><span class="pill" id="cityLevelBadge">CAPITAL · LEVEL 1</span></div><p class="muted small">Develop districts to expand housing, industry, commerce, civic life and research. Districts create permanent city-wide bonuses.</p><div id="cityMap" class="city-map"></div><div id="districtBuilds" class="stack" style="margin-top:14px"></div></div>
+ <div class="card span-4"><h3>City Development</h3><div id="cityStats" class="stack"></div><div class="item"><b>Expand the capital</b><p class="muted small">Upgrade the city level to increase the maximum number of districts.</p><button class="primary" onclick="upgradeCapital()">Upgrade capital · 120 credits + 60 materials</button></div></div>
+ <div class="card span-12"><h3>Rival City Intelligence</h3><p class="muted small">Estimated rival population and civic condition, based on the local simulation.</p><div id="rivalCities" class="grid"></div></div>
+</section>
 </main>
-<footer>KINGMAKER WORLD ENGINE · PLAYABLE PROTOTYPE 1.0 · GAME CREDITS HAVE NO REAL-WORLD VALUE</footer>
+<footer>KINGMAKER WORLD ENGINE · PLAYABLE PROTOTYPE 1.1 · GAME CREDITS HAVE NO REAL-WORLD VALUE</footer>
 
 <script>
 const $=id=>document.getElementById(id);
@@ -641,6 +647,52 @@ render=function(){
 };
 const advanceBeforeCitizens=advanceTurn;
 advanceTurn=function(){const populationBeforeTurn=state.population;advanceBeforeCitizens();state.population=populationBeforeTurn;processCitizens();save();};
+
+
+
+/* KINGMAKER v1.1 — Capital City, districts and rival intelligence */
+function ensureCityState(){
+ state.cityLevel=Number.isFinite(state.cityLevel)?Math.max(1,state.cityLevel):1;
+ state.cityDistricts=state.cityDistricts&&typeof state.cityDistricts==="object"?state.cityDistricts:{};
+ ["residential","industrial","commercial","civic","research"].forEach(k=>state.cityDistricts[k]=Math.max(0,Number(state.cityDistricts[k])||0));
+ state.housing=Math.max(140,140+(state.cityDistricts.residential||0)*50);
+}
+ensureCityState();
+const cityDistrictTypes={
+ residential:{name:"Residential Quarter",icon:"⌂",desc:"+50 housing capacity; supports population growth.",cost:65,materials:25},
+ industrial:{name:"Industrial District",icon:"⚒",desc:"+5 materials each turn.",cost:85,materials:40},
+ commercial:{name:"Commercial Quarter",icon:"▤",desc:"+8 credits each turn.",cost:90,materials:35},
+ civic:{name:"Civic Centre",icon:"✧",desc:"+2 stability and +2 happiness each turn.",cost:95,materials:45},
+ research:{name:"Research Campus",icon:"⌘",desc:"+3 research each turn.",cost:110,materials:50}
+};
+function districtCount(){return Object.values(state.cityDistricts).reduce((a,b)=>a+b,0)}
+function districtLimit(){return 3+(state.cityLevel-1)*2}
+function buildDistrict(id){
+ ensureCityState();const d=cityDistrictTypes[id];if(!d)return;
+ if(districtCount()>=districtLimit()){alert("Your capital has reached its district limit. Upgrade the capital first.");return;}
+ if(state.credits<d.cost||state.materials<d.materials){alert("Not enough credits or materials for this district.");return;}
+ state.credits-=d.cost;state.materials-=d.materials;state.cityDistricts[id]++;
+ if(id==="residential")state.housing+=50;
+ log("Capital development: "+d.name+" completed.");save();
+}
+function upgradeCapital(){
+ ensureCityState();if(state.cityLevel>=5){alert("Your capital has reached the maximum level.");return;}
+ if(state.credits<120||state.materials<60){alert("Capital expansion requires 120 credits and 60 materials.");return;}
+ state.credits-=120;state.materials-=60;state.cityLevel++;
+ log("Capital upgraded to level "+state.cityLevel+". District capacity expanded.");save();
+}
+const renderBeforeCity=render;
+render=function(){
+ renderBeforeCity();if(!$("cityMap"))return;ensureCityState();
+ const slots=districtLimit();const tiles=Object.entries(cityDistrictTypes).flatMap(([id,d])=>Array.from({length:state.cityDistricts[id]||0},(_,n)=>'<div class="city-tile"><span class="district-icon">'+d.icon+'</span><b>'+esc(d.name)+'</b><span>District '+(n+1)+' · Established</span></div>'));
+ while(tiles.length<slots)tiles.push('<div class="city-tile empty"><span class="district-icon">＋</span><b>Development plot</b><span>Available city land</span></div>');
+ $("cityMap").innerHTML=tiles.join("");$("cityLevelBadge").textContent="CAPITAL · LEVEL "+state.cityLevel;
+ $("districtBuilds").innerHTML=Object.entries(cityDistrictTypes).map(([id,d])=>'<div class="item"><div class="row"><b>'+d.icon+' '+esc(d.name)+' × '+state.cityDistricts[id]+'</b><span class="pill">'+d.cost+' credits · '+d.materials+' materials</span></div><p>'+esc(d.desc)+'</p><button onclick="buildDistrict(\''+id+'\')">Develop district</button></div>').join("");
+ $("cityStats").innerHTML=[["Districts",districtCount()+" / "+districtLimit()],["Housing capacity",state.housing],["Residents",state.population],["Capital level",state.cityLevel]].map(x=>'<div class="item"><span class="muted small">'+x[0]+'</span><div class="metric">'+x[1]+'</div></div>').join("");
+ $("rivalCities").innerHTML=Object.keys(state.npcData||{}).map(name=>{const n=state.npcData[name],pop=90+Math.floor((n.treasury||0)*.22)+(n.strength||0);const mood=Math.max(25,Math.min(90,58+Math.floor(((n.relations||0))/4)+(n.food<25?-15:5)));return '<div class="card span-4"><div class="row"><b>'+esc(name)+'</b><span class="pill">LEVEL '+(1+Math.floor((n.strength||0)/35))+'</span></div><p class="muted small">Estimated residents</p><div class="metric">'+pop+'</div><div class="row small"><span>Estimated civic mood</span><b>'+mood+'%</b></div><div class="bar"><i style="width:'+mood+'%"></i></div><p class="small muted">Treasury '+n.treasury+' · Food reserves '+n.food+'</p></div>';}).join("");
+};
+const advanceBeforeCity=advanceTurn;
+advanceTurn=function(){advanceBeforeCity();ensureCityState();state.materials+=(state.cityDistricts.industrial||0)*5;state.credits+=(state.cityDistricts.commercial||0)*8;state.research+=(state.cityDistricts.research||0)*3;state.stability=Math.min(100,state.stability+(state.cityDistricts.civic||0)*2);state.happiness=Math.min(100,state.happiness+(state.cityDistricts.civic||0)*2);if(districtCount())log("Capital districts delivered their civic and economic output.");save();};
 
 </script>
 </body>
