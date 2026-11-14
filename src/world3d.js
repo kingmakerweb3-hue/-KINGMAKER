@@ -6,7 +6,8 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   const host=document.getElementById("world3d-viewport");
   if(!host)return;
   let scene,camera,renderer,controls,landGroup,buildingGroup,peopleGroup,roadGroup;
-  let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,raycaster,groundPlane,previewMarker;\n  const placedCoordinates=[];
+  let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,raycaster,groundPlane,previewMarker;
+  const placedCoordinates=[];
   const COLORS={farm:0xc6a35d,mine:0x78838d,workshop:0x9c7652,factory:0x697b8e,transport:0x9b9b8b,market:0xc49b52,academy:0x8b80b8,power:0x75b9c9,housing:0xd6c5a3};
   const material=(color,roughness=.86)=>new THREE.MeshStandardMaterial({color,roughness});
   const boxGeo=new THREE.BoxGeometry(1,1,1);
@@ -78,7 +79,8 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   }
   function updatePlacementPreview(event){if(!selectedBuilding||!renderer)return;const rect=renderer.domElement.getBoundingClientRect();const pointer=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-((event.clientY-rect.top)/rect.height)*2+1);raycaster.setFromCamera(pointer,camera);const point=new THREE.Vector3();if(raycaster.ray.intersectPlane(groundPlane,point)&&Math.hypot(point.x,point.z)<13.2){previewMarker.position.set(point.x,.045,point.z);previewMarker.visible=true;}else previewMarker.visible=false;}
   function placeSelectedBuilding(event){if(!selectedBuilding||event.button!==0)return;const rect=renderer.domElement.getBoundingClientRect();const pointer=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-((event.clientY-rect.top)/rect.height)*2+1);raycaster.setFromCamera(pointer,camera);const point=new THREE.Vector3();if(!raycaster.ray.intersectPlane(groundPlane,point)||Math.hypot(point.x,point.z)>13.2)return;window.dispatchEvent(new CustomEvent("kingmaker:place-building",{detail:{type:selectedBuilding,x:point.x,z:point.z}}));}
-  window.addEventListener("kingmaker:building-placed",event=>{const d=event.detail;if(d&&Number.isFinite(d.x)&&Number.isFinite(d.z))placedCoordinates.push({type:d.type,x:d.x,z:d.z});});\n  function selectBuilding(type){selectedBuilding=type||null;if(previewMarker)previewMarker.visible=false;const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent=selectedBuilding?"Tap an open spot on the island to build a "+selectedBuilding+".":"Select a structure to begin.";document.querySelectorAll("[data-world-build]").forEach(button=>button.classList.toggle("selected",button.dataset.worldBuild===selectedBuilding));if(renderer)renderer.domElement.style.cursor=selectedBuilding?"crosshair":"grab";}
+  window.addEventListener("kingmaker:building-placed",event=>{const d=event.detail;if(d&&Number.isFinite(d.x)&&Number.isFinite(d.z))placedCoordinates.push({type:d.type,x:d.x,z:d.z});});
+  function selectBuilding(type){selectedBuilding=type||null;if(previewMarker)previewMarker.visible=false;const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent=selectedBuilding?"Tap an open spot on the island to build a "+selectedBuilding+".":"Select a structure to begin.";document.querySelectorAll("[data-world-build]").forEach(button=>button.classList.toggle("selected",button.dataset.worldBuild===selectedBuilding));if(renderer)renderer.domElement.style.cursor=selectedBuilding?"crosshair":"grab";}
   function resize(){if(!renderer||!host.clientWidth)return;const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
   function animate(){
     animationId=requestAnimationFrame(animate);const t=clock.getElapsedTime();controls.update();
