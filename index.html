@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101827"><meta name="description" content="Build a nation, develop an economy, research technologies, expand territory and shape the world in KINGMAKER."><link rel="manifest" href="manifest.json">
-<title>KINGMAKER — World Engine v0.9</title>
+<title>KINGMAKER — World Engine v1.0</title>
 <style>
 :root{--bg:#0b1220;--panel:#121d30;--panel2:#18263d;--line:#2a3a55;--text:#edf3ff;--muted:#9fb0ca;--gold:#e7bd62;--green:#70d6a1;--red:#ff8d8d;--blue:#83b7ff}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#172843 0,#0b1220 58%);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
@@ -24,10 +24,10 @@ footer{border-top:1px solid var(--line);padding:20px;text-align:center;color:var
 <body>
 <header><div class="brand"><div class="sigil">K</div><div><h1>KINGMAKER</h1><div class="tag">PLAY THE WORLD · BUILD THE FUTURE · OWN YOUR CREATION</div></div></div></header>
 <main>
-<section class="hero"><div><div class="eyebrow">WORLD ENGINE · PLAYABLE BUILD 0.9</div><h2>Your nation is only<br>the beginning.</h2><p>Build an economy, develop infrastructure, research technology, trade with rival nations and register original creator assets. The world advances when you advance it.</p></div><div class="actions"><button class="primary" onclick="advanceTurn()">Advance World ▸</button><button onclick="exportSave()">Export Save</button><button onclick="document.getElementById('importFile').click()">Import Save</button><input id="importFile" type="file" accept="application/json" class="hidden" onchange="importSave(event)"></div></section>
+<section class="hero"><div><div class="eyebrow">WORLD ENGINE · PLAYABLE BUILD 1.0</div><h2>Your nation is only<br>the beginning.</h2><p>Build an economy, develop infrastructure, research technology, trade with rival nations and register original creator assets. The world advances when you advance it.</p></div><div class="actions"><button class="primary" onclick="advanceTurn()">Advance World ▸</button><button onclick="exportSave()">Export Save</button><button onclick="document.getElementById('importFile').click()">Import Save</button><input id="importFile" type="file" accept="application/json" class="hidden" onchange="importSave(event)"></div></section>
 <div class="metrics" id="metrics"></div>
 <nav class="tabs">
-<button class="active" data-tab="overview">World Overview</button><button data-tab="nation">My Nation</button><button data-tab="market">Trade & Diplomacy</button><button data-tab="research">Research</button><button data-tab="director">AI World Director</button><button data-tab="military">Military & Treaties</button><button data-tab="studio">Creator Studio</button><button data-tab="history">World History</button><button data-tab="campaign">Campaign & Achievements</button>
+<button class="active" data-tab="overview">World Overview</button><button data-tab="nation">My Nation</button><button data-tab="market">Trade & Diplomacy</button><button data-tab="research">Research</button><button data-tab="director">AI World Director</button><button data-tab="military">Military & Treaties</button><button data-tab="studio">Creator Studio</button><button data-tab="history">World History</button><button data-tab="campaign">Campaign & Achievements</button><button data-tab="government">Citizens & Government</button>
 </nav>
 <section id="overview" class="tab grid">
 <div class="card span-8"><div class="row"><h3>World Situation</h3><span class="pill" id="season"></span></div><p class="muted small">A living simulation prototype. NPC nations produce, consume and compete as each world turn passes.</p><div id="worldMap" class="grid"></div></div>
@@ -88,8 +88,14 @@ footer{border-top:1px solid var(--line);padding:20px;text-align:center;color:var
  <div class="card span-4"><h3>Legacy Achievements</h3><div id="achievementList" class="stack"></div></div>
  <div class="card span-12"><h3>Victory Conditions</h3><div id="victoryStatus"></div></div>
 </section>
+
+<section id="government" class="tab grid hidden">
+ <div class="card span-8"><div class="row"><h3>Citizens & Public Welfare</h3><span class="pill">NATIONAL COUNCIL</span></div><div id="citizenDashboard" class="stack"></div><div class="item"><div class="row"><b>Tax policy</b><span id="taxReadout" class="gold"></span></div><p class="muted small">Higher taxes increase treasury income but reduce happiness and migration.</p><input id="taxRate" type="range" min="5" max="25" step="5" value="10" oninput="setTaxRate(this.value)"><div class="row small muted"><span>5% · Low</span><span>15% · Balanced</span><span>25% · High</span></div></div></div>
+ <div class="card span-4"><h3>Government Policies</h3><p class="muted small">Choose one national priority. Changing policy costs 15 credits.</p><div id="policyChoices" class="stack"></div></div>
+ <div class="card span-12"><h3>Public Sentiment</h3><div id="happinessPanel"></div></div>
+</section>
 </main>
-<footer>KINGMAKER WORLD ENGINE · PLAYABLE PROTOTYPE 0.9 · GAME CREDITS HAVE NO REAL-WORLD VALUE</footer>
+<footer>KINGMAKER WORLD ENGINE · PLAYABLE PROTOTYPE 1.0 · GAME CREDITS HAVE NO REAL-WORLD VALUE</footer>
 
 <script>
 const $=id=>document.getElementById(id);
@@ -564,6 +570,77 @@ render=function(){
 const claimTerritoryBeforeV09=claimTerritory;
 claimTerritory=function(id){const region=worldRegions.find(r=>r.id===id);if(region&&region.resource==="defence"){if(ownsRegion(id))return;if(state.credits<region.cost||state.materials<region.materials){alert("Not enough credits or materials to claim this territory.");return;}state.credits-=region.cost;state.materials-=region.materials;state.territories.push(id);state.influence+=5;state.frontierDefence=(state.frontierDefence||0)+region.value;log("Strategic frontier secured: "+region.name+". Army strength increased by "+region.value+".");save();return;}claimTerritoryBeforeV09(id)};
 const armyStrengthBeforeV09=armyStrength;armyStrength=function(){return armyStrengthBeforeV09()+(state.frontierDefence||0)};
+
+
+
+/* KINGMAKER v1.0 — Citizens, taxation and government policy */
+state.happiness=Number.isFinite(state.happiness)?state.happiness:Math.max(35,Math.min(85,Math.round((state.stability||60)*0.75+15)));
+state.taxRate=Number.isFinite(state.taxRate)?state.taxRate:10;
+state.policy=state.policy||"balanced";
+state.citizenTrend=Number.isFinite(state.citizenTrend)?state.citizenTrend:0;
+state.housing=Number.isFinite(state.housing)?state.housing:140;
+const nationalPolicies={
+ balanced:{name:"Balanced Administration",desc:"A steady mix of growth, revenue and public welfare.",cost:0},
+ publicWorks:{name:"Public Works",desc:"+2 stability each turn; infrastructure focus.",cost:15},
+ foodSecurity:{name:"Food Security",desc:"Farms produce 20% more food; shortages hurt less.",cost:15},
+ researchGrants:{name:"Research Grants",desc:"+4 research each turn; supports innovation.",cost:15},
+ openTrade:{name:"Open Trade",desc:"+8 credits each turn and stronger commercial relations.",cost:15},
+ civicService:{name:"Civic Services",desc:"+3 happiness each turn; improves migration.",cost:15},
+ conscription:{name:"National Service",desc:"+4 army strength; -2 happiness each turn.",cost:15}
+};
+function setTaxRate(value){
+ const rate=Math.max(5,Math.min(25,Number(value)||10));state.taxRate=rate;
+ if($("taxReadout"))$("taxReadout").textContent=rate+"%";
+ if($("taxRate"))$("taxRate").value=rate;
+ localStorage.setItem("kingmaker_save",JSON.stringify(state));
+}
+function choosePolicy(id){
+ const p=nationalPolicies[id];if(!p)return;
+ if(state.policy===id){alert("That policy is already active.");return;}
+ if(state.credits<p.cost){alert("Changing government policy requires 15 credits.");return;}
+ state.credits-=p.cost;state.policy=id;log("Government adopted "+p.name+".");save();
+}
+function citizenHappinessDrivers(){
+ const foodScore=state.food>60?12:state.food>25?4:-20;
+ const stabilityScore=Math.round((state.stability-50)*0.35);
+ const taxScore=state.taxRate<=10?8:state.taxRate<=15?0:-Math.round((state.taxRate-15)*1.1);
+ const policyScore=state.policy==="civicService"?8:state.policy==="conscription"?-8:0;
+ return {food:foodScore,stability:stabilityScore,taxes:taxScore,policy:policyScore};
+}
+function processCitizens(){
+ const drivers=citizenHappinessDrivers();
+ const target=Math.max(5,Math.min(100,55+drivers.food+drivers.stability+drivers.taxes+drivers.policy));
+ state.happiness=Math.max(0,Math.min(100,Math.round(state.happiness+(target-state.happiness)*0.25+(state.policy==="civicService"?1:0))));
+ const taxIncome=Math.max(0,Math.floor(state.population*(state.taxRate/100)*0.35));
+ state.credits+=taxIncome;
+ if(state.policy==="publicWorks")state.stability=Math.min(100,state.stability+2);
+ if(state.policy==="foodSecurity")state.food+=Math.floor(state.buildings.farm*2);
+ if(state.policy==="researchGrants")state.research+=4;
+ if(state.policy==="openTrade"){state.credits+=8;Object.keys(state.relations).forEach(n=>state.relations[n]=Math.min(100,(state.relations[n]||0)+1));}
+ if(state.policy==="conscription")state.happiness=Math.max(0,state.happiness-2);
+ const foodShortage=state.food<10;
+ let growth=state.happiness>=70&&state.food>35?3:state.happiness>=50&&state.food>20?1:-1;
+ if(state.taxRate>=20)growth--;
+ if(foodShortage)growth=-3;
+ const capacity=state.housing||140;
+ if(state.population>=capacity)growth=Math.min(0,growth);
+ state.population=Math.max(10,Math.min(capacity,state.population+growth));
+ state.citizenTrend=growth;
+ if(foodShortage){state.stability=Math.max(0,state.stability-3);state.happiness=Math.max(0,state.happiness-5);log("Citizens face food insecurity. Public confidence has fallen.");}
+ else if(state.happiness>=75&&growth>0){state.stability=Math.min(100,state.stability+1);}
+}
+const renderBeforeCitizens=render;
+render=function(){
+ renderBeforeCitizens();
+ if(!$("citizenDashboard"))return;
+ const drivers=citizenHappinessDrivers();
+ $("citizenDashboard").innerHTML='<div class="metrics"><div class="metricbox"><div class="metric">'+state.population+'</div><div class="metric-label">Citizens</div></div><div class="metricbox"><div class="metric">'+state.happiness+'%</div><div class="metric-label">Happiness</div></div><div class="metricbox"><div class="metric">'+state.housing+'</div><div class="metric-label">Housing capacity</div></div><div class="metricbox"><div class="metric">'+(state.citizenTrend>0?"+":"")+state.citizenTrend+'</div><div class="metric-label">Last turn migration</div></div></div><div class="item"><div class="row"><b>Public happiness</b><b>'+state.happiness+'%</b></div><div class="bar"><i style="width:'+state.happiness+'%"></i></div><p class="small muted">Food '+(drivers.food>=0?"+":"")+drivers.food+' · Stability '+(drivers.stability>=0?"+":"")+drivers.stability+' · Tax burden '+(drivers.taxes>=0?"+":"")+drivers.taxes+' · Policy '+(drivers.policy>=0?"+":"")+drivers.policy+'</p></div><div class="item"><div class="row"><b>Tax revenue forecast</b><span class="good">+'+Math.floor(state.population*(state.taxRate/100)*0.35)+' credits / turn</span></div><p class="small muted">Population growth responds to food reserves, happiness, tax rate and available housing.</p></div>';
+ $("taxRate").value=state.taxRate;$("taxReadout").textContent=state.taxRate+"%";
+ $("policyChoices").innerHTML=Object.entries(nationalPolicies).map(([id,p])=>'<div class="item"><div class="row"><b>'+esc(p.name)+'</b><span class="pill">'+(state.policy===id?'ACTIVE':(p.cost?'15 credits':'FREE'))+'</span></div><p>'+esc(p.desc)+'</p>'+(state.policy===id?'<span class="good small">Current national policy</span>':'<button onclick="choosePolicy(\''+id+'\')">Adopt policy</button>')+'</div>').join("");
+ $("happinessPanel").innerHTML='<p class="muted">Citizens are '+(state.happiness>=75?'content':state.happiness>=50?'cautiously supportive':'unhappy')+'. '+(state.population>=state.housing?'Housing is full; expand capacity to attract more residents.':'Housing capacity remains for '+(state.housing-state.population)+' additional citizens.')+'</p>';
+};
+const advanceBeforeCitizens=advanceTurn;
+advanceTurn=function(){advanceBeforeCitizens();processCitizens();save();};
 
 </script>
 </body>
