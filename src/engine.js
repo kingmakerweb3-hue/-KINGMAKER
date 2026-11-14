@@ -1599,7 +1599,7 @@
     const unmetNeedPressure = clamp(Math.round((45 - weakest.score) * 0.9), 0, 40);
     const rawUnrest = clamp(100 - mandate.approval + unmetNeedPressure, 0, 100);
     const politics = state.politics;
-    politics.unrest = clamp(Math.round(politics.unrest * 0.55 + rawUnrest * 0.45), 0, 100);
+    politics.unrest = clamp(Math.round(politics.unrest * 0.35 + rawUnrest * 0.65), 0, 100);
     politics.lastDemand = weakest.label;
     if (politics.unrest >= 80 && state.nation.stability < 40) politics.crisisTurns++;
     else politics.crisisTurns = Math.max(0, politics.crisisTurns - 1);
