@@ -5,7 +5,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   "use strict";
   const host=document.getElementById("world3d-viewport");
   if(!host)return;
-  let scene,camera,renderer,controls,landGroup,buildingGroup,peopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup,cloudGroup,waterMesh,waterPositions,terrainMesh;
+  let scene,camera,renderer,controls,sunLight,landGroup,buildingGroup,peopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup,cloudGroup,waterMesh,waterPositions,terrainMesh;
   const trafficVehicles=[];
   let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,raycaster,groundPlane,previewMarker,placementPointer=null;
   const COLORS={farm:0xc6a35d,mine:0x78838d,workshop:0x9c7652,factory:0x697b8e,transport:0x9b9b8b,market:0xc49b52,academy:0x8b80b8,power:0x75b9c9,housing:0xd6c5a3};
@@ -96,7 +96,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     host.innerHTML="";host.appendChild(renderer.domElement);
     controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.06;controls.maxPolarAngle=Math.PI*.48;controls.minDistance=9;controls.maxDistance=42;controls.target.set(0,0,0);controls.autoRotate=true;controls.autoRotateSpeed=.42;
     scene.add(new THREE.HemisphereLight(0xd9efff,0x465b45,1.45));scene.add(new THREE.AmbientLight(0x9fb7c4,.34));
-    const sun=new THREE.DirectionalLight(0xffe3b5,3.4);sun.position.set(-18,28,14);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-22;sun.shadow.camera.right=22;sun.shadow.camera.top=22;sun.shadow.camera.bottom=-22;sun.shadow.bias=-.00018;sun.shadow.normalBias=.025;scene.add(sun);
+    sunLight=new THREE.DirectionalLight(0xffe3b5,3.4);sunLight.position.set(-18,28,14);sunLight.castShadow=true;sunLight.shadow.mapSize.set(2048,2048);sunLight.shadow.camera.left=-22;sunLight.shadow.camera.right=22;sunLight.shadow.camera.top=22;sunLight.shadow.camera.bottom=-22;sunLight.shadow.bias=-.00018;sunLight.shadow.normalBias=.025;scene.add(sunLight);
     const waterGeo=new THREE.BufferGeometry(),waterVerts=[],waterIndices=[],waterRings=28,waterSegments=128;
     for(let ring=0;ring<=waterRings;ring++){const radius=42*ring/waterRings;for(let seg=0;seg<=waterSegments;seg++){const angle=seg/waterSegments*Math.PI*2;waterVerts.push(Math.cos(angle)*radius,-.5,Math.sin(angle)*radius);if(ring<waterRings&&seg<waterSegments){const a=ring*(waterSegments+1)+seg,b=a+1,c=a+waterSegments+1,d=c+1;waterIndices.push(a,c,b,b,c,d);}}}
     waterGeo.setAttribute("position",new THREE.Float32BufferAttribute(waterVerts,3));waterGeo.setIndex(waterIndices);waterGeo.computeVertexNormals();
@@ -147,6 +147,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   function resize(){if(!renderer||!host.clientWidth)return;const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
   function animate(){
     animationId=requestAnimationFrame(animate);const t=clock.getElapsedTime();controls.update();
+    const daylight=THREE.MathUtils.clamp(Math.sin(t*.035)*.5+.5,0,1),nightSky=new THREE.Color(0x101d35),daySky=new THREE.Color(0x9bb8c7);scene.background.lerpColors(nightSky,daySky,daylight);if(scene.fog)scene.fog.color.copy(scene.background);sunLight.intensity=.22+daylight*3.15;sunLight.position.set(Math.cos(t*.035)*25,Math.max(3,Math.sin(t*.035)*28),14);sunLight.color.setRGB(1,.72+daylight*.2,.52+daylight*.42);
     if(waterMesh){const attr=waterMesh.geometry.attributes.position;for(let i=0;i<attr.count;i++){const x=waterPositions[i*3],z=waterPositions[i*3+2];attr.array[i*3+1]=waterPositions[i*3+1]+Math.sin(x*.32+t*.65)*.055+Math.cos(z*.27-t*.48)*.04;}attr.needsUpdate=true;waterMesh.geometry.computeVertexNormals();}
     cloudGroup.children.forEach((cloud,i)=>{cloud.position.x+=.0012+Math.sin(t*.025+i)*.0005;if(cloud.position.x>24)cloud.position.x=-24;});
     peopleGroup.children.forEach((p,i)=>{const a=t*.17+p.userData.phase,step=t*3+p.userData.phase;p.position.x=Math.cos(a)*p.userData.radius;p.position.z=Math.sin(a)*p.userData.radius;p.position.y=heightAt(p.position.x,p.position.z);p.rotation.y=-a;for(const limb of p.userData.limbs){const swing=Math.sin(step)*.42*limb.side;limb.arm.rotation.x=-swing;limb.leg.rotation.x=swing;}});
