@@ -94,3 +94,20 @@ button{min-height:38px}
 /* Clickable 3D citizen profile */
 .world3d-citizen-inspector{position:absolute;right:14px;bottom:14px;width:min(320px,calc(100% - 28px));max-height:70%;overflow:auto;padding:16px;border:1px solid rgba(229,189,106,.55);border-radius:14px;background:rgba(10,20,34,.94);color:#eef3f8;box-shadow:0 12px 36px rgba(0,0,0,.35);backdrop-filter:blur(12px);z-index:4}
 .world3d-citizen-inspector h3{margin:6px 30px 2px 0;font-size:1.2rem}.world3d-citizen-inspector p{margin:0 0 9px;color:#aebdd0;font-size:.82rem}.citizen-inspector-close{position:absolute;right:10px;top:8px;width:32px;height:32px;padding:0;font-size:1.3rem}.citizen-mood{display:inline-block;color:var(--gold);margin:4px 0 10px}.citizen-needs{display:grid;gap:8px}.citizen-need{display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-size:.76rem;text-transform:capitalize}.citizen-need i{grid-column:1/-1;height:5px;border-radius:8px;background:#29394d;overflow:hidden}.citizen-need em{display:block;height:100%;background:#6dc9a1}.world3d-citizen-inspector h4{margin:14px 0 5px;font-size:.85rem}.world3d-citizen-inspector ul{padding-left:18px;margin:0;color:#aebdd0;font-size:.75rem;line-height:1.6}
+
+/* KINGMAKER Web3 wallet and asset economy prototype */
+.web3-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center}
+.web3-hero h2{margin:0 0 8px}.web3-hero p.muted{max-width:720px;margin:0}
+.web3-connect{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.web3-status{font-size:11px;color:var(--muted)}.web3-status.is-connected{color:var(--green)}
+.web3-account{grid-column:1/-1;padding:10px 12px;border:1px solid #3a7158;border-radius:9px;color:var(--green);background:#10271f;font-size:12px}
+.web3-inventory,.web3-catalog{display:grid;gap:9px}.web3-item{display:flex;justify-content:space-between;gap:10px;padding:12px;border:1px solid var(--line);border-radius:11px;background:#0d1727}
+.web3-item b,.web3-item small{display:block}.web3-item small{color:var(--muted);font-size:10px;margin-top:4px}.web3-item>span{color:var(--gold);font-size:10px}
+.web3-catalog{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:12px}
+.web3-catalog-card{padding:13px;border:1px solid var(--line);border-radius:12px;background:#0d1727;display:flex;flex-direction:column;align-items:flex-start}
+.web3-catalog-top{display:flex;justify-content:space-between;gap:8px;width:100%;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.8px}
+.web3-catalog-top b{color:var(--gold)}.web3-catalog-card h3{margin:12px 0 4px}.web3-catalog-card p{color:var(--muted);font-size:11px;flex:1}.web3-catalog-card button{font-size:10px;padding:7px 9px}
+.web3-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.web3-facts>div{padding:12px;border:1px solid var(--line);border-radius:10px;background:#0d1727}
+.web3-facts small,.web3-facts b{display:block}.web3-facts small{color:var(--muted);font-size:10px}.web3-facts b{font-size:12px;margin-top:5px}
+@media(max-width:760px){.web3-hero{grid-template-columns:1fr}.web3-connect{justify-content:flex-start}.web3-catalog{grid-template-columns:1fr}.web3-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
