@@ -848,3 +848,31 @@ test("world intelligence ranks nations and exposes transparent risk and rival in
   assert.ok(updated.threats.some(t => t.id === "northreach"));
   assert.ok(updated.rivals.find(r => r.id === "northreach").risks.includes("critical food reserves"));
 });
+
+
+test("citizens are persistent agents with needs, jobs, goals, and bounded memories", () => {
+  const state = Engine.createInitialState({ seed: 2026 });
+  assert.ok(state.citizens.length >= 12 && state.citizens.length <= 48);
+  const citizen = state.citizens[0];
+  assert.ok(citizen.id && citizen.name && citizen.role && citizen.goal);
+  assert.deepEqual(Object.keys(citizen.needs).sort(), ["belonging", "energy", "food", "safety"]);
+  const before = citizen.needs.food;
+  state.resources.food = 0;
+  Engine.advanceTurn(state);
+  assert.ok(citizen.needs.food < before);
+  assert.ok(citizen.activity.length > 0);
+  for (let i = 0; i < 45 && state.status === "playing"; i++) Engine.advanceTurn(state);
+  assert.ok(citizen.memory.length <= 8);
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(restored.citizens, state.citizens);
+});
+
+test("schema 7 saves migrate into the persistent citizen simulation", () => {
+  const state = Engine.createInitialState({ seed: 77 });
+  state.schemaVersion = 7;
+  delete state.citizens;
+  const migrated = Engine.migrateSave(state);
+  assert.equal(migrated.schemaVersion, Engine.SAVE_VERSION);
+  assert.ok(migrated.citizens.length > 0);
+  assert.doesNotThrow(() => Engine.validateSave(migrated));
+});
