@@ -1,3 +1,9 @@
+## World Engine 2.7 — International World Council
+
+- Added a rotating international agenda every five turns, with food relief, scientific cooperation and regional security sessions.
+- Players can contribute resources for diplomatic, stability and influence benefits, or decline without spending resources.
+- Added eligibility checks, three-turn session expiry, persistent council resolutions and save migration defaults.
+
 ## World Engine 2.6 — Bilateral trade negotiations
 
 - Added direct resource negotiations with each peaceful rival: export 20 food for 30 credits or import 20 materials for 35 credits.
@@ -47,7 +53,7 @@
 
 KINGMAKER is a browser-based nation-building and world-strategy game prototype. Build an economy, develop infrastructure, research technology, manage rival nations, expand territory, form alliances, wage simulated campaigns, and shape a national legacy.
 
-## Current build: World Engine 2.6
+## Current build: World Engine 2.7
 
 ### Playable systems
 - **Nation management** — name your nation and choose a government style.
