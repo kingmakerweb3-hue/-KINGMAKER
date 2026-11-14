@@ -136,7 +136,7 @@
   let generatedWorld = window.KingmakerWorld3D.generate(481516);
   let selectedRegionId = generatedWorld.regions[0].id;
   let planetRenderer = null;
-  function renderGeneratedWorld() {
+  function syncGeneratedWorld() {\n    generatedWorld=state.world&&state.world.version===window.KingmakerWorld3D.WORLD_VERSION&&Array.isArray(state.world.regions)?state.world:window.KingmakerWorld3D.generate(state.seed);\n    state.world=generatedWorld;selectedRegionId=generatedWorld.regions[0].id;\n    if(planetRenderer&&planetRenderer.destroy)planetRenderer.destroy();planetRenderer=null;\n  }\n  function renderGeneratedWorld() {
     $("world-seed").textContent = generatedWorld.seed;
     $("region-count").textContent = generatedWorld.regions.length;
     $("generated-nations").textContent = generatedWorld.nations.length;
@@ -157,7 +157,7 @@
   function exportSave() {const blob=new Blob([E.exportSave(state)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="kingmaker-save-turn-"+state.turn+".json";a.click();URL.revokeObjectURL(a.href);toast("Save exported.","success");}
   async function importSave(file) {
     if(!file)return;
-    try {const text=await file.text();if(text.length>2_000_000)throw new Error("Save file exceeds the 2 MB limit.");state=E.migrateSave(JSON.parse(text));persist();toast("Save imported and validated.","success");}
+    try {const text=await file.text();if(text.length>2_000_000)throw new Error("Save file exceeds the 2 MB limit.");state=E.migrateSave(JSON.parse(text));syncGeneratedWorld();persist();toast("Save and world imported and validated.","success");}
     catch(e){toast("Save not imported: "+e.message,"error");}
     $("import-file").value="";
   }
@@ -190,8 +190,8 @@
   $("advance-turn").addEventListener("click",()=>act(()=>E.advanceTurn(state)));
   $("save-profile").addEventListener("click",()=>{const name=$("nation-name").value.trim();if(!name||name.length>48)return toast("Nation name must contain 1–48 characters.","error");state.nation.name=name;state.nation.government=$("government").value;E.addEvent(state,"National charter updated.","player");persist();toast("Nation charter saved.","success");});
   $("export-save").addEventListener("click",exportSave);$("import-save").addEventListener("click",()=>$("import-file").click());$("import-file").addEventListener("change",e=>importSave(e.target.files[0]));
-  $("new-game").addEventListener("click",()=>{if(!confirm("Start a new nation? Your current game will remain in the recovery backup."))return;try{localStorage.setItem(BACKUP,JSON.stringify(state));}catch(_){}state=E.createInitialState();persist();toast("A new nation has been founded.","success");});
-  $("start-campaign").addEventListener("click",()=>{if(!confirm("Begin this campaign? Your current nation will remain in the recovery backup."))return;try{localStorage.setItem(BACKUP,JSON.stringify(state));}catch(_){}state=E.createInitialState({campaignId:$("campaign-picker").value});persist();toast("Campaign started: "+E.CAMPAIGNS[state.campaign.id].name,"success");});
+  $("new-game").addEventListener("click",()=>{if(!confirm("Start a new nation? Your current game will remain in the recovery backup."))return;try{localStorage.setItem(BACKUP,JSON.stringify(state));}catch(_){}state=E.createInitialState();syncGeneratedWorld();persist();toast("A new nation has been founded.","success");});
+  $("start-campaign").addEventListener("click",()=>{if(!confirm("Begin this campaign? Your current nation will remain in the recovery backup."))return;try{localStorage.setItem(BACKUP,JSON.stringify(state));}catch(_){}state=E.createInitialState({campaignId:$("campaign-picker").value});syncGeneratedWorld();persist();toast("Campaign started: "+E.CAMPAIGNS[state.campaign.id].name,"success");});
   $("creator-form").addEventListener("submit",e=>{e.preventDefault();act(()=>{E.registerCreation(state,{creator:$("creator-name").value,title:$("creation-title").value,category:$("creation-category").value,description:$("creation-description").value});e.target.reset();});});
   const assess=()=>{renderAdvice();toast("The local World Director assessed your nation.","success");};
   $("director-run").addEventListener("click",assess);$("director-run-panel").addEventListener("click",assess);
