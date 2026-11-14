@@ -1,3 +1,9 @@
+## World Engine 2.6 — Bilateral trade negotiations
+
+- Added direct resource negotiations with each peaceful rival: export 20 food for 30 credits or import 20 materials for 35 credits.
+- Successful deals improve diplomatic relations and trust; rival reserves are adjusted to reflect the exchange.
+- Added a three-turn per-rival negotiation cooldown, eligibility checks, save persistence and a bilateral trade ledger.
+
 ## World Engine 2.5 — Alliance council and diplomatic trust
 
 - Added persistent diplomatic trust scores alongside relationship ratings.
@@ -41,7 +47,7 @@
 
 KINGMAKER is a browser-based nation-building and world-strategy game prototype. Build an economy, develop infrastructure, research technology, manage rival nations, expand territory, form alliances, wage simulated campaigns, and shape a national legacy.
 
-## Current build: World Engine 2.5
+## Current build: World Engine 2.6
 
 ### Playable systems
 - **Nation management** — name your nation and choose a government style.
