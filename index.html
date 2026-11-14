@@ -640,7 +640,7 @@ render=function(){
  $("happinessPanel").innerHTML='<p class="muted">Citizens are '+(state.happiness>=75?'content':state.happiness>=50?'cautiously supportive':'unhappy')+'. '+(state.population>=state.housing?'Housing is full; expand capacity to attract more residents.':'Housing capacity remains for '+(state.housing-state.population)+' additional citizens.')+'</p>';
 };
 const advanceBeforeCitizens=advanceTurn;
-advanceTurn=function(){advanceBeforeCitizens();processCitizens();save();};
+advanceTurn=function(){const populationBeforeTurn=state.population;advanceBeforeCitizens();state.population=populationBeforeTurn;processCitizens();save();};
 
 </script>
 </body>
