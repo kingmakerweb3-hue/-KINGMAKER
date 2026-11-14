@@ -36,7 +36,7 @@ Open <http://127.0.0.1:4173>. The server only binds to loopback.
 ### Current systems
 
 - **Advance World** resolves production and consumption, rival decisions, market supply and prices, diplomacy, agreements, conflicts, and world events.
-- **Nation** lets you rename the nation, set its government, and build infrastructure.
+- **Nation** lets you rename the nation, set its government, build infrastructure, and enact four temporary national policies: food assistance, research funding, public health, and industrial incentives.
 - **Economy** lets you build industries; buy and sell food, materials, ore, and goods against shared finite world-market stock; and review the national income and wage ledger.
 - **Diplomacy** lets you send aid, recall an envoy, offer agreements, and manage conflict.
 - **Research** unlocks production and resilience effects.
@@ -72,7 +72,7 @@ See [gameplay rules](docs/gameplay.md) and the [AI, 3D, and Web3 vision](docs/ai
 
 ## Save data
 
-Current saves use schema version 7. The importer validates bounded creator publications, adoption and royalty ledgers, event records, response choices, campaign phase progress, and required world data before replacing the active game. It migrates original v0.3 saves and development schemas 1 through 6. Active world effects, creator progression, processed event IDs, campaign progress, and structured history persist in saves. Automatic local saves keep a previous safe copy for recovery. Export backups regularly if you clear browser storage or change devices.
+Current saves use schema version 9. The importer validates bounded creator publications, adoption and royalty ledgers, event records, response choices, campaign phase progress, and required world data before replacing the active game. It migrates original v0.3 saves and development schemas 1 through 8. Active world effects, creator progression, processed event IDs, campaign progress, and structured history persist in saves. Automatic local saves keep a previous safe copy for recovery. Export backups regularly if you clear browser storage or change devices.
 
 ## Development status
 
