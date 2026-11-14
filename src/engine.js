@@ -634,6 +634,8 @@
       power: clamp(state.resources.power + Math.floor(base.power * staffing), 0, RESOURCE_LIMIT)
     }, state.buildings, state.technologies, state.nation.population);
     for (const [resource, amount] of Object.entries(creator.production)) industry.production[resource] += amount;
+    const districts = districtEffects(state);
+    for (const [resource, amount] of Object.entries(districts.production)) industry.production[resource] += amount;
     return { production: industry.production, consumption: { food: Math.ceil(state.nation.population / (12 + Math.min(8, industry.production.logistics))), ...industry.inputs },
       workforce: jobs, employed, requiredJobs: Math.ceil(state.nation.population / 10), activeFactories: industry.activeFactories };
   }
