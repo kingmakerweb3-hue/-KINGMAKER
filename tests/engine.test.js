@@ -813,3 +813,34 @@ test("schema 7 saves migrate with a starter army", () => {
   assert.equal(migrated.military.troops, 24);
   assert.doesNotThrow(() => Engine.validateSave(migrated));
 });
+
+test("territory expansion secures neutral regions and pays regional bonuses only as ownership", () => {
+ const state=Engine.createInitialState({seed:101});
+ const region=state.territories.find(r=>r.id==="heartland");
+ assert.equal(region.owner,"player");
+ const neutral={id:"test-neutral",name:"Test Reach",terrain:"Plains",owner:"neutral",bonus:"food",value:2,cost:{credits:20,materials:10},troops:5};
+ state.territories[0]=neutral;
+ state.resources.credits=100;state.resources.materials=100;state.military.troops=20;
+ const claimed=Engine.claimTerritory(state,"test-neutral");
+ assert.equal(claimed.owner,"player");
+ assert.equal(state.military.troops,15);
+ assert.equal(state.resources.credits,80);
+ assert.throws(()=>Engine.claimTerritory(state,"test-neutral"),/already controls/);
+ assert.doesNotThrow(()=>Engine.validateSave(state));
+});
+test("territorial campaigns require forces and capture rival regions after victory",()=>{
+ const state=Engine.createInitialState({seed:102});
+ const region=state.territories.find(r=>r.owner==="duneward");
+ state.military.troops=300;state.resources.power=30;
+ const result=Engine.resolveTerritoryBattle(state,region.id);
+ assert.equal(result.won,true);assert.equal(region.owner,"player");
+ assert.ok(state.military.troops<300);
+ assert.doesNotThrow(()=>Engine.validateSave(state));
+});
+test("schema 8 saves migrate with the original regional map",()=>{
+ const state=Engine.createInitialState({seed:103});delete state.territories;state.schemaVersion=8;
+ const migrated=Engine.migrateSave(state);
+ assert.equal(migrated.schemaVersion,Engine.SAVE_VERSION);
+ assert.equal(migrated.territories.length,7);
+ assert.doesNotThrow(()=>Engine.validateSave(migrated));
+});
