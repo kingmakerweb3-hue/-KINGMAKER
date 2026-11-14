@@ -15,23 +15,41 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   const heightAt=(x,z)=>Math.sin(x*.19+Math.cos(z*.13))*Math.cos(z*.21)*.72+Math.sin((x+z*.62)*.43)*Math.cos((z-x*.28)*.37)*.42+Math.sin(x*.91+z*.36)*Math.cos(z*.83-x*.2)*.11+Math.max(0,1-Math.hypot(x+3,z-2)/7)*1.05;
   function makeTree(x,z,scale=1){
     const g=new THREE.Group();g.position.set(x,heightAt(x,z),z);g.scale.setScalar(scale);
-    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.09,.13,.65,6),material(0x76533a));trunk.position.y=.32;g.add(trunk);
-    const crown=new THREE.Mesh(new THREE.ConeGeometry(.58,1.45,7),material(rand(x,z)>.5?0x477b57:0x5b895c));crown.position.y=1.25;g.add(crown);landGroup.add(g);
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.075,.14,.82,8),material(0x594331,.98));trunk.position.y=.4;trunk.castShadow=true;g.add(trunk);
+    const tone=rand(x,z),crownMat=material(tone>.66?0x315d43:tone>.33?0x426f4b:0x587d50,1);
+    for(let i=0;i<3;i++){const crown=new THREE.Mesh(new THREE.IcosahedronGeometry(.58-i*.09,2),crownMat);crown.position.set((rand(x+i,z)-.5)*.18,.92+i*.34,(rand(x,z+i)-.5)*.18);crown.scale.set(1,.9,1);crown.castShadow=true;g.add(crown);}
+    landGroup.add(g);
   }
   function makeBuilding(type,index,total,position){
     const angle=index*2.399963,ring=2.7+Math.floor(index/9)*1.7;
     const x=position?.x??Math.cos(angle)*ring,z=position?.z??Math.sin(angle)*ring;
     const g=new THREE.Group();g.position.set(x,heightAt(x,z),z);
-    const color=COLORS[type]||0x9aa7b6;
-    const height=type==="factory"?1.7:type==="academy"?1.55:type==="housing"?1.25:type==="market"?1.1:.9;
-    const base=new THREE.Mesh(boxGeo,material(color));base.scale.set(type==="farm"?1.5:.95,height,type==="farm"?1.25:.95);base.position.y=height/2;g.add(base);
-    const roof=new THREE.Mesh(new THREE.ConeGeometry(type==="farm"?.95:.78,.55,4),material(type==="farm"?0x8b563e:0x3c5368));roof.position.y=height+.22;roof.rotation.y=Math.PI/4;g.add(roof);
-    if(type==="factory"){
-      for(let k=0;k<2;k++){const stack=new THREE.Mesh(new THREE.CylinderGeometry(.12,.15,.8,7),material(0x58616b));stack.position.set(.25+k*.3,height+.62,0);g.add(stack);}
-    }
-    if(type==="power"){const mast=new THREE.Mesh(new THREE.CylinderGeometry(.035,.05,1.8,5),material(0xdce4e8));mast.position.y=1.35;g.add(mast);}
+    const palette={farm:0x9b865f,mine:0x697783,workshop:0x8b7866,factory:0x697985,transport:0x929b9b,market:0x9b8668,academy:0x777f93,power:0x718e96,housing:0x9c9a8b};
+    const color=palette[type]||0x8c989d;
+    const floors=type==="factory"?4:type==="academy"?5:type==="housing"?4:type==="market"?3:type==="transport"?3:2;
+    const w=type==="factory"?1.35:type==="farm"?1.6:.9,depth=type==="farm"?1.45:.9,height=floors*.42;
+    const base=new THREE.Mesh(new THREE.BoxGeometry(w,height,depth),new THREE.MeshStandardMaterial({color,roughness:.76,metalness:.12}));base.position.y=height/2;base.castShadow=true;base.receiveShadow=true;g.add(base);
     if(type==="farm"){
-      for(let row=0;row<3;row++){const crop=new THREE.Mesh(new THREE.BoxGeometry(1.2,.04,.07),material(0x668a48));crop.position.set(0,.12,(row-1)*.3);g.add(crop);}
+      const roof=new THREE.Mesh(new THREE.BoxGeometry(w+.12,.14,depth+.12),material(0x59483c));roof.position.y=height+.06;g.add(roof);
+      for(let row=0;row<4;row++){const crop=new THREE.Mesh(new THREE.BoxGeometry(1.3,.035,.08),material(0x527344));crop.position.set(0,.08,(row-1.5)*.28);g.add(crop);}
+    }else{
+      const windowMat=new THREE.MeshStandardMaterial({color:0x9eb8bb,emissive:0x314c54,emissiveIntensity:.22,metalness:.35,roughness:.28});
+      for(let floor=0;floor<floors;floor++)for(let col=0;col<3;col++)for(const side of [-1,1]){
+        const win=new THREE.Mesh(new THREE.BoxGeometry(.16,.17,.025),windowMat);win.position.set((col-1)*w*.29,height-(floor+.55)*.42,side*(depth/2+.014));g.add(win);
+      }
+      const roof=new THREE.Mesh(new THREE.BoxGeometry(w+.1,.12,depth+.1),material(0x414e59,.72));roof.position.y=height+.06;g.add(roof);
+      const rooftop=new THREE.Mesh(new THREE.BoxGeometry(w*.38,.18,depth*.38),material(color));rooftop.position.set(0,height+.2,0);g.add(rooftop);
+    }
+    if(type==="factory"){
+      for(let k=0;k<2;k++){const stack=new THREE.Mesh(new THREE.CylinderGeometry(.09,.13,.85,10),material(0x555f68));stack.position.set(.3+k*.38,height+.48,0);stack.castShadow=true;g.add(stack);}
+    }
+    if(type==="power"){
+      const mast=new THREE.Mesh(new THREE.CylinderGeometry(.025,.045,2.2,8),material(0xb7c2c5));mast.position.set(.55,height+.95,0);g.add(mast);
+      for(let k=-1;k<=1;k++){const arm=new THREE.Mesh(new THREE.BoxGeometry(.85,.045,.05),material(0xb7c2c5));arm.position.set(.55,height+1.65+k*.2,0);g.add(arm);}
+    }
+    if(type==="transport"){
+      const canopy=new THREE.Mesh(new THREE.BoxGeometry(1.2,.1,1.05),material(0x4d6675));canopy.position.y=height+.25;g.add(canopy);
+      for(let k=0;k<3;k++){const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.5,8),material(0xc0c5c2));pillar.position.set((k-1)*.42,height,0);g.add(pillar);}
     }
     buildingGroup.add(g);
   }
