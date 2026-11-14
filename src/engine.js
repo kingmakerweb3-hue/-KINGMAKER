@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 12;
+  const SAVE_VERSION = 13;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -317,6 +317,7 @@
       schemaVersion: SAVE_VERSION, turn: 1, seed, citizens: createCitizens(100, seed),
       election: { nextElectionTurn: 12, incumbent: "civic", electionsHeld: 0, lastResult: null },
       politics: { unrest: 0, governmentStatus: "stable", lastProtestTurn: 0, protests: 0, lastDemand: "food security", crisisTurns: 0 },
+      governance: { lastReviewTurn: 0, decisionsMade: 0, budgetSpent: 0, lastDecision: "No cabinet decision yet", lastPolicy: null },
       policies: Object.fromEntries(Object.keys(NATIONAL_POLICIES).map(id => [id, null])),
       nation: { name: "New Horizon", government: "Republic", population: 100, stability: 80 },
       resources: { food: 120, materials: 105, credits: 180, science: 0, power: 20, influence: 20 },
@@ -363,6 +364,7 @@
     if (!normalized.policies || typeof normalized.policies !== "object" || Array.isArray(normalized.policies)) normalized.policies = Object.fromEntries(Object.keys(NATIONAL_POLICIES).map(id => [id, null]));
     if (!normalized.election || typeof normalized.election !== "object") normalized.election = { nextElectionTurn: Math.max(12, normalized.turn + 1), incumbent: "civic", electionsHeld: 0, lastResult: null };
     if (!normalized.politics || typeof normalized.politics !== "object") normalized.politics = { unrest: 0, governmentStatus: "stable", lastProtestTurn: 0, protests: 0, lastDemand: "food security", crisisTurns: 0 };
+    if (!normalized.governance || typeof normalized.governance !== "object") normalized.governance = { lastReviewTurn: 0, decisionsMade: 0, budgetSpent: 0, lastDecision: "No cabinet decision yet", lastPolicy: null };
     normalized.world = normalized.world || { nextEventId: 1, activeEvents: [], processedEventIds: [] };
     if (!Array.isArray(normalized.world.placedBuildings)) normalized.world.placedBuildings = [];
     if (!Array.isArray(normalized.world.placedRoads)) normalized.world.placedRoads = [];
@@ -375,6 +377,7 @@
         !["civic", "prosperity", "security"].includes(normalized.election.incumbent) ||
         !Number.isInteger(normalized.election.electionsHeld) || normalized.election.electionsHeld < 0 || normalized.election.electionsHeld > 1_000_000 ||
         (normalized.election.lastResult !== null && (!normalized.election.lastResult || !Number.isInteger(normalized.election.lastResult.turn) || normalized.election.lastResult.turn < 1 || normalized.election.lastResult.turn > normalized.turn || !["civic", "prosperity", "security"].includes(normalized.election.lastResult.winner) || !Number.isInteger(normalized.election.lastResult.turnout) || normalized.election.lastResult.turnout < 25 || normalized.election.lastResult.turnout > 90 || !normalized.election.lastResult.voteShares || !["civic", "prosperity", "security"].every(id => Number.isInteger(normalized.election.lastResult.voteShares[id]) && normalized.election.lastResult.voteShares[id] >= 0 && normalized.election.lastResult.voteShares[id] <= 100) || Object.values(normalized.election.lastResult.voteShares).reduce((a,b)=>a+b,0)!==100))) throw new Error("Election state is invalid.");
+    if (!Number.isInteger(normalized.governance.lastReviewTurn) || normalized.governance.lastReviewTurn < 0 || normalized.governance.lastReviewTurn > normalized.turn || !Number.isInteger(normalized.governance.decisionsMade) || normalized.governance.decisionsMade < 0 || normalized.governance.decisionsMade > 1000000 || !Number.isInteger(normalized.governance.budgetSpent) || normalized.governance.budgetSpent < 0 || normalized.governance.budgetSpent > RESOURCE_LIMIT || typeof normalized.governance.lastDecision !== "string" || normalized.governance.lastDecision.length > 160 || (normalized.governance.lastPolicy !== null && !NATIONAL_POLICIES[normalized.governance.lastPolicy])) throw new Error("Government agenda state is invalid.");
     if (!Number.isInteger(normalized.politics.unrest) || normalized.politics.unrest < 0 || normalized.politics.unrest > 100 || !["stable", "political pressure", "public protests", "government crisis"].includes(normalized.politics.governmentStatus) || !Number.isInteger(normalized.politics.lastProtestTurn) || normalized.politics.lastProtestTurn < 0 || normalized.politics.lastProtestTurn > normalized.turn || !Number.isInteger(normalized.politics.protests) || normalized.politics.protests < 0 || normalized.politics.protests > 1000000 || typeof normalized.politics.lastDemand !== "string" || normalized.politics.lastDemand.length > 64 || !Number.isInteger(normalized.politics.crisisTurns) || normalized.politics.crisisTurns < 0 || normalized.politics.crisisTurns > 1000000) throw new Error("Political pressure state is invalid.");
     if (Object.keys(normalized.policies).length !== Object.keys(NATIONAL_POLICIES).length || Object.keys(NATIONAL_POLICIES).some(id => !(id in normalized.policies))) throw new Error("National policy state is invalid.");
     for (const [id, policy] of Object.entries(normalized.policies)) {
@@ -508,7 +511,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -522,6 +525,7 @@
       state.policies = state.policies || Object.fromEntries(Object.keys(NATIONAL_POLICIES).map(id => [id, null]));
       state.election = state.election || { nextElectionTurn: Math.max(12, state.turn + 1), incumbent: "civic", electionsHeld: 0, lastResult: null };
       state.politics = state.politics || { unrest: 0, governmentStatus: "stable", lastProtestTurn: 0, protests: 0, lastDemand: "food security", crisisTurns: 0 };
+      state.governance = state.governance || { lastReviewTurn: 0, decisionsMade: 0, budgetSpent: 0, lastDecision: "No cabinet decision yet", lastPolicy: null };
       state.schemaVersion = SAVE_VERSION;
       addIndustryDefaults(state);
       normalizeCitizens(state);
@@ -1389,6 +1393,7 @@
     state.turn++;
     updateCitizens(state);
     resolveElection(state);
+    resolveGovernmentAgenda(state);
     resolvePoliticalPressure(state);
     state.creatorEconomy.royaltyTurn = state.turn;
     state.creatorEconomy.lastTurnRoyalties = 0;
@@ -1638,6 +1643,55 @@
     return { ...politics, approval: mandate.approval, mandate: mandate.mandate, leadingConcern: mandate.leadingConcern };
   }
 
+
+  function resolveGovernmentAgenda(state) {
+    const ledger = state.governance;
+    if (state.turn % 4 !== 0 || state.turn - ledger.lastReviewTurn < 4) return null;
+    ledger.lastReviewTurn = state.turn;
+    const party = partyGovernance(state);
+    const citizens = state.citizens || [];
+    const average = key => citizens.length ? citizens.reduce((sum, citizen) => sum + (Number(citizen.needs && citizen.needs[key]) || 0), 0) / citizens.length : 50;
+    const food = average("food"), safety = average("safety"), belonging = average("belonging");
+    let priorities = [];
+    if (party.id === "civic") {
+      if (food < 55) priorities.push(["food_assistance", "Cabinet prioritized food security after citizen food needs weakened."]);
+      if (safety < 62 || belonging < 58) priorities.push(["public_health", "Cabinet invested in public health and community resilience."]);
+    } else if (party.id === "prosperity") {
+      if (food < 58) priorities.push(["food_assistance", "Cabinet prioritized food security to protect household wellbeing."]);
+      if (state.resources.materials < 90) priorities.push(["industry_incentive", "Cabinet backed domestic industry to rebuild material capacity."]);
+      if (state.economy.lastBalance >= 0 && state.resources.science < 80) priorities.push(["research_fund", "Cabinet funded research to support long-term productivity."]);
+    } else {
+      if (safety < 68) priorities.push(["public_health", "Cabinet prioritized public health and national resilience."]);
+      if (food < 45) priorities.push(["food_assistance", "Cabinet authorized food support as a national stability measure."]);
+    }
+    const selected = priorities.find(([id]) => !policyActive(state, id));
+    if (!selected) {
+      ledger.lastDecision = "Cabinet review completed: no affordable inactive policy matched current priorities.";
+      ledger.lastPolicy = null;
+      return { reviewed: true, enacted: false, reason: ledger.lastDecision };
+    }
+    const [id, reason] = selected;
+    const definition = NATIONAL_POLICIES[id];
+    const discount = party.discount.includes(id) ? party.policyDiscount : 0;
+    const cost = Object.entries(definition.cost).reduce((sum, [resource, amount]) => sum + (resource === "credits" ? (discount ? Math.max(1, Math.ceil(amount * (1 - discount / 100))) : amount) : 0), 0);
+    if (state.resources.credits - cost < 20 || Object.entries(definition.cost).some(([resource, amount]) => state.resources[resource] < (discount && resource === "credits" ? Math.max(1, Math.ceil(amount * (1 - discount / 100))) : amount))) {
+      ledger.lastDecision = "Cabinet review deferred: treasury reserve protected; " + definition.name + " was not funded.";
+      ledger.lastPolicy = null;
+      addEvent(state, "Government cabinet deferred a policy decision to protect the treasury reserve.", "government");
+      return { reviewed: true, enacted: false, reason: ledger.lastDecision };
+    }
+    enactPolicy(state, id);
+    ledger.decisionsMade++;
+    ledger.budgetSpent = clamp(ledger.budgetSpent + cost, 0, RESOURCE_LIMIT);
+    ledger.lastPolicy = id;
+    ledger.lastDecision = reason;
+    addEvent(state, "Government cabinet funded " + definition.name + ".", "government", {
+      summary: reason + " The " + party.name + " government spent " + cost + " credits and preserved a 20-credit treasury reserve.",
+      affectedNationIds: ["player"]
+    });
+    return { reviewed: true, enacted: true, policy: id, cost, reason };
+  }
+
   function exportSave(state) { return JSON.stringify(validateSave(state), null, 2); }
 
   function saveWithRecovery(storage, state, primaryKey = "kingmaker_save_v1", backupKey = "kingmaker_save_recovery") {
@@ -1662,6 +1716,6 @@
     research, enactPolicy, policyActive, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
-    exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech, worldIntelligence, civicMandate, electionForecast, resolveElection, resolvePoliticalPressure
+    exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech, worldIntelligence, civicMandate, electionForecast, resolveElection, resolvePoliticalPressure, resolveGovernmentAgenda
   };
 });
