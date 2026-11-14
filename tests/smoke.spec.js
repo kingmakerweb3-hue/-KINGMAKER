@@ -220,3 +220,37 @@ test('World Council contribution spends resources and improves relations', async
   expect(saved.worldCouncil.active.resolved).toBeTruthy();
   expect(saved.worldCouncil.history[0].decision).toBe('Contribution accepted');
 });
+
+
+test('intelligence operation reveals rival reserves and records a report', async ({ page }) => {
+  await page.addInitScript(() => {
+    const s=JSON.parse(localStorage.getItem('kingmaker_save')||'{}');
+    s.credits=100;s.turn=10;
+    s.npcData={...(s.npcData||{}),Aurelia:{...(s.npcData?.Aurelia||{}),food:75,materials:30,treasury:120}};
+    localStorage.setItem('kingmaker_save',JSON.stringify(s));
+  });
+  await page.goto('/');
+  await page.locator('[data-tab="market"]').click();
+  await page.evaluate(()=>{Math.random=()=>0;});
+  await page.getByRole('button',{name:'Gather intelligence · 25 credits'}).first().click();
+  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('kingmaker_save')));
+  expect(saved.credits).toBe(75);
+  expect(saved.intelligenceBureau.reports[0].success).toBeTruthy();
+  expect(saved.intelligenceBureau.reports[0].detail).toContain('treasury 120');
+});
+
+test('counterintelligence upgrades spend resources and operation cooldown applies', async ({ page }) => {
+  await page.addInitScript(() => {
+    const s=JSON.parse(localStorage.getItem('kingmaker_save')||'{}');
+    s.credits=150;s.materials=30;s.turn=10;
+    localStorage.setItem('kingmaker_save',JSON.stringify(s));
+  });
+  await page.goto('/');
+  await page.locator('[data-tab="market"]').click();
+  await page.getByRole('button',{name:'Upgrade defence · 45 credits + 12 materials'}).click();
+  let saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('kingmaker_save')));
+  expect(saved.intelligenceBureau.level).toBe(1);
+  expect(saved.credits).toBe(105);
+  await page.getByRole('button',{name:'Gather intelligence · 25 credits'}).first().click();
+  await expect(page.getByRole('button',{name:'Gather intelligence · 25 credits'}).first()).toBeDisabled();
+});
