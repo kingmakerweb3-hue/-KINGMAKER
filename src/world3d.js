@@ -5,14 +5,14 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   "use strict";
   const host=document.getElementById("world3d-viewport");
   if(!host)return;
-  let scene,camera,renderer,controls,landGroup,buildingGroup,peopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup;
+  let scene,camera,renderer,controls,landGroup,buildingGroup,peopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup,cloudGroup,waterMesh,waterPositions;
   const trafficVehicles=[];
   let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,raycaster,groundPlane,previewMarker,placementPointer=null;
   const COLORS={farm:0xc6a35d,mine:0x78838d,workshop:0x9c7652,factory:0x697b8e,transport:0x9b9b8b,market:0xc49b52,academy:0x8b80b8,power:0x75b9c9,housing:0xd6c5a3};
   const material=(color,roughness=.86)=>new THREE.MeshStandardMaterial({color,roughness});
   const boxGeo=new THREE.BoxGeometry(1,1,1);
   const rand=(x,z)=>{const n=Math.sin(x*127.1+z*311.7)*43758.5453;return n-Math.floor(n);};
-  const heightAt=(x,z)=>.20*Math.sin(x*.42)*Math.cos(z*.34)+.11*Math.sin((x+z)*.72)+.06*Math.cos(z*1.1);
+  const heightAt=(x,z)=>Math.sin(x*.19+Math.cos(z*.13))*Math.cos(z*.21)*.72+Math.sin((x+z*.62)*.43)*Math.cos((z-x*.28)*.37)*.42+Math.sin(x*.91+z*.36)*Math.cos(z*.83-x*.2)*.11+Math.max(0,1-Math.hypot(x+3,z-2)/7)*1.05;
   function makeTree(x,z,scale=1){
     const g=new THREE.Group();g.position.set(x,heightAt(x,z),z);g.scale.setScalar(scale);
     const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.09,.13,.65,6),material(0x76533a));trunk.position.y=.32;g.add(trunk);
@@ -74,24 +74,24 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   function createScene(){
     scene=new THREE.Scene();scene.background=new THREE.Color(0xa9c9d0);scene.fog=new THREE.Fog(0xa9c9d0,25,62);
     camera=new THREE.PerspectiveCamera(42,1,.1,150);camera.position.set(17,15,20);
-    renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;
+    renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:"high-performance"});renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.75));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
     host.innerHTML="";host.appendChild(renderer.domElement);
     controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.06;controls.maxPolarAngle=Math.PI*.48;controls.minDistance=9;controls.maxDistance=42;controls.target.set(0,0,0);controls.autoRotate=true;controls.autoRotateSpeed=.42;
-    scene.add(new THREE.HemisphereLight(0xe4f4ff,0x64734e,2.0));
-    const sun=new THREE.DirectionalLight(0xfff0d7,2.7);sun.position.set(-12,24,10);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);scene.add(sun);
-    const water=new THREE.Mesh(new THREE.CircleGeometry(42,80),material(0x548d9a,.38));water.rotation.x=-Math.PI/2;water.position.y=-.48;scene.add(water);
-    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,buildingGroup,peopleGroup,trafficGroup);
-    const n=90,verts=[],indices=[],colors=[];
+    scene.add(new THREE.HemisphereLight(0xd9efff,0x465b45,1.45));scene.add(new THREE.AmbientLight(0x9fb7c4,.34));
+    const sun=new THREE.DirectionalLight(0xffe3b5,3.4);sun.position.set(-18,28,14);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-22;sun.shadow.camera.right=22;sun.shadow.camera.top=22;sun.shadow.camera.bottom=-22;sun.shadow.bias=-.00018;sun.shadow.normalBias=.025;scene.add(sun);
+    waterMesh=new THREE.Mesh(new THREE.CircleGeometry(42,160),new THREE.MeshPhysicalMaterial({color:0x286b80,roughness:.23,metalness:.12,clearcoat:.8,clearcoatRoughness:.16,transparent:true,opacity:.94}));waterMesh.rotation.x=-Math.PI/2;waterMesh.position.y=-.5;scene.add(waterMesh);waterPositions=waterMesh.geometry.attributes.position.array.slice();
+    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();cloudGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup);
+    const n=176,verts=[],indices=[],colors=[];
     for(let iz=0;iz<=n;iz++)for(let ix=0;ix<=n;ix++){
-      const x=(ix/n-.5)*30,z=(iz/n-.5)*30,d=Math.sqrt(x*x+z*z),edge=Math.max(0,1-d/16);
-      const y=heightAt(x,z)*edge*2.4-.18;verts.push(x,y,z);
-      const col=new THREE.Color(d>13?0x8aab78:d>9?0x83a56c:y>.28?0x789c65:0x9bb777);colors.push(col.r,col.g,col.b);
+      const x=(ix/n-.5)*30,z=(iz/n-.5)*30,angle=Math.atan2(z,x),coast=14.1+Math.sin(angle*3+1.1)*.85+Math.sin(angle*7-.6)*.34,d=Math.hypot(x,z),edge=THREE.MathUtils.smoothstep(coast-d,0,2.2);
+      const y=heightAt(x,z)*edge*1.35-.2;verts.push(x,y,z);
+      const col=new THREE.Color(y>.88?0x777c78:y>.52?0x737e69:y>.1?0x55734f:d>12.5?0x8b9478:d>10.7?0xa49b78:0x53764f);colors.push(col.r,col.g,col.b);
       if(ix<n&&iz<n){const a=iz*(n+1)+ix,b=a+1,c=a+n+1,d2=c+1;indices.push(a,c,b,b,c,d2);}
     }
     const geo=new THREE.BufferGeometry();geo.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));geo.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));geo.setIndex(indices);geo.computeVertexNormals();
-    const terrain=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true}));terrain.receiveShadow=true;landGroup.add(terrain);
+    const terrain=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.96,metalness:0,flatShading:false}));terrain.receiveShadow=true;terrain.castShadow=true;landGroup.add(terrain);
     const beach=new THREE.Mesh(new THREE.CircleGeometry(15.3,80),material(0xb8b080));beach.rotation.x=-Math.PI/2;beach.position.y=-.22;beach.scale.set(1,1,.98);landGroup.add(beach);
-    for(let i=0;i<90;i++){const x=(rand(i,3)-.5)*26,z=(rand(i,8)-.5)*26;if(Math.hypot(x,z)>7.5&&Math.hypot(x,z)<13.8)makeTree(x,z,.65+rand(i,5)*.7);}
+    for(let i=0;i<210;i++){const x=(rand(i,3)-.5)*27,z=(rand(i,8)-.5)*27,d=Math.hypot(x,z);if(d>7.2&&d<13.35&&Math.abs(x)>1.5)makeTree(x,z,.65+rand(i,5)*.75);}
     makeRoad([[-13,-2],[-8,-1],[-4,0],[0,0],[5,2],[9,5]]);
     makeRoad([[-3,-12],[-2,-7],[0,-3],[0,0],[1,6],[3,11]]);
     const plaza=new THREE.Mesh(new THREE.CylinderGeometry(2.3,2.3,.12,32),material(0xd6c79e));plaza.position.y=.03;scene.add(plaza);
@@ -120,7 +120,8 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   function resize(){if(!renderer||!host.clientWidth)return;const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
   function animate(){
     animationId=requestAnimationFrame(animate);const t=clock.getElapsedTime();controls.update();
-    peopleGroup.children.forEach((p,i)=>{const a=t*.17+i*.53;p.position.x=Math.cos(a)*(2.5+(i%4)*.45);p.position.z=Math.sin(a)*(2.5+(i%4)*.45);p.position.y=.22+Math.abs(Math.sin(t*2+i))*.08;});
+    if(waterMesh){const attr=waterMesh.geometry.attributes.position;for(let i=0;i<attr.count;i++){const x=waterPositions[i*3],z=waterPositions[i*3+2];attr.array[i*3+1]=waterPositions[i*3+1]+Math.sin(x*.32+t*.65)*.035+Math.cos(z*.27-t*.48)*.028;}attr.needsUpdate=true;waterMesh.geometry.computeVertexNormals();}
+    peopleGroup.children.forEach((p,i)=>{const a=t*.17+i*.53;p.position.x=Math.cos(a)*(2.5+(i%4)*.45);p.position.z=Math.sin(a)*(2.5+(i%4)*.45);p.position.y=heightAt(p.position.x,p.position.z)+Math.abs(Math.sin(t*2+i))*.055;});
     trafficVehicles.forEach(v=>{const p=(t*v.speed+v.phase)%1;const x=v.a.x+(v.b.x-v.a.x)*p,z=v.a.z+(v.b.z-v.a.z)*p;v.mesh.position.set(x,heightAt(x,z)+.055,z);v.mesh.rotation.y=Math.atan2(v.b.x-v.a.x,v.b.z-v.a.z);});
     renderer.render(scene,camera);
   }
