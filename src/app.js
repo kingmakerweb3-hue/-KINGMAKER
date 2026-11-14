@@ -129,6 +129,14 @@
     if(!a.length)a.push(["Strong","Your nation is balanced. Expand infrastructure, research, and regional agreements."]);
     return a;
   }
+  function renderDirectorCitizens() {
+    const citizens=state.citizens||[];
+    const avg=citizens.length?Math.round(citizens.reduce((sum,c)=>sum+c.mood,0)/citizens.length):0;
+    const responsive=citizens.filter(c=>c.activity!=="working").length;
+    const rows=citizens.slice(0,8).map(c=>'<div class="citizen-row"><strong>'+esc(c.name)+'</strong><span>'+esc(c.role)+'</span><span>'+esc(c.activity)+'</span><b>'+c.mood+'% mood</b></div>').join("");
+    const host=$("director-citizens");
+    if(host) host.innerHTML='<section class="intel-panel"><div class="section-heading"><div><span class="eyebrow">CIVILIAN AGENTS</span><h3>Living population</h3></div><strong>'+citizens.length+' agents · '+avg+'% average mood</strong></div><p>'+responsive+' agents currently responding to unmet needs. Each agent retains a short personal memory across turns.</p><div class="citizen-list">'+rows+'</div></section>';
+  }
   function renderDirectorIntelligence() {
     const report=E.worldIntelligence(state), p=report.player;
     const risk=p.risks.length ? p.risks.join(" · ") : "No immediate national risk detected";
@@ -141,7 +149,7 @@
     $("history-list").innerHTML=state.events.slice(0,120).map(e=>'<article class="history-entry"><span class="event-type '+esc(e.type)+'">'+esc(e.type)+'</span><time>Turn '+num(e.turn)+'</time><div><span>'+esc(e.text)+'</span>'+(e.details?'<details class="history-details"><summary>Impact and context</summary><p>'+esc(e.details.summary)+'</p><small>Affected: '+esc(e.details.affectedNationIds.map(id=>id==="player"?state.nation.name:state.rivals[id]?.name||id).join(", "))+'</small></details>':"")+'</div></article>').join("");
   }
   function render() {
-    renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderWorldEvents();renderResearch();renderCampaign();renderCreator();renderAdvice();renderDirectorIntelligence();renderHistory();document.querySelectorAll("[data-world-build]").forEach(button=>{const id=button.dataset.worldBuild;const label=E.BUILDINGS[id]?.name||id;button.innerHTML=esc(label)+' <small>Lv '+(state.buildings[id]||0)+'</small>';});if(window.KingmakerWorld3D)window.KingmakerWorld3D.update(state);
+    renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderWorldEvents();renderResearch();renderCampaign();renderCreator();renderAdvice();renderDirectorIntelligence();renderDirectorCitizens();renderHistory();document.querySelectorAll("[data-world-build]").forEach(button=>{const id=button.dataset.worldBuild;const label=E.BUILDINGS[id]?.name||id;button.innerHTML=esc(label)+' <small>Lv '+(state.buildings[id]||0)+'</small>';});if(window.KingmakerWorld3D)window.KingmakerWorld3D.update(state);
     $("turn-label").textContent="TURN "+state.turn;$("game-banner").textContent=state.status==="playing"?state.nation.name+" · "+state.nation.government:"Campaign "+state.status;
     $("game-banner").className="game-banner "+state.status;$("advance-turn").disabled=state.status!=="playing";tab(activeTab);
   }
