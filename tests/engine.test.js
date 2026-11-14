@@ -807,3 +807,27 @@ test("zoned districts contribute balanced production and residential growth", ()
   assert.ok(state.nation.population >= beforePopulation);
   assert.ok(state.economy.production.credits >= 4);
 });
+
+
+test("road segments connect nearby districts and improve logistics and income", () => {
+  const state = Engine.createInitialState({ seed: 733 });
+  state.world.placedDistricts = [
+    { type: "commercial", x: 0, z: 0, radius: 2.6 },
+    { type: "agricultural", x: 7, z: 0, radius: 2.6 },
+    { type: "industrial", x: 0, z: 8, radius: 2.6 }
+  ];
+  state.world.placedRoads = [
+    { from: { x: -5, z: 0 }, to: { x: 5, z: 0 } },
+    { from: { x: 5, z: 0 }, to: { x: 9, z: 0 } }
+  ];
+  const effects = Engine.roadEffects(state);
+  assert.equal(effects.connectedDistricts, 2);
+  assert.equal(effects.logistics, 2);
+  assert.deepEqual(effects.production, { credits: 4 });
+  const snapshot = Engine.economicSnapshot(state);
+  assert.ok(snapshot.production.logistics >= 2);
+  assert.ok(snapshot.production.credits >= 4);
+  Engine.advanceTurn(state);
+  assert.ok(state.economy.production.logistics >= 2);
+  assert.ok(state.economy.production.credits >= 4);
+});
