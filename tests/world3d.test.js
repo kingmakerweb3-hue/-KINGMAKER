@@ -15,6 +15,8 @@ test("procedural world contains bounded regional and nation data", () => {
   for (const region of world.regions) {
     assert.ok(region.name.length > 0);
     assert.ok(region.population >= 180000 && region.population <= 2380000);
+    assert.ok(region.cities.length >= 2 && region.cities.length <= 5);
+    assert.ok(region.cities.every(city => city.name && city.population > 0 && Number.isFinite(city.latitude) && Number.isFinite(city.longitude)));
     assert.equal(region.resources.length, 3);
     assert.equal(new Set(region.resources).size, 3);
   }
