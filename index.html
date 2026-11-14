@@ -1273,6 +1273,55 @@ try{if(localStorage.getItem("kingmaker_guide_hidden")==="1")$("newPlayerGuide").
 
 /* Startup integrity: initialize and render after every game system is registered. */
 save();
+
+
+/* KINGMAKER v3.0 — player-led national council decisions */
+state.pendingCouncilDecision=state.pendingCouncilDecision||null;
+const councilDecisionDeck=[
+ {id:"food-relief",title:"Emergency Food Relief",description:"Advisers warn that food reserves may fall. Choose how to respond.",choices:[
+  {id:"release",label:"Release 15 credits for food imports",cost:"15 credits",apply(){if(state.credits<15)return false;state.credits-=15;state.food+=35;state.stability=Math.min(100,state.stability+2);return "Spent 15 credits; food +35 and stability +2."}},
+  {id:"ration",label:"Introduce temporary rationing",cost:"No cost · stability -3",apply(){state.food+=12;state.stability=Math.max(0,state.stability-3);return "Food +12; stability -3."}}
+ ]},
+ {id:"industry",title:"Industrial Investment Proposal",description:"The council proposes a focused investment to strengthen production.",choices:[
+  {id:"workshops",label:"Fund local workshops",cost:"20 credits",apply(){if(state.credits<20)return false;state.credits-=20;state.materials+=24;return "Spent 20 credits; materials +24."}},
+  {id:"research",label:"Fund applied research",cost:"10 credits",apply(){if(state.credits<10)return false;state.credits-=10;state.research+=18;return "Spent 10 credits; research +18."}}
+ ]},
+ {id:"public-trust",title:"Public Confidence Initiative",description:"Citizens request visible action from the government.",choices:[
+  {id:"festival",label:"Organize a national celebration",cost:"12 credits",apply(){if(state.credits<12)return false;state.credits-=12;state.stability=Math.min(100,state.stability+8);state.influence+=2;return "Spent 12 credits; stability +8 and influence +2."}},
+  {id:"services",label:"Expand essential public services",cost:"8 materials",apply(){if(state.materials<8)return false;state.materials-=8;state.stability=Math.min(100,state.stability+5);state.population+=3;return "Spent 8 materials; stability +5 and population +3."}}
+ ]}
+];
+function resolveCouncilDecision(choiceId){
+ const pending=state.pendingCouncilDecision;if(!pending)return;
+ const decision=councilDecisionDeck.find(x=>x.id===pending.id);if(!decision)return;
+ const choice=decision.choices.find(x=>x.id===choiceId);if(!choice)return;
+ const result=choice.apply();if(result===false){alert("Your nation does not have enough resources for this decision.");return;}
+ state.pendingCouncilDecision=null;
+ log("National council — "+decision.title+": "+result);
+ state.worldEventHistory=Array.isArray(state.worldEventHistory)?state.worldEventHistory:[];
+ state.worldEventHistory.unshift({name:decision.title,result,turn:state.turn});
+ state.worldEventHistory=state.worldEventHistory.slice(0,20);
+ save();
+}
+const advanceBeforeCouncilDecision=advanceTurn;
+advanceTurn=function(){
+ advanceBeforeCouncilDecision();
+ if(!state.pendingCouncilDecision&&state.turn>0&&state.turn%4===0){
+  const decision=councilDecisionDeck[(Math.floor(state.turn/4)-1)%councilDecisionDeck.length];
+  state.pendingCouncilDecision={id:decision.id,turn:state.turn};
+  log("The national council requests a decision: "+decision.title+".");
+  save();
+ }
+};
+const renderBeforeCouncilDecision=render;
+render=function(){
+ renderBeforeCouncilDecision();
+ const root=$("worldEventPanel");if(!root)return;
+ const pending=state.pendingCouncilDecision;if(!pending)return;
+ const decision=councilDecisionDeck.find(x=>x.id===pending.id);if(!decision)return;
+ root.innerHTML='<div class="item agent-mid"><div class="row"><b>National Council Decision</b><span class="pill">TURN '+pending.turn+' · YOUR CHOICE</span></div><h3>'+esc(decision.title)+'</h3><p>'+esc(decision.description)+'</p>'+decision.choices.map(c=>'<div class="item"><div class="row"><b>'+esc(c.label)+'</b><span class="pill">'+esc(c.cost)+'</span></div><button onclick="resolveCouncilDecision(\''+c.id+'\')">Approve decision</button></div>').join('')+'</div>'+root.innerHTML;
+};
+
 </script>
 </body>
 </html>
