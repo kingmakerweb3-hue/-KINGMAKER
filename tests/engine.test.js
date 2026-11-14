@@ -1086,3 +1086,25 @@ test("version 11 saves migrate to political pressure schema 12", () => {
   assert.equal(migrated.politics.governmentStatus, "stable");
   assert.equal(migrated.politics.protests, 0);
 });
+
+
+test("elected parties implement distinct governing agendas and aligned policy discounts", () => {
+  const civic = Engine.createInitialState({ seed: 6201 });
+  const prosperity = Engine.createInitialState({ seed: 6202 });
+  const security = Engine.createInitialState({ seed: 6203 });
+  prosperity.election.incumbent = "prosperity";
+  security.election.incumbent = "security";
+  assert.equal(Engine.partyGovernance(civic).agenda, "Community services and civic trust");
+  assert.equal(Engine.partyGovernance(prosperity).id, "prosperity");
+  assert.ok(Engine.partyGovernance(security).effects.includes("extra safety"));
+  const startFood = prosperity.resources.food, startCredits = prosperity.resources.credits;
+  Engine.advanceTurn(prosperity);
+  assert.ok(prosperity.resources.food > startFood);
+  assert.ok(prosperity.resources.credits > startCredits);
+  civic.resources.credits = 100;
+  Engine.enactPolicy(civic, "food_assistance");
+  assert.equal(civic.resources.credits, 100 - Math.ceil(30 * 0.85));
+  civic.resources.credits = 100;
+  Engine.enactPolicy(civic, "research_fund");
+  assert.equal(civic.resources.credits, 100 - 45);
+});
