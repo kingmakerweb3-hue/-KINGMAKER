@@ -1,3 +1,11 @@
+## World Engine 2.2 — Embassy and diplomatic missions
+
+- Added three player-led diplomatic missions: envoys, humanitarian aid and research exchange.
+- Missions have distinct costs and effects on relationships, influence or stability.
+- Missions are blocked during wars; research exchange requires a minimum relationship and research reserve.
+- Added relationship standing labels and a persistent local diplomatic history.
+- Updated the PWA cache and visible build version to 2.2.
+
 ## World Engine 2.1 — Legacy save recovery
 
 - Hardened the first-load save reader so incomplete older saves receive safe defaults before the first render.
