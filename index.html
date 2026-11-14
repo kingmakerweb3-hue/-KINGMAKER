@@ -348,7 +348,7 @@ state.achievements=Array.isArray(state.achievements)?state.achievements:[];
 state.completedMissions=Array.isArray(state.completedMissions)?state.completedMissions:[];
 const campaignGoals=[
  {id:"founder",name:"A Nation Is Born",desc:"Advance the world for the first time.",test:()=>state.turn>=2,reward:35},
- {id:"builder",name:"Master Builder",desc:"Construct at least five infrastructure levels.",test:()=>Object.values(state.buildings).reduce((a,b)=>a+b,0)>=9,reward:50},
+ {id:"builder",name:"Master Builder",desc:"Build at least six infrastructure upgrades.",test:()=>Object.values(state.buildings).reduce((a,b)=>a+b,0)>=9,reward:50},
  {id:"scholar",name:"Age of Discovery",desc:"Research three technologies.",test:()=>state.tech.length>=3,reward:60},
  {id:"expansion",name:"Growing Borders",desc:"Claim three territories.",test:()=>state.territories.length>=3,reward:70},
  {id:"prosperity",name:"National Prosperity",desc:"Reach a population of 150.",test:()=>state.population>=150,reward:80},
