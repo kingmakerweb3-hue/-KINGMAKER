@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="styles.css">
   <script defer src="src/engine.js"></script>
   <script defer src="src/app.js"></script>
+  <script type="module" src="src/world3d.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to game</a>
@@ -24,6 +25,7 @@
     </section>
     <section id="metrics" class="metrics" aria-label="National resources"></section>
     <nav class="tabs" aria-label="Game sections" role="tablist">
+      <button id="tab-world3d" role="tab" aria-controls="panel-world3d" aria-selected="false" data-tab="world3d">3D World</button>
       <button id="tab-overview" class="active" role="tab" aria-controls="panel-overview" aria-selected="true" data-tab="overview">World</button>
       <button id="tab-nation" role="tab" aria-controls="panel-nation" aria-selected="false" data-tab="nation">Nation</button>
       <button id="tab-market" role="tab" aria-controls="panel-market" aria-selected="false" data-tab="market">Economy</button>
@@ -34,6 +36,19 @@
       <button id="tab-creator" role="tab" aria-controls="panel-creator" aria-selected="false" data-tab="creator">Creator Studio</button>
       <button id="tab-history" role="tab" aria-controls="panel-history" aria-selected="false" data-tab="history">History</button>
     </nav>
+    <section id="panel-world3d" class="tab-panel grid" role="tabpanel" aria-labelledby="tab-world3d" tabindex="0" hidden>
+      <article class="panel span-12 world3d-panel">
+        <div class="panel-heading"><div><p class="eyebrow">YOUR TERRITORY · LIVE SIMULATION</p><h2>Explore your nation in 3D</h2></div><span id="world3d-status" class="tag">INITIALIZING WORLD</span></div>
+        <div class="world3d-toolbar">
+          <span>Drag to orbit · Scroll to zoom · Right-drag to pan</span>
+          <div><button id="world3d-home" type="button">Reset view</button><button id="world3d-rotate" type="button" aria-pressed="true">Auto-rotate: on</button></div>
+        </div>
+        <div id="world3d-viewport" class="world3d-viewport"><div class="world3d-loading">Generating your territory…</div></div>
+        <div class="world3d-legend"><span>🏛️ Capital</span><span>🏠 Housing</span><span>🌾 Farms</span><span>⛏️ Mines</span><span>🏭 Industry</span><span>🌳 Forests</span><span>🚙 Citizens & traffic</span></div>
+        <div class="world3d-stats" id="world3d-stats"></div>
+        <p class="muted world3d-note">This is a live 3D visualization of your saved nation. Build infrastructure in the Nation tab and the settlement will grow as your game advances. Your existing save and game rules remain unchanged.</p>
+      </article>
+    </section>
     <section id="panel-overview" class="tab-panel grid" role="tabpanel" aria-labelledby="tab-overview" tabindex="0">
       <article class="panel span-8"><div class="panel-heading"><div><p class="eyebrow">THE KNOWN WORLD</p><h2>Regional map</h2></div><span class="tag">STRATEGIC VIEW</span></div><div id="world-map" class="world-map"></div><div id="map-legend" class="map-legend"></div></article>
       <article class="panel span-12"><div class="panel-heading"><div><p class="eyebrow">WORLD WATCH</p><h2>Living events</h2></div><span class="tag">AFFECTS PRODUCTION · MARKETS · DIPLOMACY</span></div><div id="world-events" class="world-events"></div></article>
