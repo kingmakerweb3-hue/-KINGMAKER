@@ -247,7 +247,7 @@
     updateCitizenRelationships(state);
     for (const c of state.citizens) {
       if (state.turn % 5 === 0) {
-        c.memory.push({ turn: state.turn, text: c.mood < 45 ? "Struggled with " + lowest + " needs." : "Contributed as a " + c.role + "." });
+        c.memory.push({ turn: state.turn, text: c.mood < 45 ? "Had a difficult day and needs support." : "Contributed as a " + c.role + " to the community." });
         c.memory = c.memory.slice(-8);
       }
     }
