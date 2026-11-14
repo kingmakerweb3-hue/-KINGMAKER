@@ -135,3 +135,21 @@ test('rival governments execute focus-driven strategic decisions', async ({ page
   expect(saved.npcData.Meridian.research).toBeGreaterThan(0);
   expect(saved.npc.Aurelia).toBe(saved.npcData.Aurelia.lastAction);
 });
+test('diplomatic summits build trust before an alliance can be formed', async ({ page }) => {
+  await page.addInitScript(() => {
+    const s=JSON.parse(localStorage.getItem('kingmaker_save')||'{}');
+    s.credits=300;s.influence=30;s.relations={...(s.relations||{}),Aurelia:30};
+    localStorage.setItem('kingmaker_save',JSON.stringify(s));
+  });
+  await page.goto('/');
+  await page.locator('[data-tab="market"]').click();
+  await expect(page.locator('#embassyPanel')).toContainText('Host summit');
+  await page.getByRole('button',{name:'Host summit · 50 credits + 8 influence'}).first().click();
+  const afterSummit=await page.evaluate(()=>JSON.parse(localStorage.getItem('kingmaker_save')));
+  expect(afterSummit.diplomaticTrust.Aurelia).toBe(15);
+  await page.locator('[data-tab="military"]').click();
+  await page.getByRole('button',{name:'Propose alliance · 40 credits'}).first().click();
+  const allied=await page.evaluate(()=>JSON.parse(localStorage.getItem('kingmaker_save')));
+  expect(allied.alliances).toContain('Aurelia');
+  expect(allied.diplomaticTrust.Aurelia).toBe(25);
+});
