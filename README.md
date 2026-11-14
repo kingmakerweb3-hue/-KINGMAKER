@@ -3,7 +3,7 @@
 
 KINGMAKER is a browser-based nation-building and world-strategy prototype. Build your economy, develop infrastructure, research technology, manage diplomacy, and expand your borders by claiming neutral territories.
 
-## Current build: World Engine 0.4
+## Current build: World Engine 0.5
 
 ### Playable systems
 - **Nation management** — name your nation and choose a government style.
@@ -13,6 +13,9 @@ KINGMAKER is a browser-based nation-building and world-strategy prototype. Build
 - **Diplomacy** — improve relations with rival NPC nations.
 - **Research** — unlock technologies that improve production and governance.
 - **Territorial expansion** — claim six neutral regions, each with a permanent production bonus.
+- **Military** — recruit infantry and border guards, manage army strength, and pay upkeep each turn.
+- **Conflict** — declare wars and resolve turn-based campaign outcomes against rival nations.
+- **Diplomacy** — form defensive alliances and negotiate peace.
 - **World Director** — receive local strategic advice based on your current nation state.
 - **Creator Studio** — register creations in your local game profile.
 - **World history** — review a log of important game events.
@@ -43,11 +46,11 @@ No build tools, server, API key, or installation are required for the current pr
 
 ## Roadmap
 
-1. Expand territory and world simulation.
-2. Add deeper NPC economies, diplomacy, and conflict.
-3. Improve balancing, onboarding, and accessibility.
+1. Expand NPC economies, territory and world simulation.
+2. Improve military balance, diplomacy, treaties and campaign depth.
+3. Improve onboarding, accessibility, and browser/device testing.
 4. Design secure accounts and cloud-save architecture.
 5. Build multiplayer foundations and prepare a public release.
 
 ---
-**KINGMAKER World Engine 0.4** — a playable prototype under active development.
+**KINGMAKER World Engine 0.5** — a playable prototype under active development.
