@@ -60,6 +60,13 @@ This is a playable single-player prototype, not a finished online commercial rel
 - Online accounts, cloud saves, cross-device sync, live multiplayer, and hosted backend services are not implemented.
 - Service-worker offline support requires HTTPS or localhost hosting and should be verified after deployment.
 
+## World Engine 1.7 — Advanced research branches
+
+- Expanded the technology tree with National Logistics, Public Health, and Renewable Energy.
+- Added research prerequisites: Logistics requires Industrial Methods; Public Health requires Civic Governance; Renewable Energy requires Energy Systems.
+- Research effects apply during each world turn: Logistics improves road-network income, Public Health supports growth and civic stability, and Renewables increases power output from Power Grid buildings.
+- Research UI shows prerequisite locks and the total technologies researched.
+
 ## World Engine 1.6 — National exchange
 
 - Added a National Exchange tab for food, materials, and power.
