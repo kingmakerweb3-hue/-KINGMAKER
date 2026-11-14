@@ -19,7 +19,7 @@
 
 KINGMAKER is a browser-based nation-building and world-strategy game prototype. Build an economy, develop infrastructure, research technology, manage rival nations, expand territory, form alliances, wage simulated campaigns, and shape a national legacy.
 
-## Current build: World Engine 1.1
+## Current build: World Engine 2.2
 
 ### Playable systems
 - **Nation management** — name your nation and choose a government style.
