@@ -125,3 +125,7 @@ button{min-height:38px}
 .election-party span { display: grid; gap: .2rem; }
 .election-party small { color: var(--muted, #9aa5b5); }
 .election-party strong { font-size: 1.15rem; white-space: nowrap; }
+
+/* Political pressure and public protest dashboard */
+.political-pressure { margin: 1rem 0; border-left: 3px solid var(--gold); }
+.political-pressure p { color: var(--muted); font-size: .82rem; line-height: 1.55; }
