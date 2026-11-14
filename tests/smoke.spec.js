@@ -267,3 +267,18 @@ test('new-player guide explains the first economy, research and diplomacy steps'
   await page.getByRole('button', { name: 'Show beginner guide' }).click();
   await expect(page.locator('#newPlayerGuide')).toBeVisible();
 });
+
+
+test('national council presents a player decision every four turns and applies the chosen policy', async ({ page }) => {
+  await page.goto('/');
+  for (let i=0;i<4;i++) await page.getByRole('button', { name: 'Advance World' }).click();
+  await expect(page.locator('#worldEventPanel')).toContainText('National Council Decision');
+  await expect(page.locator('#worldEventPanel')).toContainText('Emergency Food Relief');
+  const before=await page.evaluate(()=>JSON.parse(localStorage.getItem('kingmaker_save')));
+  await page.getByRole('button', { name: 'Approve decision' }).first().click();
+  const after=await page.evaluate(()=>JSON.parse(localStorage.getItem('kingmaker_save')));
+  expect(after.pendingCouncilDecision).toBeNull();
+  expect(after.food).toBe(before.food+35);
+  expect(after.credits).toBe(before.credits-15);
+  await expect(page.locator('#worldEventPanel')).not.toContainText('National Council Decision');
+});
