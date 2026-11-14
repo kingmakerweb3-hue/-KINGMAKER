@@ -1,3 +1,10 @@
+## World Engine 2.4 — Strategic rival intelligence
+
+- Replaced random rival posture rolls with focus-driven decisions based on each nation's treasury, food, materials, and defence strength.
+- Aurelia prioritizes commerce and trade channels; Northreach invests in border security; Meridian funds research.
+- Rival governments respond to food shortages by spending treasury to rebuild reserves, and each displays its latest strategic action.
+- Added persistent research reserves and last-action intelligence to rival records, with safe defaults for existing saves.
+
 ## World Engine 2.3 — National mandates
 
 - Added four optional one-time national mandates: Food Security Reserve, Civic Confidence, Regional Goodwill and Industrial Base.
@@ -27,7 +34,7 @@
 
 KINGMAKER is a browser-based nation-building and world-strategy game prototype. Build an economy, develop infrastructure, research technology, manage rival nations, expand territory, form alliances, wage simulated campaigns, and shape a national legacy.
 
-## Current build: World Engine 2.2
+## Current build: World Engine 2.4
 
 ### Playable systems
 - **Nation management** — name your nation and choose a government style.
@@ -44,7 +51,7 @@ KINGMAKER is a browser-based nation-building and world-strategy game prototype. 
 - **Territorial expansion** — claim twelve neutral regions with permanent regional bonuses.
 - **Military** — recruit infantry and border guards, calculate army strength, and pay upkeep.
 - **Conflict** — declare wars and resolve turn-based campaign outcomes against rival nations.
-- **Rival nation simulation** — Aurelia, Northreach, and Meridian maintain evolving treasuries, supplies, defence ratings, and diplomatic behavior.
+- **Rival nation simulation** — Aurelia, Northreach, and Meridian maintain evolving treasuries, supplies, research reserves, defence ratings, and focus-driven strategic decisions.
 - **Dynamic world events** — harvests, droughts, festivals, innovation, market booms, supply disruptions, diplomatic summits, and energy breakthroughs create changing conditions.
 - **Expanded World Atlas** — twelve claimable sectors in a responsive interactive grid, with permanent resource yields and a strategic frontier that strengthens the army.
 - **Trade agreements** — negotiate five-turn economic pacts with eligible rivals for recurring credits and materials.
@@ -164,7 +171,7 @@ This is a playable single-player prototype, not a finished online commercial rel
 5. Multiplayer server architecture, moderation, security, and release operations.
 
 ---
-**KINGMAKER World Engine 1.3** — a playable single-player prototype under active development.
+**KINGMAKER World Engine 2.4** — a playable single-player prototype under active development.
 
 ## Automated browser checks
 
