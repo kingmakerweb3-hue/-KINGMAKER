@@ -116,3 +116,12 @@ button{min-height:38px}
 /* National policy controls */
 .policy-list{display:grid;gap:9px}.policy-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--line);border-radius:11px;background:#0d1727}.policy-card p{margin:5px 0;color:var(--muted);font-size:12px}.policy-card small{color:var(--gold);font-size:10px}.policy-card button{flex-shrink:0}.policy-card button:disabled{opacity:.65;cursor:default}
 @media(max-width:760px){.policy-card{align-items:flex-start;flex-direction:column}.policy-card button{width:100%}}
+
+
+/* Citizen-driven national election dashboard */
+.election-panel { margin-bottom: 1rem; }
+.election-parties { display: grid; gap: .55rem; margin: .8rem 0; }
+.election-party { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .7rem .85rem; border: 1px solid var(--line, rgba(255,255,255,.12)); border-radius: .7rem; background: rgba(255,255,255,.025); }
+.election-party span { display: grid; gap: .2rem; }
+.election-party small { color: var(--muted, #9aa5b5); }
+.election-party strong { font-size: 1.15rem; white-space: nowrap; }
