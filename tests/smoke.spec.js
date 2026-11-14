@@ -153,3 +153,34 @@ test('diplomatic summits build trust before an alliance can be formed', async ({
   expect(allied.alliances).toContain('Aurelia');
   expect(allied.diplomaticTrust.Aurelia).toBe(25);
 });
+
+
+test('bilateral trade exchanges resources and improves diplomatic trust', async ({ page }) => {
+  await page.addInitScript(() => {
+    const s=JSON.parse(localStorage.getItem('kingmaker_save')||'{}');
+    s.food=100;s.credits=100;s.materials=10;
+    s.relations={...(s.relations||{}),Aurelia:20};
+    localStorage.setItem('kingmaker_save',JSON.stringify(s));
+  });
+  await page.goto('/');
+  await page.locator('[data-tab="market"]').click();
+  await page.getByRole('button',{name:'Export 20 food · Receive 30 credits'}).first().click();
+  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('kingmaker_save')));
+  expect(saved.food).toBe(80);
+  expect(saved.credits).toBe(130);
+  expect(saved.relations.Aurelia).toBe(23);
+  expect(saved.diplomaticTrust.Aurelia).toBe(2);
+  expect(saved.bilateralTradeHistory[0].nation).toBe('Aurelia');
+});
+
+test('bilateral trade cooldown prevents repeated deals with the same rival', async ({ page }) => {
+  await page.addInitScript(() => {
+    const s=JSON.parse(localStorage.getItem('kingmaker_save')||'{}');
+    s.food=100;s.relations={...(s.relations||{}),Aurelia:20};
+    localStorage.setItem('kingmaker_save',JSON.stringify(s));
+  });
+  await page.goto('/');
+  await page.locator('[data-tab="market"]').click();
+  await page.getByRole('button',{name:'Export 20 food · Receive 30 credits'}).first().click();
+  await expect(page.getByRole('button',{name:'Export 20 food · Receive 30 credits'}).first()).toBeDisabled();
+});
