@@ -792,3 +792,42 @@ test("procedural map world is saved separately from the simulation event world",
   assert.ok(Array.isArray(imported.world.activeEvents));
   assert.equal(imported.mapWorld.regions[0].id, "region-test");
 });
+
+
+test("unclaimed regional deposits can be developed and feed the national economy", () => {
+  const state = Engine.createInitialState({ seed: 813 });
+  state.resources.materials = 100;
+  state.resources.credits = 150;
+  state.mapWorld = {
+    version: 2, seed: 813,
+    regions: [{
+      id: "region-frontier", name: "Frontier Reach", owner: "Unclaimed",
+      resourceNodes: [{ id: "iron-1", resource: "Iron", quantity: 90, latitude: 4, longitude: 8 }]
+    }]
+  };
+  const beforeMaterials = state.resources.materials;
+  const beforeCredits = state.resources.credits;
+  const node = Engine.developResourceSite(state, "region-frontier", "iron-1");
+  assert.equal(node.operational, true);
+  assert.equal(node.operatedSinceTurn, state.turn);
+  assert.equal(state.resources.materials, beforeMaterials - 35);
+  assert.equal(state.resources.credits, beforeCredits - 55);
+  assert.equal(Engine.economicSnapshot(state).production.ore, Engine.productionFor(state.buildings, state.technologies).ore + 4);
+  const beforeOre = state.resources.ore;
+  Engine.advanceTurn(state);
+  assert.equal(state.resources.ore, beforeOre + 4);
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.equal(restored.mapWorld.regions[0].resourceNodes[0].operational, true);
+});
+
+test("resource sites reject foreign territory, duplicate development and unaffordable orders", () => {
+  const state = Engine.createInitialState({ seed: 814 });
+  state.mapWorld = { version: 2, regions: [
+    { id: "foreign", owner: "Asteria", resourceNodes: [{ id: "iron", resource: "Iron" }] },
+    { id: "frontier", owner: "Unclaimed", resourceNodes: [{ id: "coal", resource: "Coal", operational: true }, { id: "copper", resource: "Copper" }] }
+  ] };
+  assert.throws(() => Engine.developResourceSite(state, "foreign", "iron"), /unclaimed regions/);
+  assert.throws(() => Engine.developResourceSite(state, "frontier", "coal"), /already operational/);
+  state.resources.materials = 0;
+  assert.throws(() => Engine.developResourceSite(state, "frontier", "copper"), /35 materials and 55 credits/);
+});
