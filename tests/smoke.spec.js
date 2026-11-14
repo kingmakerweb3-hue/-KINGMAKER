@@ -125,3 +125,13 @@ test('eligible food security mandate pays once and persists its claim', async ({
   await expect(card).toContainText('REWARD CLAIMED');
   await expect(card.getByRole('button',{name:'Completed'})).toBeDisabled();
 });
+test('rival governments execute focus-driven strategic decisions', async ({ page }) => {
+  await page.goto('/');
+  const before = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save')).npcData.Northreach.strength);
+  await page.getByRole('button', { name: 'Advance World' }).click();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save')));
+  expect(saved.npcData.Northreach.strength).toBeGreaterThan(before);
+  expect(saved.npcData.Northreach.lastAction).toContain('border');
+  expect(saved.npcData.Meridian.research).toBeGreaterThan(0);
+  expect(saved.npc.Aurelia).toBe(saved.npcData.Aurelia.lastAction);
+});
