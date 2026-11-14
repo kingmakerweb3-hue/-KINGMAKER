@@ -68,7 +68,7 @@
       const treaties=treatyTypes.map(k=>{const req=k==="alliance"?50:20,active=state.diplomacy.treaties.some(t=>t.rivalId===r.id&&t.kind===k&&t.status==="active");return '<button data-action="treaty" data-id="'+r.id+'" data-kind="'+k+'" '+(active||r.relation<req?"disabled":"")+'>'+(active?k+" active":"Offer "+k)+'</button>';}).join("");
       const jobs=E.workforceFor(r.buildings);
       const memory=r.memory.slice(0,3).map(m=>'<li>Turn '+num(m.turn)+': '+esc(m.text)+'</li>').join("");
-      return '<article class="diplomacy-card"><div class="row"><div><h3>'+esc(r.name)+' <span class="level">'+esc(r.personality)+'</span></h3><p>'+esc(r.stance)+' · '+num(r.population)+' citizens</p><small class="rival-activity">Objective: '+esc(r.longTermObjective)+'</small><small class="rival-activity">Plan: '+esc(r.plan?r.plan.reason:"evaluating national priorities")+'</small><small class="rival-activity">This turn: '+esc(r.activity)+'</small><small class="rival-activity">Industry: '+(r.buildings.mine||0)+' mines · '+(r.buildings.factory||0)+' factories · '+num(Math.min(jobs,r.population))+'/'+num(jobs)+' jobs · '+num(r.resources.credits)+' credits</small><details class="rival-history"><summary>Recent history ('+r.memory.length+')</summary><ul>'+memory+'</ul></details></div><div class="relation '+(r.relation>=20?"good":r.relation<=-20?"bad":"")+'">'+r.relation+'<small>'+level+'</small></div></div><div class="actions"><button data-action="gift" data-id="'+r.id+'">Send 20 cr aid</button><button data-action="strain" data-id="'+r.id+'" '+(state.resources.influence<5?"disabled":"")+'>Recall envoy (−15)</button>'+(conflict?'<button class="danger" data-action="peace" data-id="'+r.id+'">Negotiate peace</button>':'<button class="danger" data-action="conflict" data-id="'+r.id+'" '+(r.relation>-20||state.resources.power<10?"disabled":"")+'>Declare conflict</button>')+'</div><div class="treaty-actions">'+treaties+'</div>'+(conflict?'<p class="notice">Conflict active · '+(state.turn-conflict.startedTurn)+' turns · strength '+conflict.playerScore+' to '+conflict.rivalScore+'</p>':"")+'</article>';
+      return '<article class="diplomacy-card"><div class="row"><div><h3>'+esc(r.name)+' <span class="level">'+esc(r.personality)+'</span></h3><p>'+esc(r.stance)+' · '+num(r.population)+' citizens</p><small class="rival-activity">Objective: '+esc(r.longTermObjective)+'</small><small class="rival-activity">Plan: '+esc(r.plan?r.plan.reason:"evaluating national priorities")+'</small><small class="rival-activity">This turn: '+esc(r.activity)+'</small><small class="rival-activity">Industry: '+(r.buildings.mine||0)+' mines · '+(r.buildings.factory||0)+' factories · '+num(Math.min(jobs,r.population))+'/'+num(jobs)+' jobs · '+num(r.resources.credits)+' credits</small><details class="rival-history"><summary>Recent history ('+r.memory.length+')</summary><ul>'+memory+'</ul></details></div><div class="relation '+(r.relation>=20?"good":r.relation<=-20?"bad":"")+'">'+r.relation+'<small>'+level+'</small></div></div><div class="actions"><button data-action="gift" data-id="'+r.id+'">Send 20 cr aid</button><button data-action="strain" data-id="'+r.id+'" '+(state.resources.influence<5?"disabled":"")+'>Recall envoy (−15)</button>'+(conflict?'<button class="danger" data-action="peace" data-id="'+r.id+'">Negotiate peace</button>':'<button class="danger" data-action="conflict" data-id="'+r.id+'" '+(r.relation>-20||state.resources.power<10?"disabled":"")+'>Declare conflict</button>')+'</div><div class="treaty-actions">'+treaties+'</div>'+(conflict?'<p class="notice">Conflict active · '+(state.turn-conflict.startedTurn)+' turns · battle score '+conflict.playerScore+' to '+conflict.rivalScore+'</p><button data-action="battle" data-id="'+r.id+'">Fight battle</button>':"")+'</article>';
     }).join("");
     const active=state.diplomacy.treaties.filter(t=>t.status==="active");
     $("treaty-summary").textContent=active.length?active.map(t=>t.kind+" with "+state.rivals[t.rivalId].name).join(" · "):"No active agreements";
@@ -133,8 +133,19 @@
   function renderHistory() {
     $("history-list").innerHTML=state.events.slice(0,120).map(e=>'<article class="history-entry"><span class="event-type '+esc(e.type)+'">'+esc(e.type)+'</span><time>Turn '+num(e.turn)+'</time><div><span>'+esc(e.text)+'</span>'+(e.details?'<details class="history-details"><summary>Impact and context</summary><p>'+esc(e.details.summary)+'</p><small>Affected: '+esc(e.details.affectedNationIds.map(id=>id==="player"?state.nation.name:state.rivals[id]?.name||id).join(", "))+'</small></details>':"")+'</div></article>').join("");
   }
+  function renderMilitary() {
+    const m=state.military;
+    $("military-summary").innerHTML='<div class="rowline"><span>Active troops</span><b>'+num(m.troops)+'</b></div><div class="rowline"><span>Training</span><b>'+m.training+'/5</b></div><div class="rowline"><span>Fortification</span><b>'+m.fortification+'/5</b></div><div class="rowline"><span>Battle record</span><b>'+m.battlesWon+' wins · '+m.battlesLost+' losses</b></div>';
+    $("military-actions").innerHTML='<button data-action="recruit" '+(m.troops>=10000||state.resources.credits<30||state.resources.materials<2?'disabled':'')+'>Recruit 10 troops · 30 cr / 2 mat</button><button data-action="train-army" '+(m.training>=5||state.resources.credits<45*m.training||state.resources.goods<5?'disabled':'')+'>Train army · '+(45*m.training)+' cr / 5 goods</button><button data-action="fortify" '+(m.fortification>=5||state.resources.credits<55*(m.fortification+1)||state.resources.materials<20*(m.fortification+1)?'disabled':'')+'>Upgrade defenses · '+(55*(m.fortification+1))+' cr / '+(20*(m.fortification+1))+' mat</button>';
+  }
+  function renderTerritories() {
+    const ownerName=id=>id==="player"?state.nation.name:(state.rivals[id]?state.rivals[id].name:"Unclaimed");
+    $("territory-list").innerHTML=state.territories.map(r=>'<article class="list-card"><div><h3>'+esc(r.name)+' <span class="level">'+esc(r.terrain)+'</span></h3><p>Owner: '+esc(ownerName(r.owner))+' · '+r.value+' '+esc(r.bonus)+' / turn</p><small>Defense: '+r.troops+' · Claim: '+r.cost.credits+' credits + '+r.cost.materials+' materials</small></div>'+(r.owner==="player"?"<span class=\"tag\">CONTROLLED</span>":r.owner==="neutral"?'<button data-action="claim-territory" data-id="'+r.id+'">Secure region</button>':'<button data-action="territory-battle" data-id="'+r.id+'">Campaign for region</button>')+'</article>').join("");
+    const count=state.territories.filter(r=>r.owner==="player").length;
+    $("territory-count").textContent=count+" / "+state.territories.length+" regions controlled";
+  }
   function render() {
-    renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderWorldEvents();renderResearch();renderCampaign();renderCreator();renderAdvice();renderHistory();
+    renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderMilitary();renderTerritories();renderWorldEvents();renderResearch();renderCampaign();renderCreator();renderAdvice();renderHistory();
     $("turn-label").textContent="TURN "+state.turn;$("game-banner").textContent=state.status==="playing"?state.nation.name+" · "+state.nation.government:"Campaign "+state.status;
     $("game-banner").className="game-banner "+state.status;$("advance-turn").disabled=state.status!=="playing";tab(activeTab);
   }
@@ -159,6 +170,12 @@
       if(action==="treaty")E.offerTreaty(state,id,kind);
       if(action==="conflict")E.declareConflict(state,id);
       if(action==="peace")E.makePeace(state,id);
+      if(action==="recruit")E.recruitTroops(state,10);
+      if(action==="train-army")E.trainArmy(state);
+      if(action==="fortify")E.fortifyNation(state);
+      if(action==="battle"){const result=E.resolveBattle(state,id);toast(result.won?"Battle won · "+result.attack+" vs "+result.defense:"Battle lost · "+result.attack+" vs "+result.defense,result.won?"success":"warning");}
+      if(action==="claim-territory")E.claimTerritory(state,id);
+      if(action==="territory-battle"){const result=E.resolveTerritoryBattle(state,id);toast(result.won?"Region captured · "+result.attack+" vs "+result.defense:"Campaign failed · "+result.attack+" vs "+result.defense,result.won?"success":"warning");}
       if(action==="event-choice")E.resolveWorldEvent(state,eventId,choice);
       if(action==="delete-creation")E.deleteCreation(state,id);
       if(action==="commission-creation")E.commissionCreation(state,id);
@@ -178,5 +195,37 @@
   const assess=()=>{renderAdvice();toast("The local World Director assessed your nation.","success");};
   $("director-run").addEventListener("click",assess);$("director-run-panel").addEventListener("click",assess);
   $("sound-toggle").addEventListener("click",e=>{soundOn=!soundOn;e.currentTarget.setAttribute("aria-pressed",String(soundOn));e.currentTarget.textContent=soundOn?"Sound: on":"Sound: off";beep();});
-  state=load();render();persist();
+  function showBootFailure(error) {
+    const message = error && error.message ? error.message : String(error || "Unknown startup error");
+    let panel = document.getElementById("boot-error");
+    if (!panel) {
+      panel = document.createElement("section");
+      panel.id = "boot-error";
+      panel.className = "boot-error";
+      panel.setAttribute("role", "alert");
+      document.body.prepend(panel);
+    }
+    panel.innerHTML = '<div class="boot-error-card"><p class="eyebrow">KINGMAKER STARTUP CHECK</p><h1>The game could not start.</h1><p>We caught a startup problem instead of leaving you with a blank screen. Refresh the page once. If it continues, send the diagnostic code below.</p><code></code><button type="button" id="boot-reload">Reload game</button></div>';
+    panel.querySelector("code").textContent = message.slice(0, 500);
+    panel.querySelector("#boot-reload").addEventListener("click", () => location.reload());
+  }
+  window.addEventListener("error", event => {
+    if (event && event.message) showBootFailure(event.message);
+  });
+  window.addEventListener("unhandledrejection", event => {
+    showBootFailure(event.reason);
+  });
+  try {
+    if (!E || typeof E.createInitialState !== "function" || typeof E.advanceTurn !== "function") {
+      throw new Error("Game engine failed to load. Check that src/engine.js is reachable.");
+    }
+    state=load();
+    render();
+    persist();
+    document.documentElement.dataset.gameReady = "true";
+  } catch (error) {
+    document.documentElement.dataset.gameReady = "false";
+    showBootFailure(error);
+    console.error("KINGMAKER startup failed:", error);
+  }
 })();

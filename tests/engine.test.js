@@ -772,3 +772,85 @@ test("a long-running deterministic world remains inside the save schema", () => 
   assert.ok(state.turn > 100);
   assert.ok(Object.values(state.rivals).every(r => r.resources.food >= 0 && r.resources.materials >= 0 && r.resources.credits >= 0));
 });
+
+test("military recruitment, training and fortification enforce costs", () => {
+  const state = Engine.createInitialState({ seed: 91 });
+  const credits = state.resources.credits, materials = state.resources.materials;
+  Engine.recruitTroops(state, 10);
+  assert.equal(state.military.troops, 34);
+  assert.equal(state.resources.credits, credits - 30);
+  assert.equal(state.resources.materials, materials - 2);
+  Engine.trainArmy(state);
+  assert.equal(state.military.training, 2);
+  state.resources.credits += 10;
+  Engine.fortifyNation(state);
+  assert.equal(state.military.fortification, 2);
+  assert.throws(() => Engine.recruitTroops(state, 0), /Recruit between/);
+  assert.doesNotThrow(() => Engine.validateSave(state));
+});
+
+test("battle resolution requires active conflict and applies casualties and rewards", () => {
+  const state = Engine.createInitialState({ seed: 92 });
+  assert.throws(() => Engine.resolveBattle(state, "aurelia"), /active conflict/);
+  state.rivals.aurelia.relation = -30;
+  Engine.declareConflict(state, "aurelia");
+  state.resources.power = 30;
+  state.military.troops = 120;
+  const result = Engine.resolveBattle(state, "aurelia");
+  assert.equal(result.won, true);
+  assert.equal(state.military.battlesWon, 1);
+  assert.ok(state.military.troops < 120);
+  assert.equal(state.resources.influence, 24);
+  assert.doesNotThrow(() => Engine.validateSave(state));
+});
+
+test("schema 7 saves migrate with a starter army", () => {
+  const state = Engine.createInitialState({ seed: 93 });
+  delete state.military;
+  state.schemaVersion = 7;
+  const migrated = Engine.migrateSave(state);
+  assert.equal(migrated.schemaVersion, Engine.SAVE_VERSION);
+  assert.equal(migrated.military.troops, 24);
+  assert.doesNotThrow(() => Engine.validateSave(migrated));
+});
+
+test("territory expansion secures neutral regions and pays regional bonuses only as ownership", () => {
+ const state=Engine.createInitialState({seed:101});
+ const region=state.territories.find(r=>r.id==="heartland");
+ assert.equal(region.owner,"player");
+ const neutral={id:"test-neutral",name:"Test Reach",terrain:"Plains",owner:"neutral",bonus:"food",value:2,cost:{credits:20,materials:10},troops:5};
+ state.territories[0]=neutral;
+ state.resources.credits=100;state.resources.materials=100;state.military.troops=20;
+ const claimed=Engine.claimTerritory(state,"test-neutral");
+ assert.equal(claimed.owner,"player");
+ assert.equal(state.military.troops,15);
+ assert.equal(state.resources.credits,80);
+ assert.throws(()=>Engine.claimTerritory(state,"test-neutral"),/already controls/);
+ assert.doesNotThrow(()=>Engine.validateSave(state));
+});
+test("territorial campaigns require forces and capture rival regions after victory",()=>{
+ const state=Engine.createInitialState({seed:102});
+ const region=state.territories.find(r=>r.owner==="duneward");
+ state.military.troops=300;state.resources.power=30;
+ const result=Engine.resolveTerritoryBattle(state,region.id);
+ assert.equal(result.won,true);assert.equal(region.owner,"player");
+ assert.ok(state.military.troops<300);
+ assert.doesNotThrow(()=>Engine.validateSave(state));
+});
+test("schema 8 saves migrate with the original regional map",()=>{
+ const state=Engine.createInitialState({seed:103});delete state.territories;state.schemaVersion=8;
+ const migrated=Engine.migrateSave(state);
+ assert.equal(migrated.schemaVersion,Engine.SAVE_VERSION);
+ assert.equal(migrated.territories.length,7);
+ assert.doesNotThrow(()=>Engine.validateSave(migrated));
+});
+
+test("owned regions contribute their advertised bonus to the national economy",()=>{
+ const state=Engine.createInitialState({seed:104});
+ const before=Engine.economicSnapshot(state);
+ const region=state.territories.find(r=>r.owner==="player");
+ region.bonus="food";region.value=4;
+ Engine.advanceTurn(state);
+ assert.equal(state.economy.production.food,before.production.food+4);
+ assert.doesNotThrow(()=>Engine.validateSave(state));
+});

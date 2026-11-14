@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - codex/kingmaker-v1-development
+      - codex/kingmaker-runtime-fix
   pull_request:
     branches:
       - codex/kingmaker-v1-development
