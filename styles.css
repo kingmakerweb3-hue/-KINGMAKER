@@ -87,3 +87,6 @@ button{min-height:38px}
 
 /* World Director intelligence dashboard */
 .intel-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin:16px 0}.intel-summary>div,.intel-rank{padding:12px;border:1px solid var(--line,#334155);border-radius:12px;background:rgba(255,255,255,.025)}.intel-summary small,.intel-summary strong{display:block}.intel-summary small,.intel-rank small{color:var(--muted,#9aa8bc);font-size:.72rem}.intel-summary strong{font-size:1.25rem;margin-top:5px}.intel-rankings{display:grid;gap:7px;margin:12px 0 20px}.intel-rank{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 12px}.intel-rank small{grid-column:1/-1}.intel-rank b{font-variant-numeric:tabular-nums}
+
+
+.citizen-list{display:grid;gap:7px;margin-top:12px}.citizen-row{display:grid;grid-template-columns:1.1fr .8fr 1.5fr auto;gap:10px;align-items:center;padding:9px 11px;border:1px solid rgba(132,165,201,.16);border-radius:9px;background:rgba(10,20,34,.42);font-size:.82rem}.citizen-row span{color:var(--muted)}.citizen-row b{color:var(--gold);font-size:.75rem}@media(max-width:680px){.citizen-row{grid-template-columns:1fr 1fr}.citizen-row span:nth-child(3){grid-column:1/2}}
