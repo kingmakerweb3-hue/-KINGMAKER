@@ -613,6 +613,15 @@
     const inputs = { materials: activeFactories * 5, ore: activeFactories * 3, power: activeFactories * 2 };
     return { production: base, inputs, activeFactories };
   }
+  function districtEffects(state) {
+    const counts = { residential: 0, commercial: 0, industrial: 0, agricultural: 0 };
+    for (const district of state.world?.placedDistricts || []) if (district && Object.hasOwn(counts, district.type)) counts[district.type]++;
+    return { counts, production: {
+      food: counts.agricultural * 3,
+      materials: counts.industrial * 2,
+      credits: counts.commercial * 4
+    }, populationGrowth: counts.residential };
+  }
   function economicSnapshot(state) {
     const jobs = workforceFor(state.buildings);
     const employed = Math.min(jobs, state.nation.population);
@@ -1202,6 +1211,8 @@
     }, state.buildings, state.technologies, state.nation.population);
     const output = industry.production;
     for (const [resource, amount] of Object.entries(creator.production)) output[resource] += amount;
+    const districts = districtEffects(state);
+    for (const [resource, amount] of Object.entries(districts.production)) output[resource] += amount;
     if (worldEventActiveThisTurn(state, "industrial_revolution")) output.goods = Math.floor(output.goods * 1.3);
     for (const resource of ["food", "materials", "ore", "goods", "science", "power"]) {
       state.resources[resource] = clamp(state.resources[resource] + output[resource], 0, RESOURCE_LIMIT);
@@ -1252,7 +1263,7 @@
       state.nation.stability = Math.min(100, state.nation.stability + (jobs >= Math.ceil(state.nation.population / 10) ? (hasTech(state, "governance") ? 2 : 1) : 0));
       if (state.resources.food > foodNeed * 3 && state.nation.stability >= 45 && phase !== "recession" && jobs >= Math.ceil(state.nation.population / 10)) {
         const populationCap = Math.min(RESOURCE_LIMIT, 250 + (state.buildings.housing || 0) * 50 + (hasTech(state, "medicine") ? 100 : 0) + creator.capacity);
-        state.nation.population = Math.min(populationCap, state.nation.population + 2 + (hasTech(state, "medicine") ? 1 : 0) + Math.floor((state.buildings.housing || 0) / 2));
+        state.nation.population = Math.min(populationCap, state.nation.population + 2 + (hasTech(state, "medicine") ? 1 : 0) + Math.floor((state.buildings.housing || 0) / 2) + districts.populationGrowth);
       }
     }
     if (jobs < Math.ceil(state.nation.population / 10)) state.nation.stability = Math.max(0, state.nation.stability - 1);
@@ -1329,7 +1340,7 @@
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
     createInitialState, validateSave, migrateSave, productionFor, build, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
-    creatorProgress, creatorProfiles, creatorDemand,
+    creatorProgress, creatorProfiles, creatorDemand, districtEffects,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
     exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech
   };
