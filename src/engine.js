@@ -1524,6 +1524,19 @@
     return { turn: state.turn, regionalPower: rankings.map((r, index) => ({ id: r.id, name: r.name, rank: index + 1, score: r.score, relation: r.relation, risks: r.risks })), player: { ...player, rank: rankings.findIndex(r => r.id === "player") + 1 }, rivals: rivals.sort((a, b) => b.score - a.score), threats: threats.map(r => ({ id: r.id, name: r.name, relation: r.relation, risks: r.risks })), regionalAverageStability: Math.round(([state.nation, ...Object.values(state.rivals)].reduce((sum, n) => sum + (n.stability || 0), 0) / (Object.keys(state.rivals).length + 1))) };
   }
 
+  function civicMandate(state) {
+    const citizens = Array.isArray(state.citizens) ? state.citizens : [];
+    if (!citizens.length) return { approval: 0, trust: 0, mood: 0, mandate: "No public mandate", leadingConcern: "No citizens recorded", concerns: [] };
+    const average = key => Math.round(citizens.reduce((sum, c) => sum + (Number(c.needs && c.needs[key]) || 0), 0) / citizens.length);
+    const mood = Math.round(citizens.reduce((sum, c) => sum + (Number(c.mood) || 0), 0) / citizens.length);
+    const trust = Math.round(citizens.reduce((sum, c) => sum + (Number(c.civicTrust ?? 50) || 0), 0) / citizens.length);
+    const needs = ["food", "safety", "belonging", "energy"].map(key => ({ key, score: average(key), affected: citizens.filter(c => Number(c.needs && c.needs[key]) < 35).length })).sort((x, y) => x.score - y.score);
+    const approval = clamp(Math.round(mood * 0.45 + trust * 0.55), 0, 100);
+    const mandate = approval >= 75 ? "Strong public mandate" : approval >= 55 ? "Conditional public mandate" : approval >= 35 ? "Fragile public mandate" : "Public confidence crisis";
+    const labels = { food: "food security", safety: "public safety", belonging: "community connection", energy: "energy and rest" };
+    return { approval, trust, mood, mandate, leadingConcern: labels[needs[0].key], concerns: needs.map(n => ({ ...n, label: labels[n.key] })) };
+  }
+
   function exportSave(state) { return JSON.stringify(validateSave(state), null, 2); }
 
   function saveWithRecovery(storage, state, primaryKey = "kingmaker_save_v1", backupKey = "kingmaker_save_recovery") {
@@ -1548,6 +1561,6 @@
     research, enactPolicy, policyActive, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
-    exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech, worldIntelligence
+    exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech, worldIntelligence, civicMandate
   };
 });
