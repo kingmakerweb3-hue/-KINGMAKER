@@ -986,3 +986,22 @@ test("version 9 citizen saves migrate to the autonomous career schema", () => {
   assert.equal(migrated.schemaVersion, 10);
   assert.ok(migrated.citizens.every(c => c.careerLevel === 1 && c.careerXp === 0 && c.civicTrust === 50 && c.aspiration));
 });
+
+
+test("civic mandate reflects citizen wellbeing, trust, and the leading public concern", () => {
+  const state = Engine.createInitialState({ seed: 7210 });
+  state.citizens.forEach(c => {
+    c.needs = { food: 90, energy: 80, safety: 85, belonging: 75 };
+    c.mood = 82;
+    c.civicTrust = 78;
+  });
+  let report = Engine.civicMandate(state);
+  assert.equal(report.approval, 80);
+  assert.equal(report.mandate, "Strong public mandate");
+  assert.equal(report.leadingConcern, "community connection");
+  state.citizens.forEach(c => { c.needs.food = 10; c.mood = 25; c.civicTrust = 20; });
+  report = Engine.civicMandate(state);
+  assert.equal(report.leadingConcern, "food security");
+  assert.equal(report.mandate, "Public confidence crisis");
+  assert.ok(report.concerns.every(item => item.affected === state.citizens.length));
+});
