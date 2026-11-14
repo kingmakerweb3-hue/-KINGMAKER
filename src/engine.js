@@ -203,7 +203,8 @@
     if (!input.nation || typeof input.nation !== "object" || !input.resources || !input.buildings) throw new Error("Save is missing nation, resources, or building data.");
     const normalized = copy(input);
     normalized.world = normalized.world || { nextEventId: 1, activeEvents: [], processedEventIds: [] };
-    if (!Array.isArray(normalized.world.placedBuildings)) normalized.world.placedBuildings = [];\n    if (!Array.isArray(normalized.world.placedRoads)) normalized.world.placedRoads = [];
+    if (!Array.isArray(normalized.world.placedBuildings)) normalized.world.placedBuildings = [];
+    if (!Array.isArray(normalized.world.placedRoads)) normalized.world.placedRoads = [];
     if (typeof normalized.nation.name !== "string" || normalized.nation.name.trim().length < 1 || normalized.nation.name.length > 48) throw new Error("Nation name must contain 1–48 characters.");
     if (typeof normalized.nation.government !== "string" || normalized.nation.government.length > 48) throw new Error("Government style is invalid.");
     if (!Number.isInteger(normalized.nation.population) || normalized.nation.population < 1 || normalized.nation.population > RESOURCE_LIMIT) throw new Error("Population is outside safe limits.");
@@ -233,7 +234,8 @@
         !Array.isArray(normalized.world.processedEventIds) || normalized.world.processedEventIds.length > 500 ||
         new Set(normalized.world.processedEventIds).size !== normalized.world.processedEventIds.length ||
         normalized.world.processedEventIds.some(id => typeof id !== "string" || id.length > 64)) throw new Error("World event state is invalid.");
-    if (normalized.world.placedBuildings.length > 10000 || normalized.world.placedBuildings.some(p => !p || !BUILDINGS[p.type] || !Number.isFinite(p.x) || !Number.isFinite(p.z) || Math.abs(p.x) > 13.2 || Math.abs(p.z) > 13.2)) throw new Error("Building placement data is invalid.");\n    if (normalized.world.placedRoads.length > 10000 || normalized.world.placedRoads.some(r => !r || !r.from || !r.to || ![r.from.x,r.from.z,r.to.x,r.to.z].every(Number.isFinite) || [r.from.x,r.from.z,r.to.x,r.to.z].some(n => Math.abs(n)>13.2) || Math.hypot(r.to.x-r.from.x,r.to.z-r.from.z)<1)) throw new Error("Road placement data is invalid.");
+    if (normalized.world.placedBuildings.length > 10000 || normalized.world.placedBuildings.some(p => !p || !BUILDINGS[p.type] || !Number.isFinite(p.x) || !Number.isFinite(p.z) || Math.abs(p.x) > 13.2 || Math.abs(p.z) > 13.2)) throw new Error("Building placement data is invalid.");
+    if (normalized.world.placedRoads.length > 10000 || normalized.world.placedRoads.some(r => !r || !r.from || !r.to || ![r.from.x,r.from.z,r.to.x,r.to.z].every(Number.isFinite) || [r.from.x,r.from.z,r.to.x,r.to.z].some(n => Math.abs(n)>13.2) || Math.hypot(r.to.x-r.from.x,r.to.z-r.from.z)<1)) throw new Error("Road placement data is invalid.");
     for (const event of normalized.world.activeEvents) {
       const definition = event && WORLD_EVENT_CATALOG[event.key];
       if (!definition || typeof event.id !== "string" || event.id.length > 64 ||
