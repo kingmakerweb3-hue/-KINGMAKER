@@ -39,3 +39,21 @@ footer{padding:20px;border-top:1px solid var(--line);color:var(--muted);text-ali
 @media(max-width:920px){.metrics{grid-template-columns:repeat(4,1fr)}.span-8,.span-7,.span-5,.span-4{grid-column:span 12}.topbar{align-items:flex-start}.top-actions{max-width:60%}}
 @media(max-width:640px){.topbar{position:static;display:block}.top-actions{max-width:none;justify-content:flex-start;margin-top:12px}.welcome{display:block}.welcome-actions{margin-top:16px}.game-banner{text-align:left}.metrics{grid-template-columns:repeat(2,1fr)}.diplomacy-grid,.advice-grid,.world-events{grid-template-columns:1fr}.market-row{grid-template-columns:1fr auto}.trade-buttons{grid-column:1/-1}.history-entry{grid-template-columns:72px 58px 1fr;gap:6px;font-size:11px}.world-map{height:245px}.panel{padding:14px}.panel-heading{align-items:flex-start}.treaty-actions button{font-size:9px;padding:6px}.welcome h1{font-size:36px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+
+/* Small-screen usability: keep action controls readable and prevent card overflow. */
+:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+button{min-height:38px}
+@media(max-width:640px){
+  .list-card{align-items:stretch;flex-direction:column}
+  .list-card .actions{width:100%}
+  .list-card .actions button{flex:1;min-height:42px}
+  .top-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .top-actions>*{min-width:0}
+  .top-actions button{min-height:42px}
+  .welcome-actions .primary{width:100%;min-height:48px}
+  .tabs button{min-height:42px;padding:9px 12px}
+  .event-choices{grid-template-columns:1fr}
+  .event-choice button{min-height:46px}
+  .world-map{touch-action:pan-y}
+}
