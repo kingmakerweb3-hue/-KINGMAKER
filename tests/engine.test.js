@@ -947,12 +947,12 @@ test("public health policy improves citizen safety and population growth, and po
   assert.throws(() => Engine.validateSave(loaded), /National policy state is invalid/);
 });
 
-test("version 8 saves migrate through national policies, elections, and political pressure into schema version 12", () => {
+test("version 8 saves migrate through national policies, elections, and political pressure into schema version 13", () => {
   const old = Engine.createInitialState({ seed: 904 });
   old.schemaVersion = 8;
   delete old.policies;
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 12);
+  assert.equal(migrated.schemaVersion, 13);
   assert.deepEqual(Object.keys(migrated.policies).sort(), ["food_assistance", "industry_incentive", "public_health", "research_fund"]);
   assert.ok(Object.values(migrated.policies).every(policy => policy === null));
 });
@@ -983,7 +983,7 @@ test("version 9 citizen saves migrate to the current autonomous career schema", 
   old.schemaVersion = 9;
   old.citizens.forEach(c => { delete c.careerLevel; delete c.careerXp; delete c.civicTrust; delete c.aspiration; });
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 12);
+  assert.equal(migrated.schemaVersion, 13);
   assert.ok(migrated.citizens.every(c => c.careerLevel === 1 && c.careerXp === 0 && c.civicTrust === 50 && c.aspiration));
 });
 
@@ -1023,12 +1023,12 @@ test("elections resolve on schedule, change leadership, affect stability, and pe
   assert.deepEqual(saved.election, state.election);
 });
 
-test("version 10 saves migrate through elections into political schema 12", () => {
+test("version 10 saves migrate through elections into government schema 13", () => {
   const old = Engine.createInitialState({ seed: 8814 });
   old.schemaVersion = 10;
   delete old.election;
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 12);
+  assert.equal(migrated.schemaVersion, 13);
   assert.equal(migrated.election.incumbent, "civic");
   assert.equal(migrated.election.electionsHeld, 0);
   assert.equal(migrated.election.lastResult, null);
@@ -1077,12 +1077,12 @@ test("political pressure escalates into protests with cooldown and persists in s
   assert.deepEqual(saved.politics, state.politics);
 });
 
-test("version 11 saves migrate to political pressure schema 12", () => {
+test("version 11 saves migrate through political pressure into schema 13", () => {
   const old = Engine.createInitialState({ seed: 9913 });
   old.schemaVersion = 11;
   delete old.politics;
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 12);
+  assert.equal(migrated.schemaVersion, 13);
   assert.equal(migrated.politics.governmentStatus, "stable");
   assert.equal(migrated.politics.protests, 0);
 });
@@ -1108,4 +1108,48 @@ test("elected parties implement distinct governing agendas and aligned policy di
   civic.resources.credits = 100;
   Engine.enactPolicy(civic, "research_fund");
   assert.equal(civic.resources.credits, 100 - 45);
+});
+
+
+test("elected government funds party-aligned policies on scheduled cabinet reviews", () => {
+  const state = Engine.createInitialState({ seed: 7301 });
+  state.election.incumbent = "prosperity";
+  state.turn = 3;
+  state.citizens.forEach(c => { c.needs.food = 35; c.needs.safety = 70; c.needs.belonging = 70; });
+  state.resources.credits = 120;
+  const decision = Engine.resolveGovernmentAgenda((state.turn++, state));
+  assert.equal(decision.enacted, true);
+  assert.equal(decision.policy, "food_assistance");
+  assert.equal(state.policies.food_assistance.activatedTurn, 4);
+  assert.equal(state.governance.decisionsMade, 1);
+  assert.equal(state.resources.credits, 120 - 30);
+  const after = state.resources.credits;
+  state.turn = 5;
+  assert.equal(Engine.resolveGovernmentAgenda(state), null);
+  assert.equal(state.resources.credits, after);
+  const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(saved.governance, state.governance);
+});
+
+test("cabinet protects a minimum treasury reserve and does not enact unaffordable policies", () => {
+  const state = Engine.createInitialState({ seed: 7302 });
+  state.election.incumbent = "civic";
+  state.turn = 4;
+  state.resources.credits = 40;
+  state.citizens.forEach(c => { c.needs.food = 20; c.needs.safety = 20; c.needs.belonging = 20; });
+  const decision = Engine.resolveGovernmentAgenda(state);
+  assert.equal(decision.enacted, false);
+  assert.equal(state.resources.credits, 40);
+  assert.equal(state.governance.decisionsMade, 0);
+  assert.ok(state.governance.lastDecision.includes("reserve"));
+});
+
+test("version 12 saves migrate to the cabinet governance schema 13", () => {
+  const old = Engine.createInitialState({ seed: 7303 });
+  old.schemaVersion = 12;
+  delete old.governance;
+  const migrated = Engine.migrateSave(old);
+  assert.equal(migrated.schemaVersion, 13);
+  assert.equal(migrated.governance.decisionsMade, 0);
+  assert.equal(migrated.governance.lastPolicy, null);
 });
