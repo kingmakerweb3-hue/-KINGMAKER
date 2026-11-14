@@ -105,3 +105,23 @@ test('national mandates display objective progress and claim a reward once', asy
   const initial = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save')));
   expect(Array.isArray(initial.claimedMandates)).toBeTruthy();
 });
+
+test('eligible food security mandate pays once and persists its claim', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => {
+    const s=JSON.parse(localStorage.getItem('kingmaker_save'));
+    s.food=150;
+    localStorage.setItem('kingmaker_save',JSON.stringify(s));
+  });
+  await page.reload();
+  await page.locator('[data-tab="campaign"]').click();
+  const card=page.locator('#mandateBoard .item').filter({hasText:'Food Security Reserve'});
+  await expect(card).toContainText('READY TO CLAIM');
+  const before=await page.evaluate(()=>JSON.parse(localStorage.getItem('kingmaker_save')).credits);
+  await card.getByRole('button',{name:'Claim mandate'}).click();
+  const after=await page.evaluate(()=>JSON.parse(localStorage.getItem('kingmaker_save')));
+  expect(after.credits).toBe(before+45);
+  expect(after.claimedMandates).toContain('food-security');
+  await expect(card).toContainText('REWARD CLAIMED');
+  await expect(card.getByRole('button',{name:'Completed'})).toBeDisabled();
+});
