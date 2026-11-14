@@ -72,3 +72,26 @@ test('malformed local save safely starts a fresh nation', async ({ page }) => {
   await expect(page.locator('#season')).toContainText('TURN 1');
   expect(errors).toEqual([]);
 });
+
+test('embassy missions enforce costs and persist diplomatic progress', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-tab="market"]').click();
+  await expect(page.locator('#embassyPanel')).toContainText('Send envoy');
+  await page.getByRole('button', { name: 'Send envoy · 30 credits' }).first().click();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save')));
+  expect(saved.credits).toBe(120);
+  expect(saved.relations.Aurelia).toBe(21);
+  expect(saved.influence).toBe(22);
+  expect(saved.diplomaticHistory[0].mission).toBe('Envoy');
+});
+
+test('embassy missions are disabled during an active war', async ({ page }) => {
+  await page.addInitScript(() => {
+    const s=JSON.parse(localStorage.getItem('kingmaker_save')||'{}');
+    s.conflicts={...(s.conflicts||{}),Aurelia:{enemyStrength:20,turns:0}};
+    localStorage.setItem('kingmaker_save',JSON.stringify(s));
+  });
+  await page.goto('/');
+  await page.locator('[data-tab="market"]').click();
+  await expect(page.getByRole('button', { name: 'Send envoy · 30 credits' }).first()).toBeDisabled();
+});
