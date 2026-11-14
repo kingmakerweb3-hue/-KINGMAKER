@@ -116,9 +116,15 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     makeRoad([[-13,-2],[-8,-1],[-4,0],[0,0],[5,2],[9,5]]);
     makeRoad([[-3,-12],[-2,-7],[0,-3],[0,0],[1,6],[3,11]]);
     const plaza=new THREE.Mesh(new THREE.CylinderGeometry(2.3,2.3,.12,32),material(0xd6c79e));plaza.position.y=.03;scene.add(plaza);
-    const keep=new THREE.Group();const tower=new THREE.Mesh(new THREE.BoxGeometry(1.5,2.8,1.5),material(0xe3d9c3));tower.position.y=1.4;keep.add(tower);
-    const cap=new THREE.Mesh(new THREE.ConeGeometry(1.15,.8,4),material(0x9b493d));cap.position.y=3.2;cap.rotation.y=Math.PI/4;keep.add(cap);keep.position.set(0,.1,0);buildingGroup.add(keep);
-    for(let i=0;i<12;i++){const p=new THREE.Mesh(new THREE.SphereGeometry(.12,8,6),material(0x34495e));p.position.set(Math.cos(i)*3,.18,Math.sin(i)*3);peopleGroup.add(p);}
+    const keep=new THREE.Group();const stone=material(0xb8b8ae,.82),roofMat=material(0x475b67,.72),glass= new THREE.MeshStandardMaterial({color:0xa6c3c5,emissive:0x314d50,emissiveIntensity:.3,roughness:.3});
+    const podium=new THREE.Mesh(new THREE.BoxGeometry(3.4,.35,3.1),stone);podium.position.y=.18;keep.add(podium);
+    const hall=new THREE.Mesh(new THREE.BoxGeometry(2.35,2.25,2.1),stone);hall.position.y=1.42;hall.castShadow=true;keep.add(hall);
+    for(const side of [-1,1])for(let floor=0;floor<3;floor++){const win=new THREE.Mesh(new THREE.BoxGeometry(.24,.48,.035),glass);win.position.set(side*.68, .72+floor*.58,1.075);keep.add(win);}
+    for(const side of [-1,1]){const wing=new THREE.Mesh(new THREE.BoxGeometry(.62,1.55,1.8),stone);wing.position.set(side*1.48,.95,0);keep.add(wing);}
+    const roof=new THREE.Mesh(new THREE.BoxGeometry(2.55,.18,2.3),roofMat);roof.position.y=2.62;keep.add(roof);
+    const spire=new THREE.Mesh(new THREE.ConeGeometry(.72,.95,4),material(0x8d4e42));spire.position.y=3.18;spire.rotation.y=Math.PI/4;keep.add(spire);
+    keep.position.set(0,.1,0);buildingGroup.add(keep);
+    for(let i=0;i<22;i++){const person=new THREE.Group();person.userData={phase:i*.53,radius:2.6+(i%5)*.36};const coat=material(i%3===0?0x9c684e:i%3===1?0x435c72:0xc0b18f,.82);const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.085,.24,4,7),coat);torso.position.y=.46;person.add(torso);const head=new THREE.Mesh(new THREE.SphereGeometry(.085,10,8),material(0xc89d7b));head.position.y=.72;person.add(head);const limbs=[];for(const side of [-1,1]){const arm=new THREE.Mesh(new THREE.CapsuleGeometry(.035,.17,3,6),coat);arm.position.set(side*.13,.48,0);person.add(arm);const leg=new THREE.Mesh(new THREE.CapsuleGeometry(.04,.17,3,6),material(0x34414c));leg.position.set(side*.055,.19,0);person.add(leg);limbs.push({arm,leg,side});}person.userData.limbs=limbs;peopleGroup.add(person);}
     clock=new THREE.Clock();
     raycaster=new THREE.Raycaster();groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
     previewMarker=new THREE.Mesh(new THREE.RingGeometry(.55,.78,32),new THREE.MeshBasicMaterial({color:0xffd36e,side:THREE.DoubleSide}));previewMarker.rotation.x=-Math.PI/2;previewMarker.visible=false;scene.add(previewMarker);
@@ -143,7 +149,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     animationId=requestAnimationFrame(animate);const t=clock.getElapsedTime();controls.update();
     if(waterMesh){const attr=waterMesh.geometry.attributes.position;for(let i=0;i<attr.count;i++){const x=waterPositions[i*3],z=waterPositions[i*3+2];attr.array[i*3+1]=waterPositions[i*3+1]+Math.sin(x*.32+t*.65)*.055+Math.cos(z*.27-t*.48)*.04;}attr.needsUpdate=true;waterMesh.geometry.computeVertexNormals();}
     cloudGroup.children.forEach((cloud,i)=>{cloud.position.x+=.0012+Math.sin(t*.025+i)*.0005;if(cloud.position.x>24)cloud.position.x=-24;});
-    peopleGroup.children.forEach((p,i)=>{const a=t*.17+i*.53;p.position.x=Math.cos(a)*(2.5+(i%4)*.45);p.position.z=Math.sin(a)*(2.5+(i%4)*.45);p.position.y=heightAt(p.position.x,p.position.z)+Math.abs(Math.sin(t*2+i))*.055;});
+    peopleGroup.children.forEach((p,i)=>{const a=t*.17+p.userData.phase,step=t*3+p.userData.phase;p.position.x=Math.cos(a)*p.userData.radius;p.position.z=Math.sin(a)*p.userData.radius;p.position.y=heightAt(p.position.x,p.position.z);p.rotation.y=-a;for(const limb of p.userData.limbs){const swing=Math.sin(step)*.42*limb.side;limb.arm.rotation.x=-swing;limb.leg.rotation.x=swing;}});
     trafficVehicles.forEach(v=>{const p=(t*v.speed+v.phase)%1;const x=v.a.x+(v.b.x-v.a.x)*p,z=v.a.z+(v.b.z-v.a.z)*p;v.mesh.position.set(x,heightAt(x,z)+.055,z);v.mesh.rotation.y=Math.atan2(v.b.x-v.a.x,v.b.z-v.a.z);});
     renderer.render(scene,camera);
   }
