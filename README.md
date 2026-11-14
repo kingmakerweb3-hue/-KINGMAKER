@@ -41,7 +41,7 @@ Open <http://127.0.0.1:4173>. The server only binds to loopback.
 - **Diplomacy** lets you send aid, recall an envoy, offer agreements, and manage conflict.
 - **Research** unlocks production and resilience effects.
 - **Campaign** offers three scenarios with objectives, achievements, victory, and defeat.
-- **World Director** provides local rule-based advice based on current game state. Citizens gain career experience and levels, pursue aspirations, adjust civic trust based on wellbeing and active policies, and retain career milestones in memory. This is deterministic simulation logic, not external LLM agents.
+- **World Director** provides local rule-based advice based on current game state. Citizens gain career experience and levels, pursue aspirations, adjust civic trust based on wellbeing and active policies, and retain career milestones in memory. This is deterministic simulation logic, not external LLM agents. A civic mandate report derives public approval, average trust, governing mandate strength, and the population's leading unmet need directly from citizen state.
 - **Creator Studio** lets you publish designs into a bounded local market. Rival nations can adopt designs when their needs match, apply their effects, and pay capped in-game royalties.
 - **3D World** opens an explorable 3D island with high-density procedural terrain, varied elevation, expanded forests, detailed building facades, animated citizens and traffic, a moving ocean surface, atmospheric clouds, a day/night lighting cycle, orbit/zoom/pan controls, and live terrain-surface construction.
 - **3D construction and roads** let players place buildings and connect districts. Positions and roads persist in local saves; connected districts gain logistics and credits.
