@@ -1133,7 +1133,7 @@ function upgradeCounterintelligence(){
  if(bureau.level>=3){alert("Counterintelligence is already at maximum level.");return;}
  if(state.credits<45||state.materials<12){alert("An upgrade costs 45 credits and 12 materials.");return;}
  state.credits-=45;state.materials-=12;bureau.level++;
- log("Intelligence Agency upgraded to level "+bureau.level+". Foreign intelligence operations are now harder to conduct.");
+ log("Intelligence Agency upgraded to level "+bureau.level+". Your intelligence operations are more effective.");
  save();render();
 }
 function conductIntelligenceOperation(n){
@@ -1212,10 +1212,12 @@ function diplomaticStanding(value){
 const renderBeforeEmbassy=render;
 render=function(){
  renderBeforeEmbassy();const panel=$("embassyPanel");if(!panel)return;
+ const appendedSystems=panel.innerHTML;
  panel.innerHTML=rivalNames.map(n=>{
   const rel=Number(state.relations[n])||0,war=!!(state.conflicts&&state.conflicts[n]),disabled=war?" disabled":"";
   return '<div class="item"><div class="row"><b>'+esc(n)+'</b><span class="pill">'+diplomaticStanding(rel)+'</span></div><p class="small muted">Relationship '+rel+'/100 · '+(war?'Missions suspended during war.':'Choose a mission to improve cooperation.')+'</p><div class="actions"><button'+disabled+' onclick="diplomaticMission(\''+n+'\',\'envoy\')">Send envoy · 30 credits</button><button'+disabled+' onclick="diplomaticMission(\''+n+'\',\'aid\')">Humanitarian aid · 35 credits + 15 food</button><button'+disabled+' onclick="diplomaticMission(\''+n+'\',\'research\')">Research exchange · 20 research</button></div></div>';
  }).join("");
+ panel.innerHTML+=appendedSystems;
  $("diplomaticHistory").innerHTML=state.diplomaticHistory.length?state.diplomaticHistory.slice(0,8).map(x=>'<div class="logline"><b>Turn '+x.turn+' · '+esc(x.nation)+' · '+esc(x.mission)+'</b><br>'+esc(x.message)+'</div>').join(""):'<p class="muted small">No diplomatic missions recorded yet.</p>';
 };
 
