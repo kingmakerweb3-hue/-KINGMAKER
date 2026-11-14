@@ -89,6 +89,49 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const curve=new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(p[0],heightAt(p[0],p[1])+.035,p[1])));
     const mesh=new THREE.Mesh(new THREE.TubeGeometry(curve,100,.075,5,false),material(0xb9a88c));roadGroup.add(mesh);
   }
+  function createCitizenAvatar(index,citizen){
+    const person=new THREE.Group();
+    const role=String(citizen?.role||"citizen");
+    const palette={farmer:0x6f8954,builder:0xb77a43,engineer:0x547f9d,merchant:0x98734e,researcher:0x766b9d,medic:0x4c9b91,courier:0xc18d42,artisan:0x9a657d};
+    const coat=material(palette[role]||[0x9c684e,0x435c72,0xc0b18f][index%3],.82);
+    const torso=new THREE.Mesh(new THREE.CylinderGeometry(.12,.16,.42,8),coat);torso.position.y=.46;person.add(torso);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.085,10,8),material(0xc89d7b));head.position.y=.72;person.add(head);
+    const limbs=[];
+    for(const side of [-1,1]){
+      const arm=new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,.25,7),coat);arm.position.set(side*.13,.48,0);person.add(arm);
+      const leg=new THREE.Mesh(new THREE.CylinderGeometry(.045,.055,.24,7),material(0x34414c));leg.position.set(side*.055,.19,0);person.add(leg);
+      limbs.push({arm,leg,side});
+    }
+    person.userData.limbs=limbs;
+    syncCitizenAvatar(person,index,citizen);
+    return person;
+  }
+  function syncCitizenAvatar(person,index,citizen){
+    const role=String(citizen?.role||"citizen");
+    person.userData.citizenId=citizen?.id||"citizen-"+(index+1);
+    person.userData.citizenName=citizen?.name||"Resident "+(index+1);
+    person.userData.role=role;
+    person.userData.activity=String(citizen?.activity||"walking");
+    person.userData.mood=Number(citizen?.mood)||0;
+    person.userData.phase=index*.53;
+    person.userData.radius=2.6+(index%5)*.36;
+    person.userData.walkFactor=/rest|study|care|seek/i.test(person.userData.activity)?.35:1;
+  }
+  function syncCitizenPopulation(citizens){
+    if(!peopleGroup)return;
+    const residents=Array.isArray(citizens)?citizens.slice(0,48):[];
+    while(peopleGroup.children.length>residents.length){
+      const avatar=peopleGroup.children[peopleGroup.children.length-1];
+      peopleGroup.remove(avatar);
+      avatar.traverse(node=>{node.geometry?.dispose();if(Array.isArray(node.material))node.material.forEach(m=>m.dispose());else node.material?.dispose();});
+    }
+    while(peopleGroup.children.length<residents.length){
+      const i=peopleGroup.children.length;
+      peopleGroup.add(createCitizenAvatar(i,residents[i]));
+    }
+    residents.forEach((citizen,i)=>syncCitizenAvatar(peopleGroup.children[i],i,citizen));
+  }
+
   function createScene(){
     scene=new THREE.Scene();scene.background=new THREE.Color(0x9bb8c7);scene.fog=new THREE.FogExp2(0x9bb8c7,.012);
     camera=new THREE.PerspectiveCamera(42,1,.1,150);camera.position.set(17,15,20);
@@ -124,7 +167,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const roof=new THREE.Mesh(new THREE.BoxGeometry(2.55,.18,2.3),roofMat);roof.position.y=2.62;keep.add(roof);
     const spire=new THREE.Mesh(new THREE.ConeGeometry(.72,.95,4),material(0x8d4e42));spire.position.y=3.18;spire.rotation.y=Math.PI/4;keep.add(spire);
     keep.position.set(0,.1,0);buildingGroup.add(keep);
-    for(let i=0;i<22;i++){const person=new THREE.Group();person.userData={phase:i*.53,radius:2.6+(i%5)*.36};const coat=material(i%3===0?0x9c684e:i%3===1?0x435c72:0xc0b18f,.82);const torso=new THREE.Mesh(new THREE.CylinderGeometry(.12,.16,.42,8),coat);torso.position.y=.46;person.add(torso);const head=new THREE.Mesh(new THREE.SphereGeometry(.085,10,8),material(0xc89d7b));head.position.y=.72;person.add(head);const limbs=[];for(const side of [-1,1]){const arm=new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,.25,7),coat);arm.position.set(side*.13,.48,0);person.add(arm);const leg=new THREE.Mesh(new THREE.CylinderGeometry(.045,.055,.24,7),material(0x34414c));leg.position.set(side*.055,.19,0);person.add(leg);limbs.push({arm,leg,side});}person.userData.limbs=limbs;peopleGroup.add(person);}
+    for(let i=0;i<22;i++) peopleGroup.add(createCitizenAvatar(i, null));
     clock=new THREE.Clock();
     raycaster=new THREE.Raycaster();groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
     previewMarker=new THREE.Mesh(new THREE.RingGeometry(.55,.78,32),new THREE.MeshBasicMaterial({color:0xffd36e,side:THREE.DoubleSide}));previewMarker.rotation.x=-Math.PI/2;previewMarker.visible=false;scene.add(previewMarker);
@@ -150,16 +193,19 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const daylight=THREE.MathUtils.clamp(Math.sin(t*.035)*.5+.5,0,1),nightSky=new THREE.Color(0x101d35),daySky=new THREE.Color(0x9bb8c7);scene.background.lerpColors(nightSky,daySky,daylight);if(scene.fog)scene.fog.color.copy(scene.background);sunLight.intensity=.22+daylight*3.15;sunLight.position.set(Math.cos(t*.035)*25,Math.max(3,Math.sin(t*.035)*28),14);sunLight.color.setRGB(1,.72+daylight*.2,.52+daylight*.42);
     if(waterMesh){const attr=waterMesh.geometry.attributes.position;for(let i=0;i<attr.count;i++){const x=waterPositions[i*3],z=waterPositions[i*3+2];attr.array[i*3+1]=waterPositions[i*3+1]+Math.sin(x*.32+t*.65)*.055+Math.cos(z*.27-t*.48)*.04;}attr.needsUpdate=true;waterMesh.geometry.computeVertexNormals();}
     cloudGroup.children.forEach((cloud,i)=>{cloud.position.x+=.0012+Math.sin(t*.025+i)*.0005;if(cloud.position.x>24)cloud.position.x=-24;});
-    peopleGroup.children.forEach((p,i)=>{const a=t*.17+p.userData.phase,step=t*3+p.userData.phase;p.position.x=Math.cos(a)*p.userData.radius;p.position.z=Math.sin(a)*p.userData.radius;p.position.y=heightAt(p.position.x,p.position.z);p.rotation.y=-a;for(const limb of p.userData.limbs){const swing=Math.sin(step)*.42*limb.side;limb.arm.rotation.x=-swing;limb.leg.rotation.x=swing;}});
+    peopleGroup.children.forEach((p,i)=>{const a=t*(.12+.05*p.userData.walkFactor)+p.userData.phase,step=t*(2.1+1.2*p.userData.walkFactor)+p.userData.phase;p.position.x=Math.cos(a)*p.userData.radius;p.position.z=Math.sin(a)*p.userData.radius;p.position.y=heightAt(p.position.x,p.position.z);p.rotation.y=-a;for(const limb of p.userData.limbs){const swing=Math.sin(step)*.42*limb.side;limb.arm.rotation.x=-swing;limb.leg.rotation.x=swing;}});
     trafficVehicles.forEach(v=>{const p=(t*v.speed+v.phase)%1;const x=v.a.x+(v.b.x-v.a.x)*p,z=v.a.z+(v.b.z-v.a.z)*p;v.mesh.position.set(x,heightAt(x,z)+.055,z);v.mesh.rotation.y=Math.atan2(v.b.x-v.a.x,v.b.z-v.a.z);});
     renderer.render(scene,camera);
   }
   function update(state){
     if(!state)return;lastState=state;
+    syncCitizenPopulation(state.citizens||[]);
     const total=Object.values(state.buildings||{}).reduce((sum,n)=>sum+(Number(n)||0),0);
     const status=document.getElementById("world3d-status");if(status)status.textContent="TURN "+state.turn+" · "+total+" BUILDING LEVELS";
     const stats=document.getElementById("world3d-stats");
-    const zones=state.world?.placedDistricts||[];const zoneCount=zones.length;if(stats)stats.innerHTML=[["Citizens",state.nation.population],["Infrastructure",total+" levels"],["Districts",zoneCount+" zones"],["Traffic",trafficVehicles.length+" vehicles"],["Stability",state.nation.stability+"%"],["Territory", "1 island · 6 neighbors"]].map(([label,value])=>'<div class="world3d-stat"><b>'+String(value).replace(/[&<>]/g,"")+'</b><small>'+label+'</small></div>').join("");
+    const residents=Array.isArray(state.citizens)?state.citizens:[];
+    const averageMood=residents.length?Math.round(residents.reduce((sum,c)=>sum+(Number(c.mood)||0),0)/residents.length):0;
+    const zones=state.world?.placedDistricts||[];const zoneCount=zones.length;if(stats)stats.innerHTML=[["Citizens",state.nation.population],["3D Agents",residents.length+" · "+averageMood+"% mood"],["Infrastructure",total+" levels"],["Districts",zoneCount+" zones"],["Traffic",trafficVehicles.length+" vehicles"],["Stability",state.nation.stability+"%"],["Territory", "1 island · 6 neighbors"]].map(([label,value])=>'<div class="world3d-stat"><b>'+String(value).replace(/[&<>]/g,"")+'</b><small>'+label+'</small></div>').join("");
     if(!buildingGroup)return;
     clearGroup(buildingGroup);clearGroup(playerRoadGroup);clearGroup(districtGroup);clearGroup(trafficGroup);trafficVehicles.length=0;
     const roads=state.world?.placedRoads||[];roads.forEach((road,i)=>{makePlayerRoad(road.from,road.to);if(i<30){makeTrafficVehicle(road.from,road.to,i*2);makeTrafficVehicle(road.to,road.from,i*2+1);}});
