@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101827"><meta name="description" content="Build a nation, develop an economy, research technologies, expand territory and shape the world in KINGMAKER."><link rel="manifest" href="manifest.json">
-<title>KINGMAKER — World Engine v2.4</title>
+<title>KINGMAKER — World Engine v2.5</title>
 <style>
 :root{--bg:#0b1220;--panel:#121d30;--panel2:#18263d;--line:#2a3a55;--text:#edf3ff;--muted:#9fb0ca;--gold:#e7bd62;--green:#70d6a1;--red:#ff8d8d;--blue:#83b7ff}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#172843 0,#0b1220 58%);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
@@ -960,6 +960,67 @@ function runGameDiagnostics(){
  if($("qaCoverage"))$("qaCoverage").innerHTML='<div class="item"><div class="row"><span>Passed</span><b class="good">'+passed+'</b></div></div><div class="item"><div class="row"><span>Failed</span><b class="'+(failed?"bad":"good")+'">'+failed+'</b></div></div><div class="item"><div class="row"><span>Checked</span><b>'+results.length+'</b></div></div><p class="muted small">Diagnostics do not advance turns, spend resources, or modify the nation save.</p>';
  return {passed,failed,total:results.length,results};
 }
+/* KINGMAKER v2.5 — alliance council, trust and diplomatic obligations */
+state.allianceHistory=Array.isArray(state.allianceHistory)?state.allianceHistory:[];
+state.diplomaticTrust=state.diplomaticTrust&&typeof state.diplomaticTrust==="object"?state.diplomaticTrust:{};
+rivalNames.forEach(function(n){if(!Number.isFinite(Number(state.diplomaticTrust[n])))state.diplomaticTrust[n]=0;});
+function recordAllianceCouncil(n,kind,message){
+ state.allianceHistory.unshift({turn:state.turn,nation:n,kind:kind,message:message});
+ state.allianceHistory=state.allianceHistory.slice(0,30);
+ log(message);
+}
+function endAlliance(n){
+ if(!state.alliances.includes(n)){alert("No active alliance with "+n+".");return;}
+ if(!confirm("End the defensive alliance with "+n+"? Relations will fall by 12."))return;
+ state.alliances=state.alliances.filter(function(x){return x!==n;});
+ state.relations[n]=Math.max(-100,(Number(state.relations[n])||0)-12);
+ state.diplomaticTrust[n]=Math.max(-100,(Number(state.diplomaticTrust[n])||0)-8);
+ recordAllianceCouncil(n,"Alliance ended","The defensive alliance with "+n+" has ended. Relations and diplomatic trust declined.");
+ save();
+}
+function diplomaticSummit(n){
+ if(!rivalNames.includes(n)||state.conflicts[n]){alert("A summit requires a peaceful diplomatic partner.");return;}
+ if(state.alliances.includes(n)){alert("Your alliance is already active. Maintain it through cooperation.");return;}
+ if((Number(state.relations[n])||0)<25){alert("A summit requires relations of at least 25.");return;}
+ if(state.credits<50||state.influence<8){alert("A summit costs 50 credits and 8 influence.");return;}
+ state.credits-=50;state.influence-=8;
+ state.relations[n]=Math.min(100,(Number(state.relations[n])||0)+12);
+ state.diplomaticTrust[n]=Math.min(100,(Number(state.diplomaticTrust[n])||0)+15);
+ recordAllianceCouncil(n,"Summit","A diplomatic summit with "+n+" established a cooperation framework. Trust increased.");
+ save();
+}
+const formAllianceBeforeCouncil=formAlliance;
+formAlliance=function(n){
+ const trust=Number(state.diplomaticTrust[n])||0;
+ if((Number(state.relations[n])||0)<35){alert("A defensive alliance requires relations of at least 35.");return;}
+ if(trust<10){alert("A defensive alliance requires diplomatic trust of at least 10. Hold a summit first.");return;}
+ formAllianceBeforeCouncil(n);
+ if(state.alliances.includes(n)){
+  state.diplomaticTrust[n]=Math.min(100,trust+10);
+  recordAllianceCouncil(n,"Alliance signed","A defensive pact with "+n+" was ratified by both governments.");
+  save();
+ }
+};
+function allianceCouncilStatus(n){
+ if(state.conflicts[n])return "At war — diplomatic council suspended";
+ if(state.alliances.includes(n))return "Defensive pact active";
+ if((Number(state.relations[n])||0)>=25)return "Summit eligible";
+ return "Building diplomatic confidence";
+}
+const renderBeforeAllianceCouncil=render;
+render=function(){
+ renderBeforeAllianceCouncil();
+ const panel=$("embassyPanel");if(!panel)return;
+ const council=rivalNames.map(function(n){
+  const allied=state.alliances.includes(n),war=!!state.conflicts[n],rel=Number(state.relations[n])||0,trust=Number(state.diplomaticTrust[n])||0;
+  return '<div class="item"><div class="row"><b>'+esc(n)+' · Diplomatic council</b><span class="pill">'+esc(allianceCouncilStatus(n))+'</span></div><p class="small muted">Relationship '+rel+'/100 · Trust '+trust+'/100</p><div class="actions">'+(!war&&!allied&&rel>=25?'<button '+(state.credits<50||state.influence<8?'disabled':'')+' onclick="diplomaticSummit(\''+n+'\')">Host summit · 50 credits + 8 influence</button>':'')+(allied?'<button class="danger" onclick="endAlliance(\''+n+'\')">End alliance</button>':'')+'</div></div>';
+ }).join("");
+ panel.innerHTML+='<h3 class="gold">Alliance Council</h3><p class="muted small">Build trust through summits before negotiating a defensive pact. Alliances can be ended at any time.</p>'+council;
+ const history=$("diplomaticHistory");if(history&&state.allianceHistory.length){
+  history.innerHTML+='<h4 class="gold">Alliance council record</h4>'+state.allianceHistory.slice(0,6).map(function(x){return '<div class="logline"><b>Turn '+x.turn+' · '+esc(x.nation)+' · '+esc(x.kind)+'</b><br>'+esc(x.message)+'</div>';}).join("");
+ }
+};
+
 </script>
 </body>
 </html>
