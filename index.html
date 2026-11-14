@@ -24,7 +24,7 @@ footer{border-top:1px solid var(--line);padding:20px;text-align:center;color:var
 <body>
 <header><div class="brand"><div class="sigil">K</div><div><h1>KINGMAKER</h1><div class="tag">PLAY THE WORLD · BUILD THE FUTURE · OWN YOUR CREATION</div></div></div></header>
 <main>
-<section class="hero"><div><div class="eyebrow">WORLD ENGINE · PLAYABLE BUILD 1.4</div><h2>Your nation is only<br>the beginning.</h2><p>Build an economy, develop infrastructure, research technology, trade with rival nations and register original creator assets. The world advances when you advance it.</p></div><div class="actions"><button class="primary" onclick="advanceTurn()">Advance World ▸</button><button onclick="exportSave()">Export Save</button><button onclick="document.getElementById('importFile').click()">Import Save</button><input id="importFile" type="file" accept="application/json" class="hidden" onchange="importSave(event)"></div></section>
+<section class="hero"><div><div class="eyebrow">WORLD ENGINE · PLAYABLE BUILD 1.5</div><h2>Your nation is only<br>the beginning.</h2><p>Build an economy, develop infrastructure, research technology, trade with rival nations and register original creator assets. The world advances when you advance it.</p></div><div class="actions"><button class="primary" onclick="advanceTurn()">Advance World ▸</button><button onclick="exportSave()">Export Save</button><button onclick="document.getElementById('importFile').click()">Import Save</button><input id="importFile" type="file" accept="application/json" class="hidden" onchange="importSave(event)"></div></section>
 <div class="metrics" id="metrics"></div>
 <nav class="tabs">
 <button class="active" data-tab="overview">World Overview</button><button data-tab="nation">My Nation</button><button data-tab="market">Trade & Diplomacy</button><button data-tab="research">Research</button><button data-tab="director">AI World Director</button><button data-tab="military">Military & Treaties</button><button data-tab="studio">Creator Studio</button><button data-tab="history">World History</button><button data-tab="campaign">Campaign & Achievements</button><button data-tab="government">Citizens & Government</button><button data-tab="city">Capital City</button>
@@ -101,7 +101,7 @@ footer{border-top:1px solid var(--line);padding:20px;text-align:center;color:var
  <div class="card span-12"><h3>Rival City Intelligence</h3><p class="muted small">Estimated rival population and civic condition, based on the local simulation.</p><div id="rivalCities" class="grid"></div></div><div class="card span-12"><h3>Regional Power Trends</h3><p class="muted small">Track neighboring treasuries, food reserves and defence strength across recent world turns.</p><div id="rivalTrend" class="grid"></div></div>
 </section>
 </main>
-<footer>KINGMAKER WORLD ENGINE · PLAYABLE PROTOTYPE 1.4 · GAME CREDITS HAVE NO REAL-WORLD VALUE</footer>
+<footer>KINGMAKER WORLD ENGINE · PLAYABLE PROTOTYPE 1.5 · GAME CREDITS HAVE NO REAL-WORLD VALUE</footer>
 
 <script>
 const $=id=>document.getElementById(id);
@@ -746,6 +746,22 @@ advanceTurn=function(){advanceBeforeRivalHistory();recordRivalSnapshot();save();
 const renderBeforeRivalHistory=render;
 render=function(){renderBeforeRivalHistory();renderRivalTrends();};
 recordRivalSnapshot();
+
+/* KINGMAKER v1.5 — expanded city and logistics campaign */
+campaignGoals.push(
+ {id:"urbanist",name:"Capital of Tomorrow",desc:"Upgrade your capital to level 3.",test:()=>Number(state.cityLevel||1)>=3,reward:100},
+ {id:"roadbuilder",name:"Roads to Prosperity",desc:"Upgrade the capital road network to level 3.",test:()=>Number(state.roadLevel||0)>=3,reward:85},
+ {id:"regionalpower",name:"Regional Power",desc:"Bring eight territories under your control.",test:()=>Array.isArray(state.territories)&&state.territories.length>=8,reward:120},
+ {id:"civicheart",name:"Heart of the Nation",desc:"Build two Civic Centres in your capital.",test:()=>Number(state.cityDistricts&&state.cityDistricts.civic||0)>=2,reward:90}
+);
+const previousCampaignProgress=campaignProgress;
+campaignProgress=function(goal){
+ if(goal.id==="urbanist")return Math.min(Number(state.cityLevel||1),3)+"/3";
+ if(goal.id==="roadbuilder")return Math.min(Number(state.roadLevel||0),3)+"/3";
+ if(goal.id==="regionalpower")return Math.min((state.territories||[]).length,8)+"/8";
+ if(goal.id==="civicheart")return Math.min(Number(state.cityDistricts&&state.cityDistricts.civic||0),2)+"/2";
+ return previousCampaignProgress(goal);
+};
 </script>
 </body>
 </html>
