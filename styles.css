@@ -129,3 +129,7 @@ button{min-height:38px}
 /* Political pressure and public protest dashboard */
 .political-pressure { margin: 1rem 0; border-left: 3px solid var(--gold); }
 .political-pressure p { color: var(--muted); font-size: .82rem; line-height: 1.55; }
+
+.party-agenda { margin-top: .9rem; padding: .8rem; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.025); }
+.party-agenda strong { display: block; margin: .35rem 0; }
+.party-agenda p, .party-agenda small { color: var(--muted); font-size: .82rem; line-height: 1.5; }
