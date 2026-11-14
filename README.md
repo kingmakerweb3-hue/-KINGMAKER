@@ -60,6 +60,14 @@ This is a playable single-player prototype, not a finished online commercial rel
 - Online accounts, cloud saves, cross-device sync, live multiplayer, and hosted backend services are not implemented.
 - Service-worker offline support requires HTTPS or localhost hosting and should be verified after deployment.
 
+## World Engine 1.6 — National exchange
+
+- Added a National Exchange tab for food, materials, and power.
+- Players can buy or sell quantities up to 1,000 units per transaction.
+- Market prices adjust based on national reserves and are bounded by defined price bands.
+- Trades validate treasury or stock, settle immediately, and create a 20-entry local ledger.
+- This is an in-game simulation only; no real money or cryptocurrency payments are used.
+
 ## World Engine 1.5 — Expanded campaign progression
 
 - Added four campaign milestones for capital development, roads, territorial expansion, and civic investment.
