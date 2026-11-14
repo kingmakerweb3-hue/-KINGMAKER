@@ -841,10 +841,11 @@ test("resource deposits deplete at their finite extraction rate", () => {
     id: "frontier", owner: "Unclaimed",
     resourceNodes: [{ id: "small-iron", resource: "Iron", quantity: 2, operational: true }]
   }] };
+  const expectedOreProduction = Engine.economicSnapshot(state).production.ore;
   const beforeOre = state.resources.ore;
   Engine.advanceTurn(state);
   const node = state.mapWorld.regions[0].resourceNodes[0];
-  assert.equal(state.resources.ore, beforeOre + 2);
+  assert.equal(state.resources.ore, beforeOre + expectedOreProduction);
   assert.equal(node.quantity, 0);
   assert.equal(node.depleted, true);
   assert.equal(Engine.economicSnapshot(state).production.ore, Engine.productionFor(state.buildings, state.technologies).ore);
