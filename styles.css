@@ -111,3 +111,8 @@ button{min-height:38px}
 .web3-facts>div{padding:12px;border:1px solid var(--line);border-radius:10px;background:#0d1727}
 .web3-facts small,.web3-facts b{display:block}.web3-facts small{color:var(--muted);font-size:10px}.web3-facts b{font-size:12px;margin-top:5px}
 @media(max-width:760px){.web3-hero{grid-template-columns:1fr}.web3-connect{justify-content:flex-start}.web3-catalog{grid-template-columns:1fr}.web3-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* National policy controls */
+.policy-list{display:grid;gap:9px}.policy-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--line);border-radius:11px;background:#0d1727}.policy-card p{margin:5px 0;color:var(--muted);font-size:12px}.policy-card small{color:var(--gold);font-size:10px}.policy-card button{flex-shrink:0}.policy-card button:disabled{opacity:.65;cursor:default}
+@media(max-width:760px){.policy-card{align-items:flex-start;flex-direction:column}.policy-card button{width:100%}}
