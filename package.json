@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node src/server.js",
     "test": "node --test",
-    "check": "node --check src/engine.js && node --check src/app.js && node --check src/server.js && node --check tests/engine.test.js"
+    "check": "node --check src/engine.js && node --check src/world3d.js && node --check src/app.js && node --check src/server.js && node --check tests/engine.test.js && node --check tests/world3d.test.js"
   },
   "engines": {
     "node": ">=20"

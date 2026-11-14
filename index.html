@@ -8,6 +8,7 @@
   <title>KINGMAKER — World Engine v1.0</title>
   <link rel="stylesheet" href="styles.css">
   <script defer src="src/engine.js"></script>
+  <script defer src="src/world3d.js"></script>
   <script defer src="src/app.js"></script>
 </head>
 <body>
@@ -36,6 +37,7 @@
     </nav>
     <section id="panel-overview" class="tab-panel grid" role="tabpanel" aria-labelledby="tab-overview" tabindex="0">
       <article class="panel span-8"><div class="panel-heading"><div><p class="eyebrow">THE KNOWN WORLD</p><h2>Regional map</h2></div><span class="tag">STRATEGIC VIEW</span></div><div id="world-map" class="world-map"></div><div id="map-legend" class="map-legend"></div></article>
+      <article class="panel span-12"><div class="panel-heading"><div><p class="eyebrow">PROCEDURAL PLANET</p><h2>3D world generator</h2></div><span class="tag">DRAG TO ROTATE · SCROLL TO ZOOM</span></div><div class="planet-layout"><canvas id="planet-canvas" class="planet-canvas" aria-label="Interactive three-dimensional procedural planet"></canvas><div class="planet-side"><div class="planet-stat"><span>World seed</span><b id="world-seed">—</b></div><button id="regenerate-world" type="button">Generate new world</button><div class="planet-stat"><span>Generated regions</span><b id="region-count">—</b></div><div class="planet-stat"><span>Known nations</span><b id="generated-nations">—</b></div><p class="muted">Click a region to inspect it. Gold lines show regional borders; colored points show settlements and resource deposits. Drag to rotate and scroll to zoom.</p><div id="generated-region-list" class="generated-region-list"></div><section id="generated-region-detail" class="generated-region-detail" aria-live="polite"><b>Select a region</b><p class="muted">Choose a generated region to inspect its settlements and resources.</p></section></div></div></article>
       <article class="panel span-12"><div class="panel-heading"><div><p class="eyebrow">WORLD WATCH</p><h2>Living events</h2></div><span class="tag">AFFECTS PRODUCTION · MARKETS · DIPLOMACY</span></div><div id="world-events" class="world-events"></div></article>
       <article class="panel span-4"><p class="eyebrow">NATIONAL OUTLOOK</p><h2>World intelligence</h2><div class="intel-line"><span>Stability</span><b id="stability-value">80%</b></div><div class="meter"><i id="stability-bar"></i></div><div id="production-summary" class="production-summary"></div><div class="notice">A turn advances your economy, rival decisions, world prices, diplomacy, and events.</div></article>
       <article class="panel span-12"><div class="panel-heading"><div><p class="eyebrow">LOCAL SIMULATION</p><h2>World Director</h2></div><button id="director-run">Assess my nation</button></div><div id="director-advice" class="advice-grid"></div></article>
