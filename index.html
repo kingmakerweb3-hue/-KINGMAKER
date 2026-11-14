@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101827"><meta name="description" content="Build a nation, develop an economy, research technologies, expand territory and shape the world in KINGMAKER."><link rel="manifest" href="manifest.json">
-<title>KINGMAKER — World Engine v2.1</title>
+<title>KINGMAKER — World Engine v2.2</title>
 <style>
 :root{--bg:#0b1220;--panel:#121d30;--panel2:#18263d;--line:#2a3a55;--text:#edf3ff;--muted:#9fb0ca;--gold:#e7bd62;--green:#70d6a1;--red:#ff8d8d;--blue:#83b7ff}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#172843 0,#0b1220 58%);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
@@ -24,7 +24,7 @@ footer{border-top:1px solid var(--line);padding:20px;text-align:center;color:var
 <body>
 <header><div class="brand"><div class="sigil">K</div><div><h1>KINGMAKER</h1><div class="tag">PLAY THE WORLD · BUILD THE FUTURE · OWN YOUR CREATION</div></div></div></header>
 <main>
-<section class="hero"><div><div class="eyebrow">WORLD ENGINE · PLAYABLE BUILD 2.1</div><h2>Your nation is only<br>the beginning.</h2><p>Build an economy, develop infrastructure, research technology, trade with rival nations and register original creator assets. The world advances when you advance it.</p></div><div class="actions"><button class="primary" onclick="advanceTurn()">Advance World ▸</button><button onclick="exportSave()">Export Save</button><button onclick="document.getElementById('importFile').click()">Import Save</button><input id="importFile" type="file" accept="application/json" class="hidden" onchange="importSave(event)"></div></section>
+<section class="hero"><div><div class="eyebrow">WORLD ENGINE · PLAYABLE BUILD 2.2</div><h2>Your nation is only<br>the beginning.</h2><p>Build an economy, develop infrastructure, research technology, trade with rival nations and register original creator assets. The world advances when you advance it.</p></div><div class="actions"><button class="primary" onclick="advanceTurn()">Advance World ▸</button><button onclick="exportSave()">Export Save</button><button onclick="document.getElementById('importFile').click()">Import Save</button><input id="importFile" type="file" accept="application/json" class="hidden" onchange="importSave(event)"></div></section>
 <div class="metrics" id="metrics"></div>
 <nav class="tabs">
 <button class="active" data-tab="overview">World Overview</button><button data-tab="nation">My Nation</button><button data-tab="market">Trade & Diplomacy</button><button data-tab="research">Research</button><button data-tab="director">AI World Director</button><button data-tab="military">Military & Treaties</button><button data-tab="studio">Creator Studio</button><button data-tab="history">World History</button><button data-tab="campaign">Campaign & Achievements</button><button data-tab="quality">Quality Console</button><button data-tab="government">Citizens & Government</button><button data-tab="city">Capital City</button>
@@ -43,7 +43,7 @@ footer{border-top:1px solid var(--line);padding:20px;text-align:center;color:var
 </section>
 <section id="market" class="tab grid hidden">
 <div class="card span-6"><h3>Open Market</h3><p class="muted small">Trade resources at simulated world prices. NPC demand shifts over time.</p><div id="marketItems" class="stack"></div></div>
-<div class="card span-6"><h3>Diplomatic Relations</h3><div id="diplomacy" class="stack"></div><div class="notice">Diplomacy is a prototype simulation, not a real political or financial service.</div></div>
+<div class="card span-6"><h3>Diplomatic Relations</h3><div id="diplomacy" class="stack"></div><div class="notice">Diplomacy is a prototype simulation, not a real political or financial service.</div></div><div class="card span-6"><h3>Embassy & Diplomatic Missions</h3><p class="muted small">Build trust through envoys, humanitarian aid and research cooperation. Missions use simulated game resources.</p><div id="embassyPanel" class="stack"></div><div id="diplomaticHistory" class="log"></div></div>
 <div class="card span-12"><h3>Trade Agreements</h3><p class="muted small">Negotiate five-turn economic pacts with neighboring nations. Active pacts provide recurring in-game benefits.</p><div id="tradePacts" class="stack"></div></div>
 <div class="card span-12"><div class="row"><h3>National Exchange</h3><span class="pill">LOCAL RESOURCE MARKET</span></div><p class="muted small">Buy or sell food, materials and power. Prices react to your national reserves. Trades use simulated game credits only.</p><div id="marketBoard" class="trade-board"></div><div id="marketSummary" class="stack" style="margin-top:12px"></div></div><div class="card span-12"><h3>Exchange Ledger</h3><div id="marketLedger" class="log"></div></div></section>
 <section id="research" class="tab grid hidden">
@@ -101,7 +101,7 @@ footer{border-top:1px solid var(--line);padding:20px;text-align:center;color:var
  <div class="card span-12"><h3>Rival City Intelligence</h3><p class="muted small">Estimated rival population and civic condition, based on the local simulation.</p><div id="rivalCities" class="grid"></div></div><div class="card span-12"><h3>Regional Power Trends</h3><p class="muted small">Track neighboring treasuries, food reserves and defence strength across recent world turns.</p><div id="rivalTrend" class="grid"></div></div>
 </section>
 </main>
-<footer>KINGMAKER WORLD ENGINE · PLAYABLE PROTOTYPE 2.1 · GAME CREDITS HAVE NO REAL-WORLD VALUE</footer>
+<footer>KINGMAKER WORLD ENGINE · PLAYABLE PROTOTYPE 2.2 · GAME CREDITS HAVE NO REAL-WORLD VALUE</footer>
 
 <script>
 const $=id=>document.getElementById(id);
@@ -960,3 +960,43 @@ function runGameDiagnostics(){
 </script>
 </body>
 </html>
+
+/* KINGMAKER v2.2 — embassy missions and relationship intelligence */
+state.diplomaticHistory=Array.isArray(state.diplomaticHistory)?state.diplomaticHistory:[];
+function diplomaticRecord(n,mission,message){
+ state.diplomaticHistory.unshift({turn:state.turn,nation:n,mission:mission,message:message});
+ state.diplomaticHistory=state.diplomaticHistory.slice(0,30);log(message);
+}
+function diplomaticMission(n,mission){
+ if(!rivalNames.includes(n)){alert("Unknown diplomatic partner.");return;}
+ if(state.conflicts&&state.conflicts[n]){alert("You cannot conduct this mission while at war. Negotiate peace first.");return;}
+ const relation=Number(state.relations[n])||0;
+ if(mission==="envoy"){
+  if(state.credits<30){alert("An envoy mission costs 30 credits.");return;}
+  state.credits-=30;state.relations[n]=Math.min(100,relation+6);state.influence+=2;
+  diplomaticRecord(n,"Envoy","Your envoy opened formal talks with "+n+". Relations improved by 6.");
+ }else if(mission==="aid"){
+  if(state.credits<35||state.food<15){alert("Humanitarian aid requires 35 credits and 15 food.");return;}
+  state.credits-=35;state.food-=15;state.relations[n]=Math.min(100,relation+9);state.stability=Math.min(100,state.stability+2);state.influence+=3;
+  diplomaticRecord(n,"Humanitarian aid","Humanitarian supplies reached "+n+". Relations improved by 9.");
+ }else if(mission==="research"){
+  if(state.research<20){alert("Research cooperation requires 20 research points.");return;}
+  if(relation<10){alert("Research cooperation requires relations of at least 10.");return;}
+  state.research-=20;state.relations[n]=Math.min(100,relation+7);state.influence+=8;
+  diplomaticRecord(n,"Research exchange","A research exchange with "+n+" strengthened scientific ties. Relations improved by 7.");
+ }else return;
+ save();
+}
+function diplomaticStanding(value){
+ if(value>=75)return "Trusted partner";if(value>=40)return "Friendly";
+ if(value>=10)return "Constructive";if(value>=-20)return "Cautious";return "Strained";
+}
+const renderBeforeEmbassy=render;
+render=function(){
+ renderBeforeEmbassy();const panel=$("embassyPanel");if(!panel)return;
+ panel.innerHTML=rivalNames.map(n=>{
+  const rel=Number(state.relations[n])||0,war=!!(state.conflicts&&state.conflicts[n]),disabled=war?" disabled":"";
+  return '<div class="item"><div class="row"><b>'+esc(n)+'</b><span class="pill">'+diplomaticStanding(rel)+'</span></div><p class="small muted">Relationship '+rel+'/100 · '+(war?'Missions suspended during war.':'Choose a mission to improve cooperation.')+'</p><div class="actions"><button'+disabled+' onclick="diplomaticMission(\''+n+'\',\'envoy\')">Send envoy · 30 credits</button><button'+disabled+' onclick="diplomaticMission(\''+n+'\',\'aid\')">Humanitarian aid · 35 credits + 15 food</button><button'+disabled+' onclick="diplomaticMission(\''+n+'\',\'research\')">Research exchange · 20 research</button></div></div>';
+ }).join("");
+ $("diplomaticHistory").innerHTML=state.diplomaticHistory.length?state.diplomaticHistory.slice(0,8).map(x=>'<div class="logline"><b>Turn '+x.turn+' · '+esc(x.nation)+' · '+esc(x.mission)+'</b><br>'+esc(x.message)+'</div>').join(""):'<p class="muted small">No diplomatic missions recorded yet.</p>';
+};
