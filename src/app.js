@@ -132,7 +132,7 @@
   function renderDirectorCitizens() {
     const citizens=state.citizens||[];
     const avg=citizens.length?Math.round(citizens.reduce((sum,c)=>sum+c.mood,0)/citizens.length):0;
-    const responsive=citizens.filter(c=>c.activity!=="working").length;
+    const responsive=citizens.filter(c=>Object.values(c.needs).some(value=>value<35)).length;
     const rows=citizens.slice(0,8).map(c=>'<div class="citizen-row"><strong>'+esc(c.name)+'</strong><span>'+esc(c.role)+'</span><span>'+esc(c.activity)+'</span><b>'+c.mood+'% mood</b></div>').join("");
     const host=$("director-citizens");
     if(host) host.innerHTML='<section class="intel-panel"><div class="section-heading"><div><span class="eyebrow">CIVILIAN AGENTS</span><h3>Living population</h3></div><strong>'+citizens.length+' agents · '+avg+'% average mood</strong></div><p>'+responsive+' agents currently responding to unmet needs. Each agent retains a short personal memory across turns.</p><div class="citizen-list">'+rows+'</div></section>';
