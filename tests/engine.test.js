@@ -813,9 +813,10 @@ test("unclaimed regional deposits can be developed and feed the national economy
   assert.equal(state.resources.materials, beforeMaterials - 35);
   assert.equal(state.resources.credits, beforeCredits - 55);
   assert.equal(Engine.economicSnapshot(state).production.ore, Engine.productionFor(state.buildings, state.technologies).ore + 4);
+  const expectedOreProduction = Engine.economicSnapshot(state).production.ore;
   const beforeOre = state.resources.ore;
   Engine.advanceTurn(state);
-  assert.equal(state.resources.ore, beforeOre + 4);
+  assert.equal(state.resources.ore, beforeOre + expectedOreProduction);
   const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
   assert.equal(restored.mapWorld.regions[0].resourceNodes[0].operational, true);
 });
