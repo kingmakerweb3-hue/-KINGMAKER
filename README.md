@@ -3,11 +3,13 @@
 
 KINGMAKER is a browser-based nation-building and world-strategy game prototype. Build an economy, develop infrastructure, research technology, manage rival nations, expand territory, form alliances, wage simulated campaigns, and shape a national legacy.
 
-## Current build: World Engine 1.0
+## Current build: World Engine 1.1
 
 ### Playable systems
 - **Nation management** — name your nation and choose a government style.
 - **Citizens & government** — track public happiness, population growth, housing capacity, tax revenue, and migration.
+- **Capital city development** — expand the capital through residential, industrial, commercial, civic, and research districts; upgrade the capital to unlock more development plots.
+- **Rival city intelligence** — inspect simulated rival population estimates, civic mood, treasury, and food reserves.
 - **Taxation** — set a 5%–25% tax rate; higher rates increase revenue but can reduce happiness and population growth.
 - **Government policies** — choose Balanced Administration, Public Works, Food Security, Research Grants, Open Trade, Civic Services, or National Service, each with distinct trade-offs.
 - **Economy** — manage food, materials, credits, population, stability, power, and influence.
