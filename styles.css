@@ -57,3 +57,17 @@ button{min-height:38px}
   .event-choice button{min-height:46px}
   .world-map{touch-action:pan-y}
 }
+
+/* Procedural 3D world */
+.planet-layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(250px,1fr);gap:18px;align-items:stretch;margin-top:14px}
+.planet-canvas{display:block;width:100%;height:410px;min-height:300px;border:1px solid #29425e;border-radius:14px;background:radial-gradient(ellipse at 50% 45%,#17314a,#07111e 72%);cursor:grab;touch-action:pan-y}
+.planet-canvas:active{cursor:grabbing}
+.planet-side{display:flex;flex-direction:column;gap:10px;min-width:0}
+.planet-stat{display:flex;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#0d1727}
+.planet-stat span,.generated-region span,.generated-region small{color:var(--muted);font-size:11px}
+.planet-stat b{color:var(--gold)}
+.generated-region-list{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.generated-region{display:grid;gap:3px;padding:9px;border:1px solid var(--line);border-radius:9px;background:#0d1727;min-width:0}
+.generated-region b{font-size:11px}.generated-region span,.generated-region small{font-size:9px;overflow-wrap:anywhere}
+@media(max-width:760px){.planet-layout{grid-template-columns:1fr}.planet-canvas{height:330px;min-height:260px}.generated-region-list{grid-template-columns:1fr 1fr}}
+@media(max-width:420px){.generated-region-list{grid-template-columns:1fr}}
