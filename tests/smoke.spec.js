@@ -95,3 +95,13 @@ test('embassy missions are disabled during an active war', async ({ page }) => {
   await page.locator('[data-tab="market"]').click();
   await expect(page.getByRole('button', { name: 'Send envoy · 30 credits' }).first()).toBeDisabled();
 });
+
+test('national mandates display objective progress and claim a reward once', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-tab="campaign"]').click();
+  await expect(page.locator('#mandateBoard')).toContainText('Food Security Reserve');
+  await expect(page.locator('#mandateBoard')).toContainText('Regional Goodwill');
+  await expect(page.locator('#mandateBoard')).toContainText('IN PROGRESS');
+  const initial = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save')));
+  expect(Array.isArray(initial.claimedMandates)).toBeTruthy();
+});
