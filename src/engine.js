@@ -1287,6 +1287,9 @@
     }, state.buildings, state.technologies, state.nation.population);
     const output = industry.production;
     for (const [resource, amount] of Object.entries(creator.production)) output[resource] += amount;
+    const regionalOutput = { food: 0, materials: 0, ore: 0, goods: 0, science: 0, power: 0, credits: 0, influence: 0 };
+    for (const region of state.territories) if (region.owner === "player" && Object.prototype.hasOwnProperty.call(regionalOutput, region.bonus)) regionalOutput[region.bonus] += region.value;
+    for (const resource of ["food", "materials", "ore", "goods", "science", "power"]) output[resource] += regionalOutput[resource];
     if (worldEventActiveThisTurn(state, "industrial_revolution")) output.goods = Math.floor(output.goods * 1.3);
     for (const resource of ["food", "materials", "ore", "goods", "science", "power"]) {
       state.resources[resource] = clamp(state.resources[resource] + output[resource], 0, RESOURCE_LIMIT);
@@ -1297,10 +1300,10 @@
     const activeTreaties = state.diplomacy.treaties.filter(t => t.status === "active");
     const taxIncome = Math.floor(state.nation.population / 20);
     const tradeIncome = activeTreaties.filter(t => t.kind === "trade").length * 5;
-    let income = clamp(output.credits + taxIncome + tradeIncome, 0, RESOURCE_LIMIT);
+    let income = clamp(output.credits + regionalOutput.credits + taxIncome + tradeIncome, 0, RESOURCE_LIMIT);
     if (worldEventActiveThisTurn(state, "financial_crisis")) income = Math.floor(income * 0.75);
     state.resources.science = clamp(state.resources.science + activeTreaties.filter(t => t.kind === "research").length * 2, 0, RESOURCE_LIMIT);
-    state.resources.influence = clamp(state.resources.influence + activeTreaties.filter(t => t.kind === "alliance").length + creator.influence, 0, RESOURCE_LIMIT);
+    state.resources.influence = clamp(state.resources.influence + activeTreaties.filter(t => t.kind === "alliance").length + creator.influence + regionalOutput.influence, 0, RESOURCE_LIMIT);
     const wageExpense = Math.ceil(employed / 10 * (worldEventActiveThisTurn(state, "financial_crisis") ? 1.15 : 1) * (hasTech(state, "urbanism") ? 0.9 : 1));
     state.resources.credits = clamp(state.resources.credits + income - wageExpense, 0, RESOURCE_LIMIT);
     const previousPhase = state.economy.phase;
