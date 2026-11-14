@@ -1,0 +1,15 @@
+{
+  "name": "KINGMAKER — Build Your Nation",
+  "short_name": "KINGMAKER",
+  "description": "A nation-building and world strategy game.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#101827",
+  "orientation": "any",
+  "categories": [
+    "games",
+    "strategy"
+  ]
+}
