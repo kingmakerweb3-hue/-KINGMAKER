@@ -622,6 +622,25 @@
       credits: counts.commercial * 4
     }, populationGrowth: counts.residential };
   }
+  function roadEffects(state) {
+    const roads = state.world?.placedRoads || [];
+    const districts = state.world?.placedDistricts || [];
+    const connected = new Set();
+    for (const road of roads) {
+      if (!road?.from || !road?.to) continue;
+      const dx = road.to.x - road.from.x, dz = road.to.z - road.from.z;
+      const lengthSq = dx * dx + dz * dz;
+      for (let i = 0; i < districts.length; i++) {
+        const d = districts[i];
+        if (!d || !Number.isFinite(d.x) || !Number.isFinite(d.z)) continue;
+        const t = Math.max(0, Math.min(1, ((d.x - road.from.x) * dx + (d.z - road.from.z) * dz) / lengthSq));
+        const px = road.from.x + t * dx, pz = road.from.z + t * dz;
+        if (Math.hypot(d.x - px, d.z - pz) <= (d.radius || 2.6) + 0.8) connected.add(i);
+      }
+    }
+    const count = connected.size;
+    return { connectedDistricts: count, logistics: Math.min(5, count), production: { credits: count * 2 } };
+  }
   function economicSnapshot(state) {
     const jobs = workforceFor(state.buildings);
     const employed = Math.min(jobs, state.nation.population);
@@ -636,6 +655,9 @@
     for (const [resource, amount] of Object.entries(creator.production)) industry.production[resource] += amount;
     const districts = districtEffects(state);
     for (const [resource, amount] of Object.entries(districts.production)) industry.production[resource] += amount;
+    const roads = roadEffects(state);
+    industry.production.logistics += roads.logistics;
+    for (const [resource, amount] of Object.entries(roads.production)) industry.production[resource] += amount;
     return { production: industry.production, consumption: { food: Math.ceil(state.nation.population / (12 + Math.min(8, industry.production.logistics))), ...industry.inputs },
       workforce: jobs, employed, requiredJobs: Math.ceil(state.nation.population / 10), activeFactories: industry.activeFactories };
   }
@@ -1215,6 +1237,9 @@
     for (const [resource, amount] of Object.entries(creator.production)) output[resource] += amount;
     const districts = districtEffects(state);
     for (const [resource, amount] of Object.entries(districts.production)) output[resource] += amount;
+    const roads = roadEffects(state);
+    output.logistics += roads.logistics;
+    for (const [resource, amount] of Object.entries(roads.production)) output[resource] += amount;
     if (worldEventActiveThisTurn(state, "industrial_revolution")) output.goods = Math.floor(output.goods * 1.3);
     for (const resource of ["food", "materials", "ore", "goods", "science", "power"]) {
       state.resources[resource] = clamp(state.resources[resource] + output[resource], 0, RESOURCE_LIMIT);
@@ -1342,7 +1367,7 @@
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
     createInitialState, validateSave, migrateSave, productionFor, build, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
-    creatorProgress, creatorProfiles, creatorDemand, districtEffects,
+    creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
     exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech
   };
