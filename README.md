@@ -60,6 +60,14 @@ This is a playable single-player prototype, not a finished online commercial rel
 - Online accounts, cloud saves, cross-device sync, live multiplayer, and hosted backend services are not implemented.
 - Service-worker offline support requires HTTPS or localhost hosting and should be verified after deployment.
 
+## World Engine 1.9 — Victory paths and endgame
+
+- Added four optional victory paths: Economic Supremacy, Military Dominance, Diplomatic Unity, and Scientific Renaissance.
+- Each path has explicit measurable requirements and can be claimed once its requirements are met.
+- Victory records preserve turn, date, treasury, population, territory count, and researched technologies.
+- The Campaign tab displays progress, claim status, and a Hall of Victories.
+- Players may continue in sandbox mode after earning a victory; there is no forced game over.
+
 ## World Engine 1.8 — Save migration and protection
 
 - Save exports now use a versioned KINGMAKER save envelope with export timestamp and state.
