@@ -869,3 +869,23 @@ test("generated map data is validated and safely retained in save files", () => 
   duplicate.mapWorld.regions[0].cities.push({ ...duplicate.mapWorld.regions[0].cities[0] });
   assert.throws(() => Engine.validateSave(duplicate), /settlement data/);
 });
+
+
+test("regional roads connect settlements, cost resources and improve logistics", () => {
+  const state = Engine.createInitialState({ seed: 817 });
+  state.mapWorld = { version: 2, seed: state.seed, regions: [{
+    id: "road-region", name: "Road Region", development: 10,
+    cities: [{ id: "a", name: "A" }, { id: "b", name: "B" }, { id: "c", name: "C" }]
+  }] };
+  const beforeMaterials = state.resources.materials, beforeCredits = state.resources.credits;
+  const beforeLogistics = Engine.economicSnapshot(state).production.logistics;
+  const road = Engine.buildRegionalRoad(state, "road-region");
+  assert.deepEqual([road.from, road.to], ["a", "b"]);
+  assert.equal(state.resources.materials, beforeMaterials - 25);
+  assert.equal(state.resources.credits, beforeCredits - 40);
+  assert.equal(Engine.economicSnapshot(state).production.logistics, beforeLogistics + 2);
+  assert.equal(state.mapWorld.regions[0].development, 12);
+  assert.throws(() => Engine.buildRegionalRoad(state, "missing"), /Region not found/);
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(restored.mapWorld.regions[0].roads, state.mapWorld.regions[0].roads);
+});
