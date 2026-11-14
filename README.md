@@ -1,3 +1,11 @@
+## World Engine 2.1 — Legacy save recovery
+
+- Hardened the first-load save reader so incomplete older saves receive safe defaults before the first render.
+- Preserves valid legacy progress while filling missing building, price, relationship, NPC, technology and event data.
+- Handles malformed or unreadable browser storage by starting a fresh nation instead of crashing at startup.
+- Added two Chromium tests for legacy-save migration and malformed-save recovery.
+- Updated the PWA cache and visible build version to 2.1.
+
 # KINGMAKER
 ### Play the World. Build the Future. Own Your Creation.
 
