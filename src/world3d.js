@@ -35,7 +35,28 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     buildingGroup.add(g);
   }
   function clearGroup(group){while(group.children.length){const obj=group.children.pop();obj.traverse?.(o=>{o.geometry?.dispose();if(Array.isArray(o.material))o.material.forEach(m=>m.dispose());else o.material?.dispose();});}}
-  function makeDistrict(d){const colors={residential:0x65b9a0,commercial:0xe4bd65,industrial:0x8c9bb3,agricultural:0x8dbb68};const mat=new THREE.MeshBasicMaterial({color:colors[d.type]||0xffffff,transparent:true,opacity:.19,side:THREE.DoubleSide,depthWrite:false});const ring=new THREE.Mesh(new THREE.CircleGeometry(d.radius,48),mat);ring.rotation.x=-Math.PI/2;ring.position.set(d.x,heightAt(d.x,d.z)+.075,d.z);districtGroup.add(ring);const edge=new THREE.Mesh(new THREE.RingGeometry(d.radius-.055,d.radius,48),new THREE.MeshBasicMaterial({color:colors[d.type]||0xffffff,transparent:true,opacity:.8,side:THREE.DoubleSide}));edge.rotation.x=-Math.PI/2;edge.position.set(d.x,heightAt(d.x,d.z)+.09,d.z);districtGroup.add(edge);}
+  function makeDistrict(d){
+    const colors={residential:0x65b9a0,commercial:0xe4bd65,industrial:0x8c9bb3,agricultural:0x8dbb68};
+    const color=colors[d.type]||0xffffff;
+    const mat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.19,side:THREE.DoubleSide,depthWrite:false});
+    const ring=new THREE.Mesh(new THREE.CircleGeometry(d.radius,48),mat);ring.rotation.x=-Math.PI/2;ring.position.set(d.x,heightAt(d.x,d.z)+.075,d.z);districtGroup.add(ring);
+    const edge=new THREE.Mesh(new THREE.RingGeometry(d.radius-.055,d.radius,48),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.8,side:THREE.DoubleSide}));edge.rotation.x=-Math.PI/2;edge.position.set(d.x,heightAt(d.x,d.z)+.09,d.z);districtGroup.add(edge);
+    const detail=new THREE.Group();detail.position.set(d.x,heightAt(d.x,d.z)+.1,d.z);districtGroup.add(detail);
+    const addBox=(x,z,w,h,depth,tint,roof=true)=>{const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,depth),material(tint));b.position.set(x,h/2,z);detail.add(b);if(roof){const r=new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,depth)*.72,.28,4),material(0x43596a));r.position.set(x,h+.12,z);r.rotation.y=Math.PI/4;detail.add(r);}};
+    if(d.type==="residential"){
+      [[-.8,-.65],[.75,-.55],[0,.8]].forEach((p,i)=>addBox(p[0],p[1],.58,.62+(i%2)*.12,.58,0xd8c6a6));
+      const tree=new THREE.Mesh(new THREE.SphereGeometry(.3,7,6),material(0x56865c));tree.position.set(1.05,.42,.95);detail.add(tree);
+    }else if(d.type==="commercial"){
+      [[-.72,-.45],[.65,-.4],[0,.72]].forEach((p,i)=>{const h=1.15+i*.38;const tower=new THREE.Mesh(new THREE.BoxGeometry(.62,h,.62),material(i===1?0xc6d4d8:0xb7a16e));tower.position.set(p[0],h/2,p[1]);detail.add(tower);});
+    }else if(d.type==="industrial"){
+      addBox(-.45,0,1.05,.72,.85,0x718394,false);
+      for(let i=0;i<2;i++){const stack=new THREE.Mesh(new THREE.CylinderGeometry(.1,.13,.95,7),material(0x555f68));stack.position.set(.25+i*.35,.95,-.12);detail.add(stack);}
+    }else if(d.type==="agricultural"){
+      for(let row=0;row<4;row++){const crop=new THREE.Mesh(new THREE.BoxGeometry(1.55,.045,.12),material(0x668f4e));crop.position.set(0,.08,(row-1.5)*.36);detail.add(crop);}
+      const barn=new THREE.Mesh(new THREE.BoxGeometry(.55,.48,.5),material(0x9a6547));barn.position.set(.82,.24,.72);detail.add(barn);
+      const roof=new THREE.Mesh(new THREE.ConeGeometry(.48,.3,4),material(0x704a38));roof.position.set(.82,.62,.72);roof.rotation.y=Math.PI/4;detail.add(roof);
+    }
+  }
   function makePlayerRoad(a,b){const curve=new THREE.LineCurve3(new THREE.Vector3(a.x,heightAt(a.x,a.z)+.06,a.z),new THREE.Vector3(b.x,heightAt(b.x,b.z)+.06,b.z));const mesh=new THREE.Mesh(new THREE.TubeGeometry(curve,24,.09,6,false),material(0xd7c39b));playerRoadGroup.add(mesh);}
   function makeRoad(points){
     const curve=new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(p[0],heightAt(p[0],p[1])+.035,p[1])));
@@ -98,7 +119,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const total=Object.values(state.buildings||{}).reduce((sum,n)=>sum+(Number(n)||0),0);
     const status=document.getElementById("world3d-status");if(status)status.textContent="TURN "+state.turn+" · "+total+" BUILDING LEVELS";
     const stats=document.getElementById("world3d-stats");
-    if(stats)stats.innerHTML=[["Citizens",state.nation.population],["Infrastructure",total+" levels"],["Stability",state.nation.stability+"%"],["Territory", "1 island · 6 neighbors"]].map(([label,value])=>'<div class="world3d-stat"><b>'+String(value).replace(/[&<>]/g,"")+'</b><small>'+label+'</small></div>').join("");
+    const zones=state.world?.placedDistricts||[];const zoneCount=zones.length;if(stats)stats.innerHTML=[["Citizens",state.nation.population],["Infrastructure",total+" levels"],["Districts",zoneCount+" zones"],["Stability",state.nation.stability+"%"],["Territory", "1 island · 6 neighbors"]].map(([label,value])=>'<div class="world3d-stat"><b>'+String(value).replace(/[&<>]/g,"")+'</b><small>'+label+'</small></div>').join("");
     if(!buildingGroup)return;
     clearGroup(buildingGroup);clearGroup(playerRoadGroup);clearGroup(districtGroup);
     (state.world?.placedRoads||[]).forEach(road=>makePlayerRoad(road.from,road.to));
