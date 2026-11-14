@@ -60,6 +60,13 @@ This is a playable single-player prototype, not a finished online commercial rel
 - Online accounts, cloud saves, cross-device sync, live multiplayer, and hosted backend services are not implemented.
 - Service-worker offline support requires HTTPS or localhost hosting and should be verified after deployment.
 
+## World Engine 1.5 — Expanded campaign progression
+
+- Added four campaign milestones for capital development, roads, territorial expansion, and civic investment.
+- New milestones award credits and influence through the existing campaign reward system.
+- Campaign progress indicators show the required level, district count, or territory count.
+- Existing completed milestones and saves remain intact.
+
 ## World Engine 1.4 — Rival power trends
 
 - Added a rolling 12-turn snapshot history for rival treasury, food, materials, defence strength, and diplomatic relations.
