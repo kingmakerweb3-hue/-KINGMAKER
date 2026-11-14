@@ -53,6 +53,8 @@
     $("stability-value").textContent=state.nation.stability+"%";$("stability-bar").style.width=state.nation.stability+"%";
     const economy=E.economicSnapshot(state),out=economy.production,need=economy.consumption.food;
     $("production-summary").innerHTML=[["Food",out.food+" produced · "+need+" consumed"],["Materials",out.materials+" produced · "+economy.consumption.materials+" used"],["Ore",out.ore+" produced · "+economy.consumption.ore+" used"],["Goods",out.goods+" produced · "+economy.activeFactories+" active factories"],["Power",out.power+" produced · "+economy.consumption.power+" used"],["Treasury",state.economy.lastIncome+" income − "+state.economy.lastExpenses+" wages = "+(state.economy.lastBalance>=0?"+":"")+state.economy.lastBalance],["Employment",economy.employed+" / "+economy.workforce+" jobs filled · "+economy.requiredJobs+" required for growth"]].map(([a,b])=>'<div class="rowline"><span>'+a+'</span><b>'+b+'</b></div>').join("");
+    const policyHost=$("national-policy-list");
+    if(policyHost) policyHost.innerHTML=Object.entries(E.NATIONAL_POLICIES).map(([id,p])=>{const active=E.policyActive(state,id);const record=state.policies[id];const cost=Object.entries(p.cost).map(([r,n])=>n+" "+r).join(" + ");return '<article class="policy-card"><div><b>'+esc(p.name)+'</b><p>'+esc(p.description)+'</p><small>'+(active?'ACTIVE · through turn '+record.expiresTurn:'Cost: '+cost)+'</small></div><button data-action="policy" data-id="'+id+'" '+(active?'disabled':'')+'>'+(active?'Active':'Enact')+'</button></article>';}).join("");
     $("building-list").innerHTML=Object.entries(E.BUILDINGS).map(([id,b])=>'<article class="list-card"><div><h3>'+esc(b.name)+' <span class="level">Lv '+((state&&state.buildings[id])||0)+'</span></h3><p>'+Object.entries(b.production).map(([r,n])=>n+" "+r+" / level").join(", ")+(b.inputs?" · uses "+Object.entries(b.inputs).map(([r,n])=>n+" "+r).join(", "):id==="transport"?" · raises people served per food from 12 to 20, up to 8 hubs":"")+'</p><small>Upgrade: '+Object.entries(b.cost).map(([r,n])=>n+" "+r).join(" + ")+' · '+({farm:4,mine:5,workshop:5,factory:8,transport:4,market:3,academy:4,power:4,housing:1}[id])+" jobs"+'</small></div><button data-action="build" data-id="'+id+'">Upgrade</button></article>').join("");
   }
   function renderMarket() {
@@ -173,6 +175,7 @@
     const {action,id,resource,amount,kind,eventId,choice}=b.dataset;
     act(()=>{
       if(action==="build")E.build(state,id);
+      if(action==="policy")E.enactPolicy(state,id);
       if(action==="trade")E.trade(state,resource,Number(amount));
       if(action==="research"){E.research(state,id);if(!state.achievements.includes("first-research"))state.achievements.push("first-research");}
       if(action==="gift"){E.sendGift(state,id,20);if(state.rivals[id].relation>=50&&!state.achievements.includes("good-neighbor"))state.achievements.push("good-neighbor");}
