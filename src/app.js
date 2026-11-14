@@ -133,13 +133,16 @@
   function renderHistory() {
     $("history-list").innerHTML=state.events.slice(0,120).map(e=>'<article class="history-entry"><span class="event-type '+esc(e.type)+'">'+esc(e.type)+'</span><time>Turn '+num(e.turn)+'</time><div><span>'+esc(e.text)+'</span>'+(e.details?'<details class="history-details"><summary>Impact and context</summary><p>'+esc(e.details.summary)+'</p><small>Affected: '+esc(e.details.affectedNationIds.map(id=>id==="player"?state.nation.name:state.rivals[id]?.name||id).join(", "))+'</small></details>':"")+'</div></article>').join("");
   }
-  const generatedWorld = window.KingmakerWorld3D.generate(481516);
+  let generatedWorld = window.KingmakerWorld3D.generate(481516);
+  let selectedRegionId = generatedWorld.regions[0].id;
   let planetRenderer = null;
   function renderGeneratedWorld() {
     $("world-seed").textContent = generatedWorld.seed;
     $("region-count").textContent = generatedWorld.regions.length;
     $("generated-nations").textContent = generatedWorld.nations.length;
-    $("generated-region-list").innerHTML = generatedWorld.regions.slice(0,6).map(region => '<article class="generated-region"><b>'+esc(region.name)+'</b><span>'+esc(region.biome)+' · '+num(region.population)+' people</span><small>'+esc(region.resources.join(" · "))+'</small></article>').join("");
+    $("generated-region-list").innerHTML = generatedWorld.regions.map(region => '<button type="button" class="generated-region region-choice'+(region.id===selectedRegionId?" selected":"")+'" data-region-id="'+esc(region.id)+'"><b>'+esc(region.name)+'</b><span>'+esc(region.biome)+' · '+num(region.population)+' people</span><small>'+esc(region.resources.join(" · "))+'</small></button>').join("");
+    const selected=generatedWorld.regions.find(region=>region.id===selectedRegionId)||generatedWorld.regions[0];
+    $("generated-region-detail").innerHTML='<b>'+esc(selected.name)+'</b><p>'+esc(selected.owner)+' · '+esc(selected.biome)+' · Development '+selected.development+'/100</p><p>'+num(selected.population)+' residents · '+selected.cities.length+' settlements</p><div class="settlement-list">'+selected.cities.map(city=>'<span><b>'+esc(city.name)+'</b> — '+esc(city.type)+' · '+num(city.population)+'</span>').join("")+'</div><small>Coordinates: '+selected.latitude.toFixed(1)+'°, '+selected.longitude.toFixed(1)+'°</small>';
     if (!planetRenderer) {
       try { planetRenderer = window.KingmakerWorld3D.start($("planet-canvas")); }
       catch (error) { $("planet-canvas").replaceWith(Object.assign(document.createElement("p"),{className:"notice",textContent:"3D renderer could not start: "+error.message})); }
@@ -182,6 +185,8 @@
   $("world-map").addEventListener("keydown",event=>{
     if(event.key==="Enter"||event.key===" "){const node=event.target.closest("[data-focus]");if(node){event.preventDefault();node.click();}}
   });
+  $("generated-region-list").addEventListener("click",event=>{const button=event.target.closest("[data-region-id]");if(!button)return;selectedRegionId=button.dataset.regionId;renderGeneratedWorld();});
+  $("regenerate-world").addEventListener("click",()=>{generatedWorld=window.KingmakerWorld3D.generate(Math.floor(Math.random()*4294967295));selectedRegionId=generatedWorld.regions[0].id;renderGeneratedWorld();toast("A new procedural world has been generated.","success");});
   $("advance-turn").addEventListener("click",()=>act(()=>E.advanceTurn(state)));
   $("save-profile").addEventListener("click",()=>{const name=$("nation-name").value.trim();if(!name||name.length>48)return toast("Nation name must contain 1–48 characters.","error");state.nation.name=name;state.nation.government=$("government").value;E.addEvent(state,"National charter updated.","player");persist();toast("Nation charter saved.","success");});
   $("export-save").addEventListener("click",exportSave);$("import-save").addEventListener("click",()=>$("import-file").click());$("import-file").addEventListener("change",e=>importSave(e.target.files[0]));
