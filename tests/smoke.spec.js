@@ -255,3 +255,15 @@ test('counterintelligence upgrades spend resources and operation cooldown applie
   await page.getByRole('button',{name:'Gather intelligence · 25 credits'}).first().click();
   await expect(page.getByRole('button',{name:'Gather intelligence · 25 credits'}).first()).toBeDisabled();
 });
+
+test('new-player guide explains the first economy, research and diplomacy steps', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('#newPlayerGuide')).toBeVisible();
+  await expect(page.locator('#guideSteps .guide-step')).toHaveCount(3);
+  await page.getByRole('button', { name: 'Open infrastructure' }).click();
+  await expect(page.locator('#nation')).toBeVisible();
+  await page.locator('#newPlayerGuide button').filter({ hasText: 'Hide guide' }).click();
+  await expect(page.locator('#newPlayerGuide')).toBeHidden();
+  await page.getByRole('button', { name: 'Show beginner guide' }).click();
+  await expect(page.locator('#newPlayerGuide')).toBeVisible();
+});
