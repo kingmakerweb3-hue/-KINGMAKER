@@ -133,8 +133,21 @@
   function renderHistory() {
     $("history-list").innerHTML=state.events.slice(0,120).map(e=>'<article class="history-entry"><span class="event-type '+esc(e.type)+'">'+esc(e.type)+'</span><time>Turn '+num(e.turn)+'</time><div><span>'+esc(e.text)+'</span>'+(e.details?'<details class="history-details"><summary>Impact and context</summary><p>'+esc(e.details.summary)+'</p><small>Affected: '+esc(e.details.affectedNationIds.map(id=>id==="player"?state.nation.name:state.rivals[id]?.name||id).join(", "))+'</small></details>':"")+'</div></article>').join("");
   }
+  const generatedWorld = window.KingmakerWorld3D.generate(481516);
+  let planetRenderer = null;
+  function renderGeneratedWorld() {
+    $("world-seed").textContent = generatedWorld.seed;
+    $("region-count").textContent = generatedWorld.regions.length;
+    $("generated-nations").textContent = generatedWorld.nations.length;
+    $("generated-region-list").innerHTML = generatedWorld.regions.slice(0,6).map(region => '<article class="generated-region"><b>'+esc(region.name)+'</b><span>'+esc(region.biome)+' · '+num(region.population)+' people</span><small>'+esc(region.resources.join(" · "))+'</small></article>').join("");
+    if (!planetRenderer) {
+      try { planetRenderer = window.KingmakerWorld3D.start($("planet-canvas")); }
+      catch (error) { $("planet-canvas").replaceWith(Object.assign(document.createElement("p"),{className:"notice",textContent:"3D renderer could not start: "+error.message})); }
+      if (planetRenderer && !planetRenderer.ok) $("planet-canvas").insertAdjacentHTML("afterend",'<p class="notice">'+esc(planetRenderer.error)+'</p>');
+    }
+  }
   function render() {
-    renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderWorldEvents();renderResearch();renderCampaign();renderCreator();renderAdvice();renderHistory();
+    renderGeneratedWorld();renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderWorldEvents();renderResearch();renderCampaign();renderCreator();renderAdvice();renderHistory();
     $("turn-label").textContent="TURN "+state.turn;$("game-banner").textContent=state.status==="playing"?state.nation.name+" · "+state.nation.government:"Campaign "+state.status;
     $("game-banner").className="game-banner "+state.status;$("advance-turn").disabled=state.status!=="playing";tab(activeTab);
   }
