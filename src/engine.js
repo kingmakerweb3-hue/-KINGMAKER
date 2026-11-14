@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 11;
+  const SAVE_VERSION = 12;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -303,6 +303,7 @@
     const state = {
       schemaVersion: SAVE_VERSION, turn: 1, seed, citizens: createCitizens(100, seed),
       election: { nextElectionTurn: 12, incumbent: "civic", electionsHeld: 0, lastResult: null },
+      politics: { unrest: 0, governmentStatus: "stable", lastProtestTurn: 0, protests: 0, lastDemand: "food security", crisisTurns: 0 },
       policies: Object.fromEntries(Object.keys(NATIONAL_POLICIES).map(id => [id, null])),
       nation: { name: "New Horizon", government: "Republic", population: 100, stability: 80 },
       resources: { food: 120, materials: 105, credits: 180, science: 0, power: 20, influence: 20 },
@@ -348,6 +349,7 @@
     normalizeCitizens(normalized);
     if (!normalized.policies || typeof normalized.policies !== "object" || Array.isArray(normalized.policies)) normalized.policies = Object.fromEntries(Object.keys(NATIONAL_POLICIES).map(id => [id, null]));
     if (!normalized.election || typeof normalized.election !== "object") normalized.election = { nextElectionTurn: Math.max(12, normalized.turn + 1), incumbent: "civic", electionsHeld: 0, lastResult: null };
+    if (!normalized.politics || typeof normalized.politics !== "object") normalized.politics = { unrest: 0, governmentStatus: "stable", lastProtestTurn: 0, protests: 0, lastDemand: "food security", crisisTurns: 0 };
     normalized.world = normalized.world || { nextEventId: 1, activeEvents: [], processedEventIds: [] };
     if (!Array.isArray(normalized.world.placedBuildings)) normalized.world.placedBuildings = [];
     if (!Array.isArray(normalized.world.placedRoads)) normalized.world.placedRoads = [];
@@ -360,6 +362,7 @@
         !["civic", "prosperity", "security"].includes(normalized.election.incumbent) ||
         !Number.isInteger(normalized.election.electionsHeld) || normalized.election.electionsHeld < 0 || normalized.election.electionsHeld > 1_000_000 ||
         (normalized.election.lastResult !== null && (!normalized.election.lastResult || !Number.isInteger(normalized.election.lastResult.turn) || normalized.election.lastResult.turn < 1 || normalized.election.lastResult.turn > normalized.turn || !["civic", "prosperity", "security"].includes(normalized.election.lastResult.winner) || !Number.isInteger(normalized.election.lastResult.turnout) || normalized.election.lastResult.turnout < 25 || normalized.election.lastResult.turnout > 90 || !normalized.election.lastResult.voteShares || !["civic", "prosperity", "security"].every(id => Number.isInteger(normalized.election.lastResult.voteShares[id]) && normalized.election.lastResult.voteShares[id] >= 0 && normalized.election.lastResult.voteShares[id] <= 100) || Object.values(normalized.election.lastResult.voteShares).reduce((a,b)=>a+b,0)!==100))) throw new Error("Election state is invalid.");
+    if (!Number.isInteger(normalized.politics.unrest) || normalized.politics.unrest < 0 || normalized.politics.unrest > 100 || !["stable", "political pressure", "public protests", "government crisis"].includes(normalized.politics.governmentStatus) || !Number.isInteger(normalized.politics.lastProtestTurn) || normalized.politics.lastProtestTurn < 0 || normalized.politics.lastProtestTurn > normalized.turn || !Number.isInteger(normalized.politics.protests) || normalized.politics.protests < 0 || normalized.politics.protests > 1000000 || typeof normalized.politics.lastDemand !== "string" || normalized.politics.lastDemand.length > 64 || !Number.isInteger(normalized.politics.crisisTurns) || normalized.politics.crisisTurns < 0 || normalized.politics.crisisTurns > 1000000) throw new Error("Political pressure state is invalid.");
     if (Object.keys(normalized.policies).length !== Object.keys(NATIONAL_POLICIES).length || Object.keys(NATIONAL_POLICIES).some(id => !(id in normalized.policies))) throw new Error("National policy state is invalid.");
     for (const [id, policy] of Object.entries(normalized.policies)) {
       if (policy !== null && (!policy || !Number.isInteger(policy.activatedTurn) || policy.activatedTurn < 1 || policy.activatedTurn > normalized.turn || !Number.isInteger(policy.expiresTurn) || policy.expiresTurn < policy.activatedTurn || policy.expiresTurn > policy.activatedTurn + NATIONAL_POLICIES[id].duration)) throw new Error("National policy record is invalid.");
@@ -492,7 +495,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -505,6 +508,7 @@
       state.achievements = Array.isArray(state.achievements) ? state.achievements : [];
       state.policies = state.policies || Object.fromEntries(Object.keys(NATIONAL_POLICIES).map(id => [id, null]));
       state.election = state.election || { nextElectionTurn: Math.max(12, state.turn + 1), incumbent: "civic", electionsHeld: 0, lastResult: null };
+      state.politics = state.politics || { unrest: 0, governmentStatus: "stable", lastProtestTurn: 0, protests: 0, lastDemand: "food security", crisisTurns: 0 };
       state.schemaVersion = SAVE_VERSION;
       addIndustryDefaults(state);
       normalizeCitizens(state);
@@ -1372,6 +1376,7 @@
     state.turn++;
     updateCitizens(state);
     resolveElection(state);
+    resolvePoliticalPressure(state);
     state.creatorEconomy.royaltyTurn = state.turn;
     state.creatorEconomy.lastTurnRoyalties = 0;
     state.world.activeEvents = state.world.activeEvents.filter(event => event.status === "pending" || event.remainingTurns > 0);
@@ -1587,6 +1592,37 @@
     return state.election.lastResult;
   }
 
+
+  function resolvePoliticalPressure(state) {
+    const mandate = civicMandate(state);
+    const weakest = mandate.concerns.length ? mandate.concerns[0] : { score: 50, label: "public services" };
+    const unmetNeedPressure = clamp(Math.round((45 - weakest.score) * 0.9), 0, 40);
+    const rawUnrest = clamp(100 - mandate.approval + unmetNeedPressure, 0, 100);
+    const politics = state.politics;
+    politics.unrest = clamp(Math.round(politics.unrest * 0.55 + rawUnrest * 0.45), 0, 100);
+    politics.lastDemand = weakest.label;
+    if (politics.unrest >= 80 && state.nation.stability < 40) politics.crisisTurns++;
+    else politics.crisisTurns = Math.max(0, politics.crisisTurns - 1);
+    politics.governmentStatus = politics.crisisTurns >= 2 ? "government crisis" : politics.unrest >= 65 ? "public protests" : politics.unrest >= 40 ? "political pressure" : "stable";
+    if (politics.unrest >= 65 && state.turn - politics.lastProtestTurn >= 4) {
+      politics.lastProtestTurn = state.turn;
+      politics.protests++;
+      const penalty = politics.unrest >= 82 ? 5 : 3;
+      state.nation.stability = clamp(state.nation.stability - penalty, 0, 100);
+      const party = POLITICAL_PARTIES[state.election.incumbent].name;
+      addEvent(state, "Public protests demand action on " + politics.lastDemand + ".", "protest", {
+        summary: politics.unrest + "% unrest. " + party + " faces public pressure; national stability fell by " + penalty + " points.",
+        affectedNationIds: ["player"]
+      });
+    } else if (politics.governmentStatus === "government crisis" && politics.crisisTurns === 2) {
+      addEvent(state, "Government crisis: confidence in national institutions has collapsed.", "crisis", {
+        summary: "Sustained severe unrest and low national stability have triggered a government crisis.",
+        affectedNationIds: ["player"]
+      });
+    }
+    return { ...politics, approval: mandate.approval, mandate: mandate.mandate, leadingConcern: mandate.leadingConcern };
+  }
+
   function exportSave(state) { return JSON.stringify(validateSave(state), null, 2); }
 
   function saveWithRecovery(storage, state, primaryKey = "kingmaker_save_v1", backupKey = "kingmaker_save_recovery") {
@@ -1611,6 +1647,6 @@
     research, enactPolicy, policyActive, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
-    exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech, worldIntelligence, civicMandate, electionForecast, resolveElection
+    exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech, worldIntelligence, civicMandate, electionForecast, resolveElection, resolvePoliticalPressure
   };
 });
