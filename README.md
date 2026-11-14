@@ -60,6 +60,13 @@ This is a playable single-player prototype, not a finished online commercial rel
 - Online accounts, cloud saves, cross-device sync, live multiplayer, and hosted backend services are not implemented.
 - Service-worker offline support requires HTTPS or localhost hosting and should be verified after deployment.
 
+## World Engine 1.4 — Rival power trends
+
+- Added a rolling 12-turn snapshot history for rival treasury, food, materials, defence strength, and diplomatic relations.
+- Added a Regional Power Trends panel showing current values and changes from the previous snapshot.
+- Existing saves initialize an empty history safely; the current rival state is recorded on load.
+- Snapshot collection occurs after each completed world turn.
+
 ## World Engine 1.3 — Interactive strategic atlas
 
 - Replaced the plain region list in the world situation panel with an interactive strategic atlas.
