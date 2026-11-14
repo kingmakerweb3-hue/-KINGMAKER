@@ -71,3 +71,13 @@ button{min-height:38px}
 .generated-region b{font-size:11px}.generated-region span,.generated-region small{font-size:9px;overflow-wrap:anywhere}
 @media(max-width:760px){.planet-layout{grid-template-columns:1fr}.planet-canvas{height:330px;min-height:260px}.generated-region-list{grid-template-columns:1fr 1fr}}
 @media(max-width:420px){.generated-region-list{grid-template-columns:1fr}}
+
+.region-choice{width:100%;text-align:left;display:grid;gap:3px;cursor:pointer}
+.region-choice.selected{border-color:var(--gold);background:#2a2519}
+.generated-region-detail{margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#0d1727}
+.generated-region-detail>p{margin:5px 0;color:var(--muted);font-size:11px}
+.settlement-list{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0}
+.settlement-list span{padding:7px;border-radius:7px;background:#17263d;font-size:10px;color:var(--muted)}
+.settlement-list b{color:var(--text)}
+#regenerate-world{width:100%;margin:2px 0 8px;border-color:var(--gold);color:var(--gold)}
+@media(max-width:760px){.settlement-list{grid-template-columns:1fr}}
