@@ -60,6 +60,14 @@ This is a playable single-player prototype, not a finished online commercial rel
 - Online accounts, cloud saves, cross-device sync, live multiplayer, and hosted backend services are not implemented.
 - Service-worker offline support requires HTTPS or localhost hosting and should be verified after deployment.
 
+## World Engine 1.2 — Capital logistics
+
+- Added a five-level capital road and logistics network.
+- Each road level produces +3 credits and +1 material per world turn.
+- Every two road levels add +1 stability per turn.
+- Road upgrades have scaling credit and material costs and are capped at level five.
+- Road level is stored in the existing local save and initializes safely for older saves.
+
 ## Next release priorities
 
 1. Browser/device playtesting and gameplay balance.
@@ -69,4 +77,4 @@ This is a playable single-player prototype, not a finished online commercial rel
 5. Multiplayer server architecture, moderation, security, and release operations.
 
 ---
-**KINGMAKER World Engine 0.9** — a playable single-player prototype under active development.
+**KINGMAKER World Engine 1.2** — a playable single-player prototype under active development.
