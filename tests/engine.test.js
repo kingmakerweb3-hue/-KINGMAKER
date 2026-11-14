@@ -784,3 +784,26 @@ test("district zoning is persisted, bounded, and rejects malformed district reco
   restored.world.placedDistricts[0] = { type: "industrial", x: 12, z: 0, radius: 2.6 };
   assert.throws(() => Engine.validateSave(restored), /District placement data is invalid/);
 });
+
+
+test("zoned districts contribute balanced production and residential growth", () => {
+  const state = Engine.createInitialState({ seed: 412 });
+  state.world.placedDistricts = [
+    { type: "agricultural", x: 0, z: 0, radius: 2.6 },
+    { type: "industrial", x: 3, z: 0, radius: 2.6 },
+    { type: "commercial", x: -3, z: 0, radius: 2.6 },
+    { type: "residential", x: 0, z: 3, radius: 2.6 }
+  ];
+  const effects = Engine.districtEffects(state);
+  assert.deepEqual(effects.counts, { residential: 1, commercial: 1, industrial: 1, agricultural: 1 });
+  assert.deepEqual(effects.production, { food: 3, materials: 2, credits: 4 });
+  assert.equal(effects.populationGrowth, 1);
+  const snapshot = Engine.economicSnapshot(state);
+  assert.ok(snapshot.production.food >= 3);
+  assert.ok(snapshot.production.materials >= 2);
+  assert.ok(snapshot.production.credits >= 4);
+  const beforePopulation = state.nation.population;
+  Engine.advanceTurn(state);
+  assert.ok(state.nation.population >= beforePopulation);
+  assert.ok(state.economy.production.credits >= 4);
+});
