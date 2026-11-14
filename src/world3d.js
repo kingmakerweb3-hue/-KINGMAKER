@@ -90,14 +90,17 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const mesh=new THREE.Mesh(new THREE.TubeGeometry(curve,100,.075,5,false),material(0xb9a88c));roadGroup.add(mesh);
   }
   function createScene(){
-    scene=new THREE.Scene();scene.background=new THREE.Color(0xa9c9d0);scene.fog=new THREE.Fog(0xa9c9d0,25,62);
+    scene=new THREE.Scene();scene.background=new THREE.Color(0x9bb8c7);scene.fog=new THREE.FogExp2(0x9bb8c7,.012);
     camera=new THREE.PerspectiveCamera(42,1,.1,150);camera.position.set(17,15,20);
     renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:"high-performance"});renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.75));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
     host.innerHTML="";host.appendChild(renderer.domElement);
     controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.06;controls.maxPolarAngle=Math.PI*.48;controls.minDistance=9;controls.maxDistance=42;controls.target.set(0,0,0);controls.autoRotate=true;controls.autoRotateSpeed=.42;
     scene.add(new THREE.HemisphereLight(0xd9efff,0x465b45,1.45));scene.add(new THREE.AmbientLight(0x9fb7c4,.34));
     const sun=new THREE.DirectionalLight(0xffe3b5,3.4);sun.position.set(-18,28,14);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-22;sun.shadow.camera.right=22;sun.shadow.camera.top=22;sun.shadow.camera.bottom=-22;sun.shadow.bias=-.00018;sun.shadow.normalBias=.025;scene.add(sun);
-    waterMesh=new THREE.Mesh(new THREE.CircleGeometry(42,160),new THREE.MeshPhysicalMaterial({color:0x286b80,roughness:.23,metalness:.12,clearcoat:.8,clearcoatRoughness:.16,transparent:true,opacity:.94}));waterMesh.rotation.x=-Math.PI/2;waterMesh.position.y=-.5;scene.add(waterMesh);waterPositions=waterMesh.geometry.attributes.position.array.slice();
+    const waterGeo=new THREE.BufferGeometry(),waterVerts=[],waterIndices=[],waterRings=28,waterSegments=128;
+    for(let ring=0;ring<=waterRings;ring++){const radius=42*ring/waterRings;for(let seg=0;seg<=waterSegments;seg++){const angle=seg/waterSegments*Math.PI*2;waterVerts.push(Math.cos(angle)*radius,-.5,Math.sin(angle)*radius);if(ring<waterRings&&seg<waterSegments){const a=ring*(waterSegments+1)+seg,b=a+1,c=a+waterSegments+1,d=c+1;waterIndices.push(a,c,b,b,c,d);}}}
+    waterGeo.setAttribute("position",new THREE.Float32BufferAttribute(waterVerts,3));waterGeo.setIndex(waterIndices);waterGeo.computeVertexNormals();
+    waterMesh=new THREE.Mesh(waterGeo,new THREE.MeshPhysicalMaterial({color:0x286b80,roughness:.23,metalness:.12,clearcoat:.8,clearcoatRoughness:.16,transparent:true,opacity:.94,side:THREE.DoubleSide}));scene.add(waterMesh);waterPositions=waterMesh.geometry.attributes.position.array.slice();
     landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();cloudGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup);
     const n=176,verts=[],indices=[],colors=[];
     for(let iz=0;iz<=n;iz++)for(let ix=0;ix<=n;ix++){
@@ -110,6 +113,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const terrain=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.96,metalness:0,flatShading:false}));terrain.receiveShadow=true;terrain.castShadow=true;landGroup.add(terrain);
     const beach=new THREE.Mesh(new THREE.CircleGeometry(15.3,80),material(0xb8b080));beach.rotation.x=-Math.PI/2;beach.position.y=-.22;beach.scale.set(1,1,.98);landGroup.add(beach);
     for(let i=0;i<210;i++){const x=(rand(i,3)-.5)*27,z=(rand(i,8)-.5)*27,d=Math.hypot(x,z);if(d>7.2&&d<13.35&&Math.abs(x)>1.5)makeTree(x,z,.65+rand(i,5)*.75);}
+    for(let i=0;i<8;i++){const cloud=new THREE.Group();cloud.position.set((rand(i,91)-.5)*38,8+rand(i,92)*5,(rand(i,93)-.5)*34);for(let j=0;j<5;j++){const puff=new THREE.Mesh(new THREE.SphereGeometry(.75+rand(i,j)*.55,14,10),new THREE.MeshStandardMaterial({color:0xf1f4f2,roughness:1,transparent:true,opacity:.78}));puff.position.set((j-2)*.58,rand(j,i)*.24,Math.sin(j)*.24);puff.scale.y=.42;cloud.add(puff);}cloudGroup.add(cloud);}
     makeRoad([[-13,-2],[-8,-1],[-4,0],[0,0],[5,2],[9,5]]);
     makeRoad([[-3,-12],[-2,-7],[0,-3],[0,0],[1,6],[3,11]]);
     const plaza=new THREE.Mesh(new THREE.CylinderGeometry(2.3,2.3,.12,32),material(0xd6c79e));plaza.position.y=.03;scene.add(plaza);
@@ -138,7 +142,8 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   function resize(){if(!renderer||!host.clientWidth)return;const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
   function animate(){
     animationId=requestAnimationFrame(animate);const t=clock.getElapsedTime();controls.update();
-    if(waterMesh){const attr=waterMesh.geometry.attributes.position;for(let i=0;i<attr.count;i++){const x=waterPositions[i*3],z=waterPositions[i*3+2];attr.array[i*3+1]=waterPositions[i*3+1]+Math.sin(x*.32+t*.65)*.035+Math.cos(z*.27-t*.48)*.028;}attr.needsUpdate=true;waterMesh.geometry.computeVertexNormals();}
+    if(waterMesh){const attr=waterMesh.geometry.attributes.position;for(let i=0;i<attr.count;i++){const x=waterPositions[i*3],z=waterPositions[i*3+2];attr.array[i*3+1]=waterPositions[i*3+1]+Math.sin(x*.32+t*.65)*.055+Math.cos(z*.27-t*.48)*.04;}attr.needsUpdate=true;waterMesh.geometry.computeVertexNormals();}
+    cloudGroup.children.forEach((cloud,i)=>{cloud.position.x+=.0012+Math.sin(t*.025+i)*.0005;if(cloud.position.x>24)cloud.position.x=-24;});
     peopleGroup.children.forEach((p,i)=>{const a=t*.17+i*.53;p.position.x=Math.cos(a)*(2.5+(i%4)*.45);p.position.z=Math.sin(a)*(2.5+(i%4)*.45);p.position.y=heightAt(p.position.x,p.position.z)+Math.abs(Math.sin(t*2+i))*.055;});
     trafficVehicles.forEach(v=>{const p=(t*v.speed+v.phase)%1;const x=v.a.x+(v.b.x-v.a.x)*p,z=v.a.z+(v.b.z-v.a.z)*p;v.mesh.position.set(x,heightAt(x,z)+.055,z);v.mesh.rotation.y=Math.atan2(v.b.x-v.a.x,v.b.z-v.a.z);});
     renderer.render(scene,camera);
