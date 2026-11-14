@@ -141,3 +141,15 @@ This is a playable single-player prototype, not a finished online commercial rel
 
 ---
 **KINGMAKER World Engine 1.3** — a playable single-player prototype under active development.
+
+## Automated browser checks
+
+The repository includes Playwright smoke tests for Chromium. On every push to `main` and pull request targeting `main`, GitHub Actions installs Chromium and runs:
+
+```bash
+npm install
+npx playwright install --with-deps chromium
+npm test
+```
+
+The suite checks dashboard rendering and browser errors, all navigation tabs, the 13-check Quality Console, turn advancement and local save persistence, and JSON save export. The workflow result is the authoritative automated browser-test status for each commit.
