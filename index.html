@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101827"><meta name="description" content="Build a nation, develop an economy, research technologies, expand territory and shape the world in KINGMAKER."><link rel="manifest" href="manifest.json">
-<title>KINGMAKER — World Engine v0.8</title>
+<title>KINGMAKER — World Engine v0.9</title>
 <style>
 :root{--bg:#0b1220;--panel:#121d30;--panel2:#18263d;--line:#2a3a55;--text:#edf3ff;--muted:#9fb0ca;--gold:#e7bd62;--green:#70d6a1;--red:#ff8d8d;--blue:#83b7ff}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#172843 0,#0b1220 58%);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
@@ -20,11 +20,11 @@ label{display:block;font-size:12px;color:var(--muted);margin:8px 0 5px}input,sel
 .notice{border-left:3px solid var(--gold);padding:10px 13px;background:#211f1a;color:#d9d0b9;border-radius:7px;font-size:12px;margin-top:16px}
 footer{border-top:1px solid var(--line);padding:20px;text-align:center;color:var(--muted);font-size:12px}
 @media(max-width:800px){.span-8,.span-6,.span-4,.span-3{grid-column:span 12}.metrics{grid-template-columns:repeat(2,1fr)}.hero{display:block}.hero .actions{margin-top:16px}}
-</style></head>
+.world-atlas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.atlas-tile{min-height:112px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;padding:13px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(145deg,#1b2a40,#121d2e)}.atlas-tile.owned{border-color:#55bd91;background:linear-gradient(145deg,#173b35,#142b31)}.atlas-tile .tile-name{font-weight:700}.atlas-tile .tile-meta{font-size:12px;color:var(--muted)}.atlas-tile button{width:100%;padding:7px;font-size:12px}@media(max-width:620px){.world-atlas{grid-template-columns:repeat(2,minmax(0,1fr))}}</style></head>
 <body>
 <header><div class="brand"><div class="sigil">K</div><div><h1>KINGMAKER</h1><div class="tag">PLAY THE WORLD · BUILD THE FUTURE · OWN YOUR CREATION</div></div></div></header>
 <main>
-<section class="hero"><div><div class="eyebrow">WORLD ENGINE · PLAYABLE BUILD 0.8</div><h2>Your nation is only<br>the beginning.</h2><p>Build an economy, develop infrastructure, research technology, trade with rival nations and register original creator assets. The world advances when you advance it.</p></div><div class="actions"><button class="primary" onclick="advanceTurn()">Advance World ▸</button><button onclick="exportSave()">Export Save</button><button onclick="document.getElementById('importFile').click()">Import Save</button><input id="importFile" type="file" accept="application/json" class="hidden" onchange="importSave(event)"></div></section>
+<section class="hero"><div><div class="eyebrow">WORLD ENGINE · PLAYABLE BUILD 0.9</div><h2>Your nation is only<br>the beginning.</h2><p>Build an economy, develop infrastructure, research technology, trade with rival nations and register original creator assets. The world advances when you advance it.</p></div><div class="actions"><button class="primary" onclick="advanceTurn()">Advance World ▸</button><button onclick="exportSave()">Export Save</button><button onclick="document.getElementById('importFile').click()">Import Save</button><input id="importFile" type="file" accept="application/json" class="hidden" onchange="importSave(event)"></div></section>
 <div class="metrics" id="metrics"></div>
 <nav class="tabs">
 <button class="active" data-tab="overview">World Overview</button><button data-tab="nation">My Nation</button><button data-tab="market">Trade & Diplomacy</button><button data-tab="research">Research</button><button data-tab="director">AI World Director</button><button data-tab="military">Military & Treaties</button><button data-tab="studio">Creator Studio</button><button data-tab="history">World History</button><button data-tab="campaign">Campaign & Achievements</button>
@@ -89,7 +89,7 @@ footer{border-top:1px solid var(--line);padding:20px;text-align:center;color:var
  <div class="card span-12"><h3>Victory Conditions</h3><div id="victoryStatus"></div></div>
 </section>
 </main>
-<footer>KINGMAKER WORLD ENGINE · PLAYABLE PROTOTYPE 0.8 · GAME CREDITS HAVE NO REAL-WORLD VALUE</footer>
+<footer>KINGMAKER WORLD ENGINE · PLAYABLE PROTOTYPE 0.9 · GAME CREDITS HAVE NO REAL-WORLD VALUE</footer>
 
 <script>
 const $=id=>document.getElementById(id);
@@ -209,7 +209,13 @@ const worldRegions = [
  {id:"blue-coast",name:"Blue Coast",type:"Trading port",bonus:"+5 credits / turn",cost:120,materials:30,resource:"credits",value:5},
  {id:"highlands",name:"The Highlands",type:"Power basin",bonus:"+2 power / turn",cost:110,materials:40,resource:"power",value:2},
  {id:"old-city",name:"Old City",type:"Knowledge district",bonus:"+2 research / turn",cost:130,materials:45,resource:"research",value:2},
- {id:"sun-isles",name:"Sun Isles",type:"Trade archipelago",bonus:"+3 influence / turn",cost:150,materials:50,resource:"influence",value:3}
+ {id:"sun-isles",name:"Sun Isles",type:"Trade archipelago",bonus:"+3 influence / turn",cost:150,materials:50,resource:"influence",value:3},
+ {id:"silverwood",name:"Silverwood",type:"Ancient timberlands",bonus:"+3 materials / turn",cost:125,materials:55,resource:"materials",value:3},
+ {id:"ember-fields",name:"Ember Fields",type:"Geothermal basin",bonus:"+4 power / turn",cost:160,materials:65,resource:"power",value:4},
+ {id:"scholar-coast",name:"Scholar Coast",type:"University port",bonus:"+4 research / turn",cost:175,materials:60,resource:"research",value:4},
+ {id:"golden-delta",name:"Golden Delta",type:"River trade hub",bonus:"+8 credits / turn",cost:190,materials:70,resource:"credits",value:8},
+ {id:"northwatch",name:"Northwatch",type:"Strategic frontier",bonus:"+5 defence strength",cost:180,materials:75,resource:"defence",value:5},
+ {id:"whispering-marsh",name:"Whispering Marsh",type:"Rare herb wetlands",bonus:"+4 influence / turn",cost:185,materials:70,resource:"influence",value:4}
 ];
 function ownsRegion(id){return state.territories.includes(id)}
 function regionYield(resource){return worldRegions.filter(function(r){return r.resource===resource&&ownsRegion(r.id)}).reduce(function(total,r){return total+r.value},0)}
@@ -543,6 +549,21 @@ advanceTurn=function(){
  if(Math.random()<0.48)triggerWorldEvent();
  save();
 };
+
+
+/* KINGMAKER v0.9 — expanded atlas and strategic frontier bonuses */
+function regionPosition(region,index){return "SECTOR "+String.fromCharCode(65+Math.floor(index/3))+(index%3+1)}
+const renderBeforeAtlas=render;
+render=function(){
+ renderBeforeAtlas();
+ const tiles=worldRegions.map(function(r,index){const owned=ownsRegion(r.id);return '<div class="atlas-tile '+(owned?'owned':'')+'" data-region="'+esc(r.id)+'"><div><div class="row"><span class="tile-name">'+esc(r.name)+'</span><span class="pill">'+(owned?'OWNED':regionPosition(r,index))+'</span></div><div class="tile-meta">'+esc(r.type)+'</div><div class="tile-meta">'+esc(r.bonus)+'</div></div>'+(owned?'<span class="good small">Under your control</span>':'<div><div class="tile-meta">Claim · '+r.cost+' credits + '+r.materials+' materials</div><button onclick="claimTerritory(\''+r.id+'\')">Claim sector</button></div>')+'</div>'}).join("");
+ const rivalCards=Object.keys(state.npcData||{}).map(function(name){const n=state.npcData[name];return '<div class="card span-4"><b>'+esc(name)+'</b><p class="muted small">'+esc((rivalProfiles[name]||{}).focus||"Independent")+' power</p><div class="small">Treasury '+n.treasury+' · Defence '+n.strength+'</div></div>'}).join("");
+ $("worldMap").innerHTML='<div class="card span-12"><div class="row"><h3>World Atlas</h3><span class="pill">'+state.territories.length+' / '+worldRegions.length+' SECTORS CONTROLLED</span></div><p class="muted small">Select a frontier sector to expand your nation. Each territory grants its listed permanent bonus.</p><div class="world-atlas">'+tiles+'</div></div><div class="card span-12"><h3>Neighboring Powers</h3><div class="grid">'+rivalCards+'</div></div>';
+ $("territoryList").innerHTML=worldRegions.map(function(r){const owned=ownsRegion(r.id);return '<div class="item"><div class="row"><b>'+esc(r.name)+'</b><span class="pill">'+(owned?"OWNED":r.cost+" credits")+'</span></div><p>'+esc(r.type)+' · '+esc(r.bonus)+'</p>'+(owned?'<span class="good small">National territory secured</span>':'<p class="small muted">Claim cost: '+r.cost+' credits + '+r.materials+' materials</p><button onclick="claimTerritory(\''+r.id+'\')">Claim Territory</button>')+'</div>'}).join("");
+};
+const claimTerritoryBeforeV09=claimTerritory;
+claimTerritory=function(id){const region=worldRegions.find(r=>r.id===id);if(region&&region.resource==="defence"){if(ownsRegion(id))return;if(state.credits<region.cost||state.materials<region.materials){alert("Not enough credits or materials to claim this territory.");return;}state.credits-=region.cost;state.materials-=region.materials;state.territories.push(id);state.influence+=5;state.frontierDefence=(state.frontierDefence||0)+region.value;log("Strategic frontier secured: "+region.name+". Army strength increased by "+region.value+".");save();return;}claimTerritoryBeforeV09(id)};
+const armyStrengthBeforeV09=armyStrength;armyStrength=function(){return armyStrengthBeforeV09()+(state.frontierDefence||0)};
 
 </script>
 </body>
