@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 9;
+  const SAVE_VERSION = 10;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -173,7 +173,7 @@
       needs: { food: 70 + (i * 7) % 25, energy: 65 + (i * 11) % 30, safety: 72 + (i * 5) % 24, belonging: 60 + (i * 13) % 35 },
       mood: 65 + (i * 3) % 25, goal: ["improve home", "master profession", "support community", "save resources"][i % 4],
       memory: [{ turn: 1, text: "Joined the new civilization." }], activity: "working", age: 18 + (i * 7) % 48,
-      relationships: []
+      relationships: [], careerLevel: 1, careerXp: 0, civicTrust: 50, aspiration: ["become a master farmer", "lead a thriving workshop", "advance public knowledge", "protect the community"][i % 4]
     }));
     citizens.forEach((citizen, i) => {
       for (const offset of [-1, 1, 3]) {
@@ -203,6 +203,10 @@
       c.goal = typeof c.goal === "string" ? c.goal.slice(0, 80) : "support community";
       c.activity = typeof c.activity === "string" ? c.activity.slice(0, 48) : "working";
       c.age = safeInt(c.age, 25, 120);
+      c.careerLevel = safeInt(c.careerLevel, 1, 20) || 1;
+      c.careerXp = safeInt(c.careerXp, 0, 100000);
+      c.civicTrust = safeInt(c.civicTrust, 50, 100);
+      c.aspiration = typeof c.aspiration === "string" ? c.aspiration.slice(0, 80) : "support the community";
       c.relationships = (Array.isArray(c.relationships) ? c.relationships : []).filter(r => r && typeof r.citizenId === "string" && /^citizen-[1-9][0-9]*$/.test(r.citizenId) && r.citizenId !== c.id).slice(0, 8).map(r => ({ citizenId: r.citizenId, affinity: safeInt(r.affinity, 50, 100) }));
       c.memory = (Array.isArray(c.memory) ? c.memory : []).filter(m => m && Number.isInteger(m.turn) && m.turn >= 1 && m.turn <= state.turn && typeof m.text === "string").slice(-8).map(m => ({ turn: m.turn, text: m.text.slice(0, 120) }));
       return true;
@@ -265,6 +269,24 @@
         c.activity = ["cultivating fields", "building infrastructure", "maintaining systems", "trading goods", "studying new ideas", "caring for residents", "moving supplies", "crafting goods"][CITIZEN_ROLES.indexOf(c.role)];
       }
       c.mood = Math.round((c.needs.food + c.needs.energy + c.needs.safety + c.needs.belonging) / 4);
+      const supportedPolicies = ["food_assistance", "public_health"].filter(id => policyActive(state, id)).length;
+      const pressuredPolicies = ["research_fund", "industry_incentive"].filter(id => policyActive(state, id)).length;
+      c.civicTrust = clamp(c.civicTrust + (c.mood >= 70 ? 1 : c.mood < 40 ? -3 : 0) + (supportedPolicies ? 1 : 0) - (pressuredPolicies && c.needs.food < 30 ? 1 : 0), 0, 100);
+      if (state.turn % 4 === 0 && c.mood >= 65 && c.needs.food >= 35) {
+        c.careerXp = Math.min(100000, c.careerXp + 12 + Math.floor(c.civicTrust / 25));
+        const nextLevel = Math.min(20, 1 + Math.floor(c.careerXp / 40));
+        if (nextLevel > c.careerLevel) {
+          c.careerLevel = nextLevel;
+          c.memory.push({ turn: state.turn, text: "Advanced to career level " + nextLevel + " as a " + c.role + "." });
+          c.memory = c.memory.slice(-8);
+          c.activity = "advancing as a " + c.role;
+        }
+      }
+      if (c.needs.food < 35) c.goal = "secure reliable food";
+      else if (c.needs.safety < 35) c.goal = "help restore public safety";
+      else if (c.needs.belonging < 35) c.goal = "strengthen community ties";
+      else if (c.careerLevel < 5) c.goal = c.aspiration;
+      else c.goal = "mentor others and " + c.aspiration;
     }
     updateCitizenRelationships(state);
     for (const c of state.citizens) {
@@ -464,7 +486,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6, 7, 8].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -475,7 +497,7 @@
       normalizeCreatorRecords(state, input.schemaVersion === 6);
       migrateCreatorEconomy(state);
       state.achievements = Array.isArray(state.achievements) ? state.achievements : [];
-      state.policies = Object.fromEntries(Object.keys(NATIONAL_POLICIES).map(id => [id, null]));
+      state.policies = state.policies || Object.fromEntries(Object.keys(NATIONAL_POLICIES).map(id => [id, null]));
       state.schemaVersion = SAVE_VERSION;
       addIndustryDefaults(state);
       normalizeCitizens(state);
