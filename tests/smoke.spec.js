@@ -184,3 +184,39 @@ test('bilateral trade cooldown prevents repeated deals with the same rival', asy
   await page.getByRole('button',{name:'Export 20 food · Receive 30 credits'}).first().click();
   await expect(page.getByRole('button',{name:'Export 20 food · Receive 30 credits'}).first()).toBeDisabled();
 });
+
+
+test('World Council opens on turn five and records a declined agenda', async ({ page }) => {
+  await page.addInitScript(() => {
+    const s=JSON.parse(localStorage.getItem('kingmaker_save')||'{}');
+    s.turn=4;
+    localStorage.setItem('kingmaker_save',JSON.stringify(s));
+  });
+  await page.goto('/');
+  await page.getByRole('button',{name:'Advance World'}).click();
+  await page.locator('[data-tab="market"]').click();
+  await expect(page.locator('#embassyPanel')).toContainText('Regional Food Relief Summit');
+  await page.getByRole('button',{name:'Decline'}).click();
+  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('kingmaker_save')));
+  expect(saved.worldCouncil.active.resolved).toBeTruthy();
+  expect(saved.worldCouncil.active.decision).toBe('Contribution declined');
+  expect(saved.worldCouncil.history[0].title).toBe('Regional Food Relief Summit');
+});
+
+test('World Council contribution spends resources and improves relations', async ({ page }) => {
+  await page.addInitScript(() => {
+    const s=JSON.parse(localStorage.getItem('kingmaker_save')||'{}');
+    s.turn=4;s.food=50;s.credits=100;
+    localStorage.setItem('kingmaker_save',JSON.stringify(s));
+  });
+  await page.goto('/');
+  await page.getByRole('button',{name:'Advance World'}).click();
+  await page.locator('[data-tab="market"]').click();
+  await page.getByRole('button',{name:'Contribute to agenda'}).click();
+  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('kingmaker_save')));
+  expect(saved.food).toBe(35);
+  expect(saved.credits).toBe(80);
+  expect(saved.relations.Aurelia).toBeGreaterThanOrEqual(0);
+  expect(saved.worldCouncil.active.resolved).toBeTruthy();
+  expect(saved.worldCouncil.history[0].decision).toBe('Contribution accepted');
+});
