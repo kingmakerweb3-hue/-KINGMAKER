@@ -5,7 +5,8 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   "use strict";
   const host=document.getElementById("world3d-viewport");
   if(!host)return;
-  let scene,camera,renderer,controls,landGroup,buildingGroup,peopleGroup,roadGroup,playerRoadGroup,districtGroup;
+  let scene,camera,renderer,controls,landGroup,buildingGroup,peopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup;
+  const trafficVehicles=[];
   let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,raycaster,groundPlane,previewMarker,placementPointer=null;
   const COLORS={farm:0xc6a35d,mine:0x78838d,workshop:0x9c7652,factory:0x697b8e,transport:0x9b9b8b,market:0xc49b52,academy:0x8b80b8,power:0x75b9c9,housing:0xd6c5a3};
   const material=(color,roughness=.86)=>new THREE.MeshStandardMaterial({color,roughness});
@@ -58,6 +59,14 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     }
   }
   function makePlayerRoad(a,b){const curve=new THREE.LineCurve3(new THREE.Vector3(a.x,heightAt(a.x,a.z)+.06,a.z),new THREE.Vector3(b.x,heightAt(b.x,b.z)+.06,b.z));const mesh=new THREE.Mesh(new THREE.TubeGeometry(curve,24,.09,6,false),material(0xd7c39b));playerRoadGroup.add(mesh);}
+  function makeTrafficVehicle(a,b,index){
+    const car=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.BoxGeometry(.48,.22,.78),material(index%2?0x3d6478:0xb65d48));body.position.y=.2;car.add(body);
+    const cabin=new THREE.Mesh(new THREE.BoxGeometry(.34,.2,.34),material(0xb9d0d5));cabin.position.set(0,.39,-.04);car.add(cabin);
+    const wheelMat=material(0x263039);
+    for(const x of [-.25,.25])for(const z of [-.24,.24]){const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.075,.075,.055,8),wheelMat);wheel.rotation.z=Math.PI/2;wheel.position.set(x,.105,z);car.add(wheel);}
+    trafficGroup.add(car);trafficVehicles.push({mesh:car,a,b,phase:index*.47,speed:.055+(index%3)*.012});
+  }
   function makeRoad(points){
     const curve=new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(p[0],heightAt(p[0],p[1])+.035,p[1])));
     const mesh=new THREE.Mesh(new THREE.TubeGeometry(curve,100,.075,5,false),material(0xb9a88c));roadGroup.add(mesh);
@@ -71,7 +80,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     scene.add(new THREE.HemisphereLight(0xe4f4ff,0x64734e,2.0));
     const sun=new THREE.DirectionalLight(0xfff0d7,2.7);sun.position.set(-12,24,10);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);scene.add(sun);
     const water=new THREE.Mesh(new THREE.CircleGeometry(42,80),material(0x548d9a,.38));water.rotation.x=-Math.PI/2;water.position.y=-.48;scene.add(water);
-    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,buildingGroup,peopleGroup);
+    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,buildingGroup,peopleGroup,trafficGroup);
     const n=90,verts=[],indices=[],colors=[];
     for(let iz=0;iz<=n;iz++)for(let ix=0;ix<=n;ix++){
       const x=(ix/n-.5)*30,z=(iz/n-.5)*30,d=Math.sqrt(x*x+z*z),edge=Math.max(0,1-d/16);
@@ -112,6 +121,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   function animate(){
     animationId=requestAnimationFrame(animate);const t=clock.getElapsedTime();controls.update();
     peopleGroup.children.forEach((p,i)=>{const a=t*.17+i*.53;p.position.x=Math.cos(a)*(2.5+(i%4)*.45);p.position.z=Math.sin(a)*(2.5+(i%4)*.45);p.position.y=.22+Math.abs(Math.sin(t*2+i))*.08;});
+    trafficVehicles.forEach(v=>{const p=(t*v.speed+v.phase)%1;const x=v.a.x+(v.b.x-v.a.x)*p,z=v.a.z+(v.b.z-v.a.z)*p;v.mesh.position.set(x,heightAt(x,z)+.055,z);v.mesh.rotation.y=Math.atan2(v.b.x-v.a.x,v.b.z-v.a.z);});
     renderer.render(scene,camera);
   }
   function update(state){
@@ -119,10 +129,10 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const total=Object.values(state.buildings||{}).reduce((sum,n)=>sum+(Number(n)||0),0);
     const status=document.getElementById("world3d-status");if(status)status.textContent="TURN "+state.turn+" · "+total+" BUILDING LEVELS";
     const stats=document.getElementById("world3d-stats");
-    const zones=state.world?.placedDistricts||[];const zoneCount=zones.length;if(stats)stats.innerHTML=[["Citizens",state.nation.population],["Infrastructure",total+" levels"],["Districts",zoneCount+" zones"],["Stability",state.nation.stability+"%"],["Territory", "1 island · 6 neighbors"]].map(([label,value])=>'<div class="world3d-stat"><b>'+String(value).replace(/[&<>]/g,"")+'</b><small>'+label+'</small></div>').join("");
+    const zones=state.world?.placedDistricts||[];const zoneCount=zones.length;if(stats)stats.innerHTML=[["Citizens",state.nation.population],["Infrastructure",total+" levels"],["Districts",zoneCount+" zones"],["Traffic",trafficVehicles.length+" vehicles"],["Stability",state.nation.stability+"%"],["Territory", "1 island · 6 neighbors"]].map(([label,value])=>'<div class="world3d-stat"><b>'+String(value).replace(/[&<>]/g,"")+'</b><small>'+label+'</small></div>').join("");
     if(!buildingGroup)return;
-    clearGroup(buildingGroup);clearGroup(playerRoadGroup);clearGroup(districtGroup);
-    (state.world?.placedRoads||[]).forEach(road=>makePlayerRoad(road.from,road.to));
+    clearGroup(buildingGroup);clearGroup(playerRoadGroup);clearGroup(districtGroup);clearGroup(trafficGroup);trafficVehicles.length=0;
+    const roads=state.world?.placedRoads||[];roads.forEach((road,i)=>{makePlayerRoad(road.from,road.to);if(i<30){makeTrafficVehicle(road.from,road.to,i*2);makeTrafficVehicle(road.to,road.from,i*2+1);}});
     (state.world?.placedDistricts||[]).forEach(makeDistrict);
     const capital=new THREE.Group();const base=new THREE.Mesh(boxGeo,material(0xe4dcc7));base.scale.set(1.7,2.8,1.7);base.position.y=1.4;capital.add(base);
     const roof=new THREE.Mesh(new THREE.ConeGeometry(1.25,.9,4),material(0x9d4e3f));roof.position.y=3.25;roof.rotation.y=Math.PI/4;capital.add(roof);buildingGroup.add(capital);
