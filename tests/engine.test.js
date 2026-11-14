@@ -900,3 +900,55 @@ test("legacy citizens receive safe relationship defaults during save migration",
   const migrated = Engine.migrateSave(state);
   assert.ok(Array.isArray(migrated.citizens[0].relationships));
 });
+
+
+test("national policies charge the treasury, apply bounded effects, and expire after five turns", () => {
+  const state = Engine.createInitialState({ seed: 901 });
+  const credits = state.resources.credits;
+  Engine.enactPolicy(state, "research_fund");
+  assert.equal(state.resources.credits, credits - 45);
+  assert.equal(Engine.policyActive(state, "research_fund"), true);
+  assert.throws(() => Engine.enactPolicy(state, "research_fund"), /already active/);
+  for (let i = 0; i < 5; i++) Engine.advanceTurn(state);
+  assert.equal(state.turn, 6);
+  assert.equal(Engine.policyActive(state, "research_fund"), true);
+  Engine.advanceTurn(state);
+  assert.equal(state.turn, 7);
+  assert.equal(Engine.policyActive(state, "research_fund"), false);
+});
+
+test("food assistance and industrial incentives change the actual national ledger", () => {
+  const baseline = Engine.createInitialState({ seed: 902 });
+  const supported = Engine.createInitialState({ seed: 902 });
+  Engine.enactPolicy(supported, "food_assistance");
+  Engine.enactPolicy(supported, "industry_incentive");
+  Engine.advanceTurn(baseline);
+  Engine.advanceTurn(supported);
+  assert.ok(supported.economy.consumption.food < baseline.economy.consumption.food);
+  assert.equal(supported.economy.production.materials, baseline.economy.production.materials + 2);
+});
+
+test("public health policy improves citizen safety and population growth, and policy saves validate", () => {
+  const state = Engine.createInitialState({ seed: 903 });
+  state.resources.food = 500;
+  const population = state.nation.population;
+  const safety = state.citizens[0].needs.safety;
+  Engine.enactPolicy(state, "public_health");
+  Engine.advanceTurn(state);
+  assert.equal(state.citizens[0].needs.safety, Math.min(100, safety + 5));
+  assert.ok(state.nation.population >= population + 3);
+  const loaded = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.equal(loaded.policies.public_health.expiresTurn, 6);
+  loaded.policies.unknown = { activatedTurn: 1, expiresTurn: 5 };
+  assert.throws(() => Engine.validateSave(loaded), /National policy state is invalid/);
+});
+
+test("version 8 saves migrate to the version 9 national policy schema", () => {
+  const old = Engine.createInitialState({ seed: 904 });
+  old.schemaVersion = 8;
+  delete old.policies;
+  const migrated = Engine.migrateSave(old);
+  assert.equal(migrated.schemaVersion, 9);
+  assert.deepEqual(Object.keys(migrated.policies).sort(), ["food_assistance", "industry_incentive", "public_health", "research_fund"]);
+  assert.ok(Object.values(migrated.policies).every(policy => policy === null));
+});
