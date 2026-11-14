@@ -38,7 +38,7 @@ footer{border-top:1px solid var(--line);padding:20px;text-align:center;color:var
 <div class="card span-6"><h3>World Events & Forecast</h3><div id="worldEventPanel" class="stack"></div></div>
 </section>
 <section id="nation" class="tab grid hidden">
-<div class="card span-8"><h3>Nation Profile</h3><div class="formgrid"><div><label>Nation name</label><input id="nationName"></div><div><label>Government style</label><select id="government"><option>Republic</option><option>Federation</option><option>Merchant Council</option><option>Constitutional Monarchy</option></select></div></div><div class="actions"><button class="primary" onclick="saveProfile()">Save Profile</button></div><hr style="border-color:var(--line);margin:18px 0"><h3>Infrastructure</h3><div id="buildings" class="stack"></div></div>
+<div class="card span-8"><h3>Nation Profile</h3><div class="formgrid"><div><label>Nation name</label><input id="nationName"></div><div><label>Government style</label><select id="governmentStyle"><option>Republic</option><option>Federation</option><option>Merchant Council</option><option>Constitutional Monarchy</option></select></div></div><div class="actions"><button class="primary" onclick="saveProfile()">Save Profile</button></div><hr style="border-color:var(--line);margin:18px 0"><h3>Infrastructure</h3><div id="buildings" class="stack"></div></div>
 <div class="card span-4"><h3>Nation Status</h3><div id="nationStatus"></div><div class="notice">Construction uses simulated game resources only. No real money or crypto is involved.</div></div>
 </section>
 <section id="market" class="tab grid hidden">
@@ -140,7 +140,7 @@ function render(){
  $("production").innerHTML=`<p>Food: <b class="good">+${state.buildings.farm*(hasTech("agriculture")?15:10)}</b> each turn</p><p>Materials: <b class="good">+${state.buildings.workshop*(hasTech("industry")?12:8)}</b> each turn</p><p>Academy research: <b class="good">+${state.buildings.academy*8}</b> each turn</p>`;
  $("recentEvents").innerHTML=state.events.slice(0,6).map(e=>`<div class="logline">${esc(e)}</div>`).join("");
  $("historyLog").innerHTML=state.events.map(e=>`<div class="logline">${esc(e)}</div>`).join("");
- $("nationName").value=state.name;$("government").value=state.government;
+ $("nationName").value=state.name;$("governmentStyle").value=state.government;
  $("nationStatus").innerHTML=`<div class="stack">${[["Population",state.population],["Stability",state.stability+"%"],["Power",state.power],["Research points",state.research]].map(x=>`<div class="item"><span class="muted">${x[0]}</span><div class="metric">${x[1]}</div></div>`).join("")}</div>`;
  $("buildings").innerHTML=Object.entries(definitions).map(([id,d])=>`<div class="item"><div class="row"><b>${d.name} × ${state.buildings[id]}</b><span class="pill">${d.cost} credits</span></div><p>${d.desc}</p><button onclick="build('${id}')">Build / Upgrade</button></div>`).join("");
  $("marketItems").innerHTML=[["food","Food"],["materials","Materials"]].map(([id,n])=>`<div class="item"><div class="row"><b>${n}</b><span>${state.prices[id]} credits each</span></div><div class="actions"><button onclick="trade('${id}',-10)">Sell 10</button><button onclick="trade('${id}',10)">Buy 10</button></div></div>`).join("");
@@ -150,7 +150,7 @@ function render(){
  $("creatorList").innerHTML=state.creators.length?state.creators.map(c=>`<div class="item"><b>${esc(c.title)}</b><p>${esc(c.category)} · by ${esc(c.creator)}</p><p>${esc(c.description)}</p></div>`).join(""):"<p class='muted'>No creations registered yet.</p>";
  $("npcCouncil").innerHTML=Object.entries(state.npc).map(([n,p])=>`<div class="item"><b>${n}</b><p>Council posture: ${p}</p></div>`).join("");
 }
-function saveProfile(){state.name=$("nationName").value.trim()||"New Horizon";state.government=$("government").value;log("Nation profile updated.");save()}
+function saveProfile(){state.name=$("nationName").value.trim()||"New Horizon";state.government=$("governmentStyle").value;log("Nation profile updated.");save()}
 function build(id){let d=definitions[id];if(state.credits<d.cost){alert("Not enough credits.");return}state.credits-=d.cost;state.buildings[id]++;log(d.name+" infrastructure upgraded.");save()}
 function trade(id,amount){
  let price=state.prices[id],resource=state[id];
