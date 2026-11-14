@@ -826,7 +826,7 @@ test("resource sites reject foreign territory, duplicate development and unaffor
   const state = Engine.createInitialState({ seed: 814 });
   state.mapWorld = { version: 2, regions: [
     { id: "foreign", owner: "Asteria", resourceNodes: [{ id: "iron", resource: "Iron" }] },
-    { id: "frontier", owner: "Unclaimed", resourceNodes: [{ id: "coal", resource: "Coal", operational: true }, { id: "copper", resource: "Copper" }] }
+    { id: "frontier", owner: "Unclaimed", resourceNodes: [{ id: "coal", resource: "Coal", operational: true }, { id: "copper", resource: "Copper", quantity: 80 }] }
   ] };
   assert.throws(() => Engine.developResourceSite(state, "foreign", "iron"), /unclaimed regions/);
   assert.throws(() => Engine.developResourceSite(state, "frontier", "coal"), /already operational/);
