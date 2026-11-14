@@ -1,3 +1,11 @@
+## World Engine 2.3 — National mandates
+
+- Added four optional one-time national mandates: Food Security Reserve, Civic Confidence, Regional Goodwill and Industrial Base.
+- Each mandate displays live progress, eligibility and its reward.
+- Rewards can only be claimed once and are persisted in the local save.
+- Claiming a mandate awards credits and diplomatic influence.
+- Updated the PWA cache and visible build version to 2.3.
+
 ## World Engine 2.2 — Embassy and diplomatic missions
 
 - Added three player-led diplomatic missions: envoys, humanitarian aid and research exchange.
