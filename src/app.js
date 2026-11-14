@@ -147,7 +147,7 @@
     $("generated-nations").textContent = generatedWorld.nations.length;
     $("generated-region-list").innerHTML = generatedWorld.regions.map(region => '<button type="button" class="generated-region region-choice'+(region.id===selectedRegionId?" selected":"")+'" data-region-id="'+esc(region.id)+'"><b>'+esc(region.name)+'</b><span>'+esc(region.biome)+' · '+num(region.population)+' people</span><small>'+esc(region.resources.join(" · "))+'</small></button>').join("");
     const selected=generatedWorld.regions.find(region=>region.id===selectedRegionId)||generatedWorld.regions[0];
-    $("generated-region-detail").innerHTML='<b>'+esc(selected.name)+'</b><p>'+esc(selected.owner)+' · '+esc(selected.biome)+' · Development '+selected.development+'/100</p><p>'+num(selected.population)+' residents · '+selected.cities.length+' settlements</p><div class="settlement-list">'+selected.cities.map(city=>'<span><b>'+esc(city.name)+'</b> — '+esc(city.type)+' · '+num(city.population)+'</span>').join("")+'</div><small>Coordinates: '+selected.latitude.toFixed(1)+'°, '+selected.longitude.toFixed(1)+'°</small>';
+    $("generated-region-detail").innerHTML='<b>'+esc(selected.name)+'</b><p>'+esc(selected.owner)+' · '+esc(selected.biome)+' · Development '+selected.development+'/100</p><p>'+num(selected.population)+' residents · '+selected.cities.length+' settlements</p><div class="settlement-list">'+selected.cities.map(city=>'<span><b>'+esc(city.name)+'</b> — '+esc(city.type)+' · '+num(city.population)+'</span>').join("")+'</div><small>Coordinates: '+selected.latitude.toFixed(1)+'°, '+selected.longitude.toFixed(1)+'°</small><button type="button" id="found-settlement">Found settlement · 50 materials / 80 credits</button>';
     if (!planetRenderer) {
       try { planetRenderer = window.KingmakerWorld3D.start($("planet-canvas"),{world:generatedWorld}); }
       catch (error) { $("planet-canvas").replaceWith(Object.assign(document.createElement("p"),{className:"notice",textContent:"3D renderer could not start: "+error.message})); }
@@ -191,6 +191,17 @@
     if(event.key==="Enter"||event.key===" "){const node=event.target.closest("[data-focus]");if(node){event.preventDefault();node.click();}}
   });
   $("generated-region-list").addEventListener("click",event=>{const button=event.target.closest("[data-region-id]");if(!button)return;selectedRegionId=button.dataset.regionId;renderGeneratedWorld();});
+  $("generated-region-detail").addEventListener("click",event=>{
+    if(event.target.id!=="found-settlement")return;
+    const region=generatedWorld.regions.find(item=>item.id===selectedRegionId);
+    if(!region)return;
+    if(state.resources.materials<50||state.resources.credits<80)return toast("Founding a settlement requires 50 materials and 80 credits.","error");
+    state.resources.materials-=50;state.resources.credits-=80;
+    const n=region.cities.length+1,offset=(n%5)*1.15;
+    region.cities.push({id:region.id+"-city-"+n,name:"New Settlement "+n,population:10000,type:"Settlement",latitude:Math.max(-80,Math.min(80,region.latitude+offset)),longitude:((region.longitude+offset+540)%360)-180});
+    region.population+=10000;region.cityCount=region.cities.length;region.development=Math.min(100,region.development+3);
+    state.world=generatedWorld;if(planetRenderer&&planetRenderer.destroy)planetRenderer.destroy();planetRenderer=null;persist();toast("Settlement founded in "+region.name+".","success");
+  });
   $("regenerate-world").addEventListener("click",()=>{generatedWorld=window.KingmakerWorld3D.generate(Math.floor(Math.random()*4294967295));selectedRegionId=generatedWorld.regions[0].id;state.world=generatedWorld;if(planetRenderer&&planetRenderer.destroy)planetRenderer.destroy();planetRenderer=null;persist();toast("A new world was generated and saved to your campaign.","success");});
   $("advance-turn").addEventListener("click",()=>act(()=>E.advanceTurn(state)));
   $("save-profile").addEventListener("click",()=>{const name=$("nation-name").value.trim();if(!name||name.length>48)return toast("Nation name must contain 1–48 characters.","error");state.nation.name=name;state.nation.government=$("government").value;E.addEvent(state,"National charter updated.","player");persist();toast("Nation charter saved.","success");});
