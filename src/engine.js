@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 8;
+  const SAVE_VERSION = 9;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -33,6 +33,12 @@
     academy: { name: "Academy", cost: { materials: 36, credits: 68 }, production: { science: 5 } },
     power: { name: "Power Grid", cost: { materials: 42, credits: 74 }, production: { power: 4 } },
     housing: { name: "Housing", cost: { materials: 32, credits: 44 }, production: { capacity: 50 } }
+  };
+  const NATIONAL_POLICIES = {
+    food_assistance: { name: "Food Assistance", description: "Reduce national food demand by 25% for five turns.", cost: { credits: 30 }, duration: 5 },
+    research_fund: { name: "Research Fund", description: "Invest in laboratories for +4 science per turn for five turns.", cost: { credits: 45 }, duration: 5 },
+    public_health: { name: "Public Health Drive", description: "Improve citizen safety and add one population growth per turn for five turns.", cost: { credits: 35 }, duration: 5 },
+    industry_incentive: { name: "Industrial Incentive", description: "Support local production for +2 materials per turn for five turns.", cost: { credits: 50 }, duration: 5 }
   };
   const TECHNOLOGIES = {
     agriculture: { name: "Advanced Agriculture", cost: 28, effect: "farm", factor: 1.5 },
@@ -229,11 +235,27 @@
       }
     }
   }
+  function policyActive(state, id) {
+    const policy = state.policies && state.policies[id];
+    return !!policy && Number.isInteger(policy.expiresTurn) && policy.expiresTurn >= state.turn;
+  }
+  function enactPolicy(state, id) {
+    const definition = NATIONAL_POLICIES[id];
+    if (!definition) throw new Error("National policy is unavailable.");
+    if (policyActive(state, id)) throw new Error("This policy is already active.");
+    for (const [resource, amount] of Object.entries(definition.cost)) {
+      if ((state.resources[resource] || 0) < amount) throw new Error("Not enough " + resource + " to enact this policy.");
+    }
+    for (const [resource, amount] of Object.entries(definition.cost)) state.resources[resource] -= amount;
+    state.policies[id] = { activatedTurn: state.turn, expiresTurn: state.turn + definition.duration };
+    addEvent(state, definition.name + " enacted for " + definition.duration + " turns.", "policy");
+    return state.policies[id];
+  }
   function updateCitizens(state) {
     for (const c of state.citizens) {
       c.needs.food = clamp(c.needs.food - (state.resources.food > 0 ? 3 : 12), 0, 100);
       c.needs.energy = clamp(c.needs.energy - 2 + (state.resources.power > 0 ? 1 : 0), 0, 100);
-      c.needs.safety = clamp(c.needs.safety + (state.nation.stability >= 60 ? 2 : -4), 0, 100);
+      c.needs.safety = clamp(c.needs.safety + (state.nation.stability >= 60 ? 2 : -4) + (policyActive(state, "public_health") ? 3 : 0), 0, 100);
       c.needs.belonging = clamp(c.needs.belonging + (state.nation.stability >= 55 ? 1 : -2), 0, 100);
       const lowest = Object.keys(c.needs).sort((x, y) => c.needs[x] - c.needs[y])[0];
       if (c.needs[lowest] < 35) {
@@ -258,6 +280,7 @@
     const campaignId = CAMPAIGNS[options.campaignId] ? options.campaignId : "founding";
     const state = {
       schemaVersion: SAVE_VERSION, turn: 1, seed, citizens: createCitizens(100, seed),
+      policies: Object.fromEntries(Object.keys(NATIONAL_POLICIES).map(id => [id, null])),
       nation: { name: "New Horizon", government: "Republic", population: 100, stability: 80 },
       resources: { food: 120, materials: 105, credits: 180, science: 0, power: 20, influence: 20 },
       buildings: { farm: 2, workshop: 1, market: 1, academy: 1, power: 1, housing: 0 },
@@ -300,6 +323,7 @@
     if (!input.nation || typeof input.nation !== "object" || !input.resources || !input.buildings) throw new Error("Save is missing nation, resources, or building data.");
     const normalized = copy(input);
     normalizeCitizens(normalized);
+    if (!normalized.policies || typeof normalized.policies !== "object" || Array.isArray(normalized.policies)) normalized.policies = Object.fromEntries(Object.keys(NATIONAL_POLICIES).map(id => [id, null]));
     normalized.world = normalized.world || { nextEventId: 1, activeEvents: [], processedEventIds: [] };
     if (!Array.isArray(normalized.world.placedBuildings)) normalized.world.placedBuildings = [];
     if (!Array.isArray(normalized.world.placedRoads)) normalized.world.placedRoads = [];
@@ -308,6 +332,10 @@
     if (typeof normalized.nation.government !== "string" || normalized.nation.government.length > 48) throw new Error("Government style is invalid.");
     if (!Number.isInteger(normalized.nation.population) || normalized.nation.population < 1 || normalized.nation.population > RESOURCE_LIMIT) throw new Error("Population is outside safe limits.");
     if (!Number.isInteger(normalized.nation.stability) || normalized.nation.stability < 0 || normalized.nation.stability > 100) throw new Error("Stability must be between 0 and 100.");
+    if (Object.keys(normalized.policies).length !== Object.keys(NATIONAL_POLICIES).length || Object.keys(NATIONAL_POLICIES).some(id => !(id in normalized.policies))) throw new Error("National policy state is invalid.");
+    for (const [id, policy] of Object.entries(normalized.policies)) {
+      if (policy !== null && (!policy || !Number.isInteger(policy.activatedTurn) || policy.activatedTurn < 1 || policy.activatedTurn > normalized.turn || !Number.isInteger(policy.expiresTurn) || policy.expiresTurn < policy.activatedTurn || policy.expiresTurn > policy.activatedTurn + NATIONAL_POLICIES[id].duration)) throw new Error("National policy record is invalid.");
+    }
     for (const key of RESOURCE_KEYS) {
       if (!Number.isInteger(normalized.resources[key]) || normalized.resources[key] < 0 || normalized.resources[key] > RESOURCE_LIMIT) throw new Error("Resource value is invalid: " + key);
     }
@@ -436,7 +464,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6, 7].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -447,6 +475,7 @@
       normalizeCreatorRecords(state, input.schemaVersion === 6);
       migrateCreatorEconomy(state);
       state.achievements = Array.isArray(state.achievements) ? state.achievements : [];
+      state.policies = Object.fromEntries(Object.keys(NATIONAL_POLICIES).map(id => [id, null]));
       state.schemaVersion = SAVE_VERSION;
       addIndustryDefaults(state);
       normalizeCitizens(state);
@@ -1341,6 +1370,8 @@
     output.logistics += roads.logistics;
     for (const [resource, amount] of Object.entries(roads.production)) output[resource] += amount;
     if (worldEventActiveThisTurn(state, "industrial_revolution")) output.goods = Math.floor(output.goods * 1.3);
+    if (policyActive(state, "research_fund")) output.science += 4;
+    if (policyActive(state, "industry_incentive")) output.materials += 2;
     for (const resource of ["food", "materials", "ore", "goods", "science", "power"]) {
       state.resources[resource] = clamp(state.resources[resource] + output[resource], 0, RESOURCE_LIMIT);
     }
@@ -1377,6 +1408,7 @@
     if (phase !== previousPhase) addEvent(state, "The national economy entered a period of " + phase + ".", "economy");
     for (const resource of MARKET_RESOURCES) flow[resource] += output[resource] - (industry.inputs[resource] || 0);
     let foodNeed = Math.ceil(state.nation.population / (12 + Math.min(8, output.logistics)));
+    if (policyActive(state, "food_assistance")) foodNeed = Math.ceil(foodNeed * 0.75);
     if (state.world.activeEvents.some(event => event.key === "food_shortage" && event.status === "active" && event.choiceId === "ration" && (event.remainingTurns > 0 || event.lastAppliedTurn === state.turn))) foodNeed = Math.ceil(foodNeed * 0.75);
     state.economy.consumption.food = foodNeed;
     state.resources.food -= foodNeed;
@@ -1390,7 +1422,7 @@
       state.nation.stability = Math.min(100, state.nation.stability + (jobs >= Math.ceil(state.nation.population / 10) ? (hasTech(state, "governance") ? 2 : 1) : 0));
       if (state.resources.food > foodNeed * 3 && state.nation.stability >= 45 && phase !== "recession" && jobs >= Math.ceil(state.nation.population / 10)) {
         const populationCap = Math.min(RESOURCE_LIMIT, 250 + (state.buildings.housing || 0) * 50 + (hasTech(state, "medicine") ? 100 : 0) + creator.capacity);
-        state.nation.population = Math.min(populationCap, state.nation.population + 2 + (hasTech(state, "medicine") ? 1 : 0) + Math.floor((state.buildings.housing || 0) / 2) + districts.populationGrowth);
+        state.nation.population = Math.min(populationCap, state.nation.population + 2 + (hasTech(state, "medicine") ? 1 : 0) + (policyActive(state, "public_health") ? 1 : 0) + Math.floor((state.buildings.housing || 0) / 2) + districts.populationGrowth);
       }
     }
     if (jobs < Math.ceil(state.nation.population / 10)) state.nation.stability = Math.max(0, state.nation.stability - 1);
@@ -1488,10 +1520,10 @@
   }
 
   return {
-    SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
+    SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, NATIONAL_POLICIES, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
     createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, productionFor, build, trade,
-    research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
+    research, enactPolicy, policyActive, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
     exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech, worldIntelligence
