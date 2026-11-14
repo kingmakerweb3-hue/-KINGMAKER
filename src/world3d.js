@@ -17,9 +17,9 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.09,.13,.65,6),material(0x76533a));trunk.position.y=.32;g.add(trunk);
     const crown=new THREE.Mesh(new THREE.ConeGeometry(.58,1.45,7),material(rand(x,z)>.5?0x477b57:0x5b895c));crown.position.y=1.25;g.add(crown);landGroup.add(g);
   }
-  function makeBuilding(type,index,total){
+  function makeBuilding(type,index,total,position){
     const angle=index*2.399963,ring=2.7+Math.floor(index/9)*1.7;
-    const x=Math.cos(angle)*ring,z=Math.sin(angle)*ring;
+    const x=position?.x??Math.cos(angle)*ring,z=position?.z??Math.sin(angle)*ring;
     const g=new THREE.Group();g.position.set(x,heightAt(x,z),z);
     const color=COLORS[type]||0x9aa7b6;
     const height=type==="factory"?1.7:type==="academy"?1.55:type==="housing"?1.25:type==="market"?1.1:.9;
