@@ -956,3 +956,33 @@ test("version 8 saves migrate to the version 9 national policy schema", () => {
   assert.deepEqual(Object.keys(migrated.policies).sort(), ["food_assistance", "industry_incentive", "public_health", "research_fund"]);
   assert.ok(Object.values(migrated.policies).every(policy => policy === null));
 });
+
+
+test("citizens autonomously develop careers and adjust civic trust in response to living conditions", () => {
+  const state = Engine.createInitialState({ seed: 5510 });
+  const citizen = state.citizens[0];
+  assert.equal(citizen.careerLevel, 1);
+  assert.equal(citizen.careerXp, 0);
+  assert.ok(citizen.aspiration.length > 0);
+  state.resources.food = 500;
+  state.resources.power = 100;
+  citizen.needs = { food: 95, energy: 95, safety: 95, belonging: 95 };
+  citizen.mood = 95;
+  for (let i = 0; i < 12; i++) Engine.advanceTurn(state);
+  assert.ok(citizen.careerXp > 0);
+  assert.ok(citizen.careerLevel >= 2);
+  assert.ok(citizen.civicTrust >= 50);
+  assert.ok(citizen.memory.some(item => item.text.includes("career level")));
+  const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.equal(saved.citizens[0].careerLevel, citizen.careerLevel);
+  assert.equal(saved.citizens[0].aspiration, citizen.aspiration);
+});
+
+test("version 9 citizen saves migrate to the autonomous career schema", () => {
+  const old = Engine.createInitialState({ seed: 5511 });
+  old.schemaVersion = 9;
+  old.citizens.forEach(c => { delete c.careerLevel; delete c.careerXp; delete c.civicTrust; delete c.aspiration; });
+  const migrated = Engine.migrateSave(old);
+  assert.equal(migrated.schemaVersion, 10);
+  assert.ok(migrated.citizens.every(c => c.careerLevel === 1 && c.careerXp === 0 && c.civicTrust === 50 && c.aspiration));
+});
