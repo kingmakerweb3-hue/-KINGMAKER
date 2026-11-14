@@ -183,4 +183,4 @@ npx playwright install --with-deps chromium
 npm test
 ```
 
-The suite checks dashboard rendering and browser errors, all navigation tabs, the 13-check Quality Console, turn advancement and local save persistence, and JSON save export. The workflow result is the authoritative automated browser-test status for each commit.
+The suite covers dashboard rendering and browser errors, all navigation tabs, the 13-check Quality Console, turn advancement and local save persistence, JSON save export, legacy-save migration and recovery, diplomatic mission rules, national mandate rewards, and focus-driven rival decisions. The workflow result is the authoritative automated browser-test status for each commit.
