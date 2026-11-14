@@ -144,7 +144,7 @@
     const selected=generatedWorld.regions.find(region=>region.id===selectedRegionId)||generatedWorld.regions[0];
     $("generated-region-detail").innerHTML='<b>'+esc(selected.name)+'</b><p>'+esc(selected.owner)+' · '+esc(selected.biome)+' · Development '+selected.development+'/100</p><p>'+num(selected.population)+' residents · '+selected.cities.length+' settlements</p><div class="settlement-list">'+selected.cities.map(city=>'<span><b>'+esc(city.name)+'</b> — '+esc(city.type)+' · '+num(city.population)+'</span>').join("")+'</div><small>Coordinates: '+selected.latitude.toFixed(1)+'°, '+selected.longitude.toFixed(1)+'°</small>';
     if (!planetRenderer) {
-      try { planetRenderer = window.KingmakerWorld3D.start($("planet-canvas")); }
+      try { planetRenderer = window.KingmakerWorld3D.start($("planet-canvas"),{world:generatedWorld}); }
       catch (error) { $("planet-canvas").replaceWith(Object.assign(document.createElement("p"),{className:"notice",textContent:"3D renderer could not start: "+error.message})); }
       if (planetRenderer && !planetRenderer.ok) $("planet-canvas").insertAdjacentHTML("afterend",'<p class="notice">'+esc(planetRenderer.error)+'</p>');
     }
@@ -186,7 +186,7 @@
     if(event.key==="Enter"||event.key===" "){const node=event.target.closest("[data-focus]");if(node){event.preventDefault();node.click();}}
   });
   $("generated-region-list").addEventListener("click",event=>{const button=event.target.closest("[data-region-id]");if(!button)return;selectedRegionId=button.dataset.regionId;renderGeneratedWorld();});
-  $("regenerate-world").addEventListener("click",()=>{generatedWorld=window.KingmakerWorld3D.generate(Math.floor(Math.random()*4294967295));selectedRegionId=generatedWorld.regions[0].id;renderGeneratedWorld();toast("A new procedural world has been generated.","success");});
+  $("regenerate-world").addEventListener("click",()=>{generatedWorld=window.KingmakerWorld3D.generate(Math.floor(Math.random()*4294967295));selectedRegionId=generatedWorld.regions[0].id;state.world=generatedWorld;if(planetRenderer&&planetRenderer.destroy)planetRenderer.destroy();planetRenderer=null;persist();toast("A new world was generated and saved to your campaign.","success");});
   $("advance-turn").addEventListener("click",()=>act(()=>E.advanceTurn(state)));
   $("save-profile").addEventListener("click",()=>{const name=$("nation-name").value.trim();if(!name||name.length>48)return toast("Nation name must contain 1–48 characters.","error");state.nation.name=name;state.nation.government=$("government").value;E.addEvent(state,"National charter updated.","player");persist();toast("Nation charter saved.","success");});
   $("export-save").addEventListener("click",exportSave);$("import-save").addEventListener("click",()=>$("import-file").click());$("import-file").addEventListener("change",e=>importSave(e.target.files[0]));
@@ -196,5 +196,5 @@
   const assess=()=>{renderAdvice();toast("The local World Director assessed your nation.","success");};
   $("director-run").addEventListener("click",assess);$("director-run-panel").addEventListener("click",assess);
   $("sound-toggle").addEventListener("click",e=>{soundOn=!soundOn;e.currentTarget.setAttribute("aria-pressed",String(soundOn));e.currentTarget.textContent=soundOn?"Sound: on":"Sound: off";beep();});
-  state=load();render();persist();
+  state=load();\n  generatedWorld=state.world&&state.world.version===window.KingmakerWorld3D.WORLD_VERSION&&Array.isArray(state.world.regions)?state.world:window.KingmakerWorld3D.generate(state.seed);\n  selectedRegionId=generatedWorld.regions[0].id;state.world=generatedWorld;render();persist();
 })();
