@@ -772,3 +772,15 @@ test("a long-running deterministic world remains inside the save schema", () => 
   assert.ok(state.turn > 100);
   assert.ok(Object.values(state.rivals).every(r => r.resources.food >= 0 && r.resources.materials >= 0 && r.resources.credits >= 0));
 });
+
+
+test("district zoning is persisted, bounded, and rejects malformed district records", () => {
+  const state = Engine.createInitialState({ seed: 101 });
+  state.world.placedDistricts.push({ type: "residential", x: 2.5, z: -3, radius: 2.6 });
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(restored.world.placedDistricts, state.world.placedDistricts);
+  restored.world.placedDistricts[0].type = "volcano";
+  assert.throws(() => Engine.validateSave(restored), /District placement data is invalid/);
+  restored.world.placedDistricts[0] = { type: "industrial", x: 12, z: 0, radius: 2.6 };
+  assert.throws(() => Engine.validateSave(restored), /District placement data is invalid/);
+});
