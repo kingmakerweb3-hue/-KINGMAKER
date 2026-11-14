@@ -89,3 +89,6 @@ button{min-height:38px}
 .resource-node-list b{color:var(--gold)}
 .generated-region-detail h3{margin:10px 0 4px;font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:.08em}
 @media(max-width:420px){.resource-node-list{grid-template-columns:1fr}}
+
+
+.resource-node-list .resource-site-action{display:block;width:100%;margin-top:6px;padding:6px 8px;font-size:9px;min-height:30px}
