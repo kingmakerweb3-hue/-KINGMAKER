@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 7;
+  const SAVE_VERSION = 8;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -155,12 +155,68 @@
       adoptions: [], totalRoyalties: 0, royaltyTurn: state.turn, lastTurnRoyalties: 0 };
     for (const commission of state.creatorEconomy.commissions) if (!byId.has(commission.designId)) throw new Error("Creator migration is invalid.");
   }
+
+  const CITIZEN_ROLES = ["farmer", "builder", "engineer", "merchant", "researcher", "medic", "courier", "artisan"];
+  const CITIZEN_NAMES = ["Ari", "Mira", "Soren", "Nia", "Tarin", "Lena", "Oren", "Zara", "Kian", "Elia", "Ravi", "Noor", "Dara", "Ilan", "Sana", "Theo", "Amira", "Eren", "Milo", "Aya", "Ronan", "Iris", "Juno", "Kai"];
+  function createCitizens(population, seed) {
+    const count = clamp(Math.ceil(population / 5), 12, 48);
+    return Array.from({ length: count }, (_, i) => ({
+      id: "citizen-" + (i + 1), name: CITIZEN_NAMES[(i + (seed % CITIZEN_NAMES.length)) % CITIZEN_NAMES.length] + " " + (i + 1),
+      role: CITIZEN_ROLES[i % CITIZEN_ROLES.length], home: "residential-" + (i % 3 + 1),
+      workplace: "district-" + (i % 4 + 1),
+      needs: { food: 70 + (i * 7) % 25, energy: 65 + (i * 11) % 30, safety: 72 + (i * 5) % 24, belonging: 60 + (i * 13) % 35 },
+      mood: 65 + (i * 3) % 25, goal: ["improve home", "master profession", "support community", "save resources"][i % 4],
+      memory: [{ turn: 1, text: "Joined the new civilization." }], activity: "working", age: 18 + (i * 7) % 48
+    }));
+  }
+  function normalizeCitizens(state) {
+    if (!Array.isArray(state.citizens)) state.citizens = createCitizens(state.nation.population, state.seed);
+    state.citizens = state.citizens.slice(0, 48);
+    const ids = new Set();
+    state.citizens = state.citizens.filter((c, i) => {
+      if (!c || typeof c !== "object") return false;
+      if (typeof c.id !== "string" || !/^citizen-[1-9][0-9]*$/.test(c.id) || ids.has(c.id)) c.id = "citizen-" + (i + 1);
+      ids.add(c.id);
+      c.name = typeof c.name === "string" ? c.name.slice(0, 48) : "Citizen " + (i + 1);
+      c.role = CITIZEN_ROLES.includes(c.role) ? c.role : CITIZEN_ROLES[i % CITIZEN_ROLES.length];
+      c.home = typeof c.home === "string" ? c.home.slice(0, 40) : "residential-1";
+      c.workplace = typeof c.workplace === "string" ? c.workplace.slice(0, 40) : "district-1";
+      c.needs = c.needs && typeof c.needs === "object" ? c.needs : {};
+      for (const key of ["food", "energy", "safety", "belonging"]) c.needs[key] = safeInt(c.needs[key], 70, 100);
+      c.mood = safeInt(c.mood, 65, 100);
+      c.goal = typeof c.goal === "string" ? c.goal.slice(0, 80) : "support community";
+      c.activity = typeof c.activity === "string" ? c.activity.slice(0, 48) : "working";
+      c.age = safeInt(c.age, 25, 120);
+      c.memory = (Array.isArray(c.memory) ? c.memory : []).filter(m => m && Number.isInteger(m.turn) && m.turn >= 1 && m.turn <= state.turn && typeof m.text === "string").slice(-8).map(m => ({ turn: m.turn, text: m.text.slice(0, 120) }));
+      return true;
+    });
+  }
+  function updateCitizens(state) {
+    for (const c of state.citizens) {
+      c.needs.food = clamp(c.needs.food - (state.resources.food > 0 ? 3 : 12), 0, 100);
+      c.needs.energy = clamp(c.needs.energy - 2 + (state.resources.power > 0 ? 1 : 0), 0, 100);
+      c.needs.safety = clamp(c.needs.safety + (state.nation.stability >= 60 ? 2 : -4), 0, 100);
+      c.needs.belonging = clamp(c.needs.belonging + (state.nation.stability >= 55 ? 1 : -2), 0, 100);
+      const lowest = Object.keys(c.needs).sort((x, y) => c.needs[x] - c.needs[y])[0];
+      if (c.needs[lowest] < 35) {
+        c.activity = lowest === "food" ? "seeking food" : lowest === "energy" ? "resting" : lowest === "safety" ? "seeking safety" : "meeting neighbors";
+        c.goal = "restore " + lowest;
+      } else {
+        c.activity = ["cultivating fields", "building infrastructure", "maintaining systems", "trading goods", "studying new ideas", "caring for residents", "moving supplies", "crafting goods"][CITIZEN_ROLES.indexOf(c.role)];
+      }
+      c.mood = Math.round((c.needs.food + c.needs.energy + c.needs.safety + c.needs.belonging) / 4);
+      if (state.turn % 5 === 0) {
+        c.memory.push({ turn: state.turn, text: c.mood < 45 ? "Struggled with " + lowest + " needs." : "Contributed as a " + c.role + "." });
+        c.memory = c.memory.slice(-8);
+      }
+    }
+  }
   function createInitialState(options = {}) {
     const defaultSeed = Math.floor(Math.random() * 0xffffffff) || 1;
     const seed = safeInt(options.seed, defaultSeed, 0xffffffff) || defaultSeed;
     const campaignId = CAMPAIGNS[options.campaignId] ? options.campaignId : "founding";
     const state = {
-      schemaVersion: SAVE_VERSION, turn: 1, seed,
+      schemaVersion: SAVE_VERSION, turn: 1, seed, citizens: createCitizens(100, seed),
       nation: { name: "New Horizon", government: "Republic", population: 100, stability: 80 },
       resources: { food: 120, materials: 105, credits: 180, science: 0, power: 20, influence: 20 },
       buildings: { farm: 2, workshop: 1, market: 1, academy: 1, power: 1, housing: 0 },
@@ -202,6 +258,7 @@
     if (!Number.isInteger(input.seed) || input.seed < 0 || input.seed > 0xffffffff) throw new Error("World seed is invalid.");
     if (!input.nation || typeof input.nation !== "object" || !input.resources || !input.buildings) throw new Error("Save is missing nation, resources, or building data.");
     const normalized = copy(input);
+    normalizeCitizens(normalized);
     normalized.world = normalized.world || { nextEventId: 1, activeEvents: [], processedEventIds: [] };
     if (!Array.isArray(normalized.world.placedBuildings)) normalized.world.placedBuildings = [];
     if (!Array.isArray(normalized.world.placedRoads)) normalized.world.placedRoads = [];
@@ -338,7 +395,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -351,6 +408,7 @@
       state.achievements = Array.isArray(state.achievements) ? state.achievements : [];
       state.schemaVersion = SAVE_VERSION;
       addIndustryDefaults(state);
+      normalizeCitizens(state);
       return validateSave(state);
     }
     if (input && !("schemaVersion" in input) && input.buildings && input.events) {
@@ -1213,6 +1271,7 @@
     autoResolvePendingWorldEvents(state);
     if (state.status !== "playing") return state;
     state.turn++;
+    updateCitizens(state);
     state.creatorEconomy.royaltyTurn = state.turn;
     state.creatorEconomy.lastTurnRoyalties = 0;
     state.world.activeEvents = state.world.activeEvents.filter(event => event.status === "pending" || event.remainingTurns > 0);
@@ -1390,7 +1449,7 @@
   return {
     SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, productionFor, build, trade,
+    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, productionFor, build, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
