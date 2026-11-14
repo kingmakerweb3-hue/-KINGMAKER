@@ -338,7 +338,8 @@
             (region.population !== undefined && (!Number.isInteger(region.population) || region.population < 0 || region.population > RESOURCE_LIMIT)) ||
             (region.development !== undefined && (!Number.isInteger(region.development) || region.development < 0 || region.development > 100)) ||
             (region.cities !== undefined && (!Array.isArray(region.cities) || region.cities.length > 100)) ||
-            (region.resourceNodes !== undefined && (!Array.isArray(region.resourceNodes) || region.resourceNodes.length > 20))) throw new Error("Generated region data is invalid.");
+            (region.resourceNodes !== undefined && (!Array.isArray(region.resourceNodes) || region.resourceNodes.length > 20)) ||
+            (region.roads !== undefined && (!Array.isArray(region.roads) || region.roads.length > 20))) throw new Error("Generated region data is invalid.");
         regionIds.add(region.id);
         const cityIds = new Set();
         for (const city of region.cities || []) {
@@ -348,6 +349,14 @@
               (city.latitude !== undefined && (!Number.isFinite(city.latitude) || city.latitude < -90 || city.latitude > 90)) ||
               (city.longitude !== undefined && (!Number.isFinite(city.longitude) || city.longitude < -180 || city.longitude > 180))) throw new Error("Generated settlement data is invalid.");
           cityIds.add(city.id);
+        }
+        const roadIds = new Set();
+        const cityIdSet = new Set((region.cities || []).map(city => city.id));
+        for (const road of region.roads || []) {
+          if (!road || typeof road.id !== "string" || !road.id || road.id.length > 96 || roadIds.has(road.id) ||
+              !cityIdSet.has(road.from) || !cityIdSet.has(road.to) || road.from === road.to ||
+              !Number.isInteger(road.builtTurn) || road.builtTurn < 1 || road.builtTurn > normalized.turn) throw new Error("Regional road data is invalid.");
+          roadIds.add(road.id);
         }
         const nodeIds = new Set();
         for (const node of region.resourceNodes || []) {
@@ -665,6 +674,30 @@
     addEvent(state, "Established a " + node.resource.toLowerCase() + " extraction site in " + region.name + ".", "economy");
     return node;
   }
+  function buildRegionalRoad(state, regionId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (!state.mapWorld || !Array.isArray(state.mapWorld.regions)) throw new Error("No generated world is available.");
+    const region = state.mapWorld.regions.find(item => item.id === regionId);
+    if (!region) throw new Error("Region not found.");
+    if (!Array.isArray(region.cities) || region.cities.length < 2) throw new Error("At least two settlements are required to connect a road.");
+    region.roads = Array.isArray(region.roads) ? region.roads : [];
+    const maxRoads = Math.min(20, region.cities.length * (region.cities.length - 1) / 2);
+    if (region.roads.length >= maxRoads) throw new Error("All available settlement connections are already built.");
+    if (state.resources.materials < 25 || state.resources.credits < 40) throw new Error("Building a road requires 25 materials and 40 credits.");
+    const connected = new Set(region.roads.map(road => [road.from, road.to].sort().join(":")));
+    let pair = null;
+    for (let i = 0; i < region.cities.length && !pair; i++) for (let j = i + 1; j < region.cities.length; j++) {
+      const key = [region.cities[i].id, region.cities[j].id].sort().join(":");
+      if (!connected.has(key)) { pair = { from: region.cities[i].id, to: region.cities[j].id }; break; }
+    }
+    if (!pair) throw new Error("No new settlement connection is available.");
+    state.resources.materials -= 25;
+    state.resources.credits -= 40;
+    region.roads.push({ id: region.id + "-road-" + (region.roads.length + 1), ...pair, builtTurn: state.turn });
+    region.development = Math.min(100, (region.development || 0) + 2);
+    addEvent(state, "Built a road linking settlements in " + (region.name || "a region") + ".", "economy");
+    return region.roads[region.roads.length - 1];
+  }
   function productionFor(buildings, technologies = []) {
     const production = { food: 0, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, capacity: 0, logistics: 0 };
     for (const [id, definition] of Object.entries(BUILDINGS)) {
@@ -701,6 +734,7 @@
     }, state.buildings, state.technologies, state.nation.population);
     for (const [resource, amount] of Object.entries(creator.production)) industry.production[resource] += amount;
     for (const [resource, amount] of Object.entries(resourceExtractionOutput(state.mapWorld))) industry.production[resource] += amount;
+    industry.production.logistics += (state.mapWorld && state.mapWorld.regions || []).reduce((sum, region) => sum + (Array.isArray(region.roads) ? region.roads.length : 0) * 2, 0);
     return { production: industry.production, consumption: { food: Math.ceil(state.nation.population / (12 + Math.min(8, industry.production.logistics))), ...industry.inputs },
       workforce: jobs, employed, requiredJobs: Math.ceil(state.nation.population / 10), activeFactories: industry.activeFactories };
   }
@@ -1404,7 +1438,7 @@
   return {
     SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, productionFor, developResourceSite, build, trade,
+    createInitialState, validateSave, migrateSave, productionFor, developResourceSite, buildRegionalRoad, build, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
