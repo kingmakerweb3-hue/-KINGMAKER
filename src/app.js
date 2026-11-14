@@ -147,7 +147,7 @@
     $("generated-nations").textContent = generatedWorld.nations.length;
     $("generated-region-list").innerHTML = generatedWorld.regions.map(region => '<button type="button" class="generated-region region-choice'+(region.id===selectedRegionId?" selected":"")+'" data-region-id="'+esc(region.id)+'"><b>'+esc(region.name)+'</b><span>'+esc(region.biome)+' · '+num(region.population)+' people</span><small>'+esc(region.resources.join(" · "))+'</small></button>').join("");
     const selected=generatedWorld.regions.find(region=>region.id===selectedRegionId)||generatedWorld.regions[0];
-    const deposits=(selected.resourceNodes||[]).map(node=>'<span><b>'+esc(node.resource)+'</b> · '+num(node.quantity)+' units</span>').join("");
+    const deposits=(selected.resourceNodes||[]).map(node=>'<span><b>'+esc(node.resource)+'</b> · '+num(node.quantity)+' units'+(node.operational?' · Producing':selected.owner==="Unclaimed"?' <button type="button" class="resource-site-action" data-resource-node="'+esc(node.id)+'">Establish site · 35 materials / 55 credits</button>':' · Unclaimed region required')+'</span>').join("");
     $("generated-region-detail").innerHTML='<b>'+esc(selected.name)+'</b><p>'+esc(selected.owner)+' · '+esc(selected.biome)+' · Development '+selected.development+'/100</p><p>'+num(selected.population)+' residents · '+selected.cities.length+' settlements</p><div class="settlement-list">'+selected.cities.map(city=>'<span><b>'+esc(city.name)+'</b> — '+esc(city.type)+' · '+num(city.population)+'</span>').join("")+'</div><h3>Resource deposits</h3><div class="resource-node-list">'+deposits+'</div><small>Coordinates: '+selected.latitude.toFixed(1)+'°, '+selected.longitude.toFixed(1)+'°</small><button type="button" id="found-settlement">Found settlement · 50 materials / 80 credits</button>';
     if (!planetRenderer) {
       try { planetRenderer = window.KingmakerWorld3D.start($("planet-canvas"),{world:generatedWorld,onRegionSelect(regionId){selectedRegionId=regionId;renderGeneratedWorld();}}); }
@@ -193,6 +193,12 @@
   });
   $("generated-region-list").addEventListener("click",event=>{const button=event.target.closest("[data-region-id]");if(!button)return;selectedRegionId=button.dataset.regionId;renderGeneratedWorld();});
   $("generated-region-detail").addEventListener("click",event=>{
+    const resourceButton=event.target.closest("[data-resource-node]");
+    if(resourceButton){
+      try{E.developResourceSite(state,selectedRegionId,resourceButton.dataset.resourceNode);state.mapWorld=generatedWorld;persist();renderGeneratedWorld();toast("Resource extraction site established.","success");}
+      catch(error){toast(error.message,"error");}
+      return;
+    }
     if(event.target.id!=="found-settlement")return;
     const region=generatedWorld.regions.find(item=>item.id===selectedRegionId);
     if(!region)return;
