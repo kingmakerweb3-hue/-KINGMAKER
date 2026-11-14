@@ -983,7 +983,7 @@ test("version 9 citizen saves migrate to the current autonomous career schema", 
   old.schemaVersion = 9;
   old.citizens.forEach(c => { delete c.careerLevel; delete c.careerXp; delete c.civicTrust; delete c.aspiration; });
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 11);
+  assert.equal(migrated.schemaVersion, 12);
   assert.ok(migrated.citizens.every(c => c.careerLevel === 1 && c.careerXp === 0 && c.civicTrust === 50 && c.aspiration));
 });
 
@@ -1091,16 +1091,17 @@ test("version 11 saves migrate to political pressure schema 12", () => {
 test("elected parties implement distinct governing agendas and aligned policy discounts", () => {
   const civic = Engine.createInitialState({ seed: 6201 });
   const prosperity = Engine.createInitialState({ seed: 6202 });
+  const baseline = Engine.createInitialState({ seed: 6202 });
   const security = Engine.createInitialState({ seed: 6203 });
   prosperity.election.incumbent = "prosperity";
   security.election.incumbent = "security";
   assert.equal(Engine.partyGovernance(civic).agenda, "Community services and civic trust");
   assert.equal(Engine.partyGovernance(prosperity).id, "prosperity");
   assert.ok(Engine.partyGovernance(security).effects.includes("extra safety"));
-  const startFood = prosperity.resources.food, startCredits = prosperity.resources.credits;
   Engine.advanceTurn(prosperity);
-  assert.ok(prosperity.resources.food > startFood);
-  assert.ok(prosperity.resources.credits > startCredits);
+  Engine.advanceTurn(baseline);
+  assert.equal(prosperity.economy.production.food, baseline.economy.production.food + 3);
+  assert.equal(prosperity.economy.production.credits, baseline.economy.production.credits + 2);
   civic.resources.credits = 100;
   Engine.enactPolicy(civic, "food_assistance");
   assert.equal(civic.resources.credits, 100 - Math.ceil(30 * 0.85));
