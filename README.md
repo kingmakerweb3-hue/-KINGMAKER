@@ -60,6 +60,14 @@ This is a playable single-player prototype, not a finished online commercial rel
 - Online accounts, cloud saves, cross-device sync, live multiplayer, and hosted backend services are not implemented.
 - Service-worker offline support requires HTTPS or localhost hosting and should be verified after deployment.
 
+## World Engine 1.3 — Interactive strategic atlas
+
+- Replaced the plain region list in the world situation panel with an interactive strategic atlas.
+- The capital is a distinct map node linking directly to Capital City development.
+- All twelve regions are selectable and show ownership, terrain, strategic yield, and claim costs.
+- Territory selection updates a live inspector with an affordability-aware claim action.
+- Map tiles reflow for tablet and mobile screens; the atlas is schematic rather than a geographic map.
+
 ## World Engine 1.2 — Capital logistics
 
 - Added a five-level capital road and logistics network.
@@ -77,4 +85,4 @@ This is a playable single-player prototype, not a finished online commercial rel
 5. Multiplayer server architecture, moderation, security, and release operations.
 
 ---
-**KINGMAKER World Engine 1.2** — a playable single-player prototype under active development.
+**KINGMAKER World Engine 1.3** — a playable single-player prototype under active development.
