@@ -74,3 +74,11 @@ button{min-height:38px}
 .world3d-stat small{color:var(--muted);font-size:10px}
 .world3d-note{font-size:11px;margin-bottom:0}
 @media(max-width:640px){.world3d-viewport{height:55vh;min-height:300px}.world3d-toolbar{align-items:flex-start;flex-direction:column}.world3d-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Interactive 3D construction tools */
+.world3d-build-tools{display:grid;grid-template-columns:minmax(160px,1fr) 2fr;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.world3d-build-tools>div:first-child{display:grid;gap:4px}.world3d-build-tools small{color:var(--muted);font-size:.78rem}
+.world3d-build-palette{display:flex;flex-wrap:wrap;gap:7px}.world3d-build-palette button{display:flex;gap:6px;align-items:center;padding:8px 10px;font-size:.78rem}.world3d-build-palette button.selected{border-color:var(--gold);background:rgba(229,189,106,.16);box-shadow:0 0 0 1px var(--gold)}
+#world3d-build-hint{grid-column:1/-1;color:var(--gold);font-size:.82rem}
+.world3d-viewport canvas{cursor:grab;touch-action:pan-y}
+@media(max-width:700px){.world3d-build-tools{grid-template-columns:1fr}.world3d-build-palette{overflow-x:auto;flex-wrap:nowrap;padding-bottom:5px}.world3d-build-palette button{white-space:nowrap;flex-shrink:0}}
