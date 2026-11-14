@@ -587,14 +587,24 @@
     Iron: { ore: 4 }, Copper: { ore: 4 }, Coal: { power: 3 },
     Timber: { materials: 3 }, Stone: { materials: 3 }, "Rare crystals": { science: 2 }
   };
-  function resourceExtractionOutput(mapWorld) {
+  function resourceExtractionOutput(mapWorld, consume = false) {
     const output = { food: 0, materials: 0, ore: 0, science: 0, power: 0 };
     for (const region of mapWorld && Array.isArray(mapWorld.regions) ? mapWorld.regions : []) {
       for (const node of Array.isArray(region.resourceNodes) ? region.resourceNodes : []) {
         if (!node || node.operational !== true) continue;
         const yieldByResource = RESOURCE_SITE_OUTPUT[node.resource];
-        if (!yieldByResource) continue;
-        for (const [key, amount] of Object.entries(yieldByResource)) output[key] += amount;
+        const reserve = Number.isInteger(node.quantity) ? Math.max(0, node.quantity) : 0;
+        if (!yieldByResource || reserve <= 0) { if (consume) node.depleted = true; continue; }
+        let extracted = 0;
+        for (const [key, rate] of Object.entries(yieldByResource)) {
+          const amount = Math.min(reserve, rate);
+          output[key] += amount;
+          extracted += amount;
+        }
+        if (consume) {
+          node.quantity = Math.max(0, reserve - extracted);
+          if (node.quantity === 0) node.depleted = true;
+        }
       }
     }
     return output;
@@ -608,6 +618,7 @@
     const node = Array.isArray(region.resourceNodes) ? region.resourceNodes.find(item => item.id === nodeId) : null;
     if (!node || !RESOURCE_SITE_OUTPUT[node.resource]) throw new Error("Resource deposit not found.");
     if (node.operational === true) throw new Error("This resource deposit is already operational.");
+    if (!Number.isInteger(node.quantity) || node.quantity <= 0) throw new Error("This resource deposit is depleted.");
     if (state.resources.materials < 35 || state.resources.credits < 55) throw new Error("Establishing an extraction site requires 35 materials and 55 credits.");
     state.resources.materials -= 35;
     state.resources.credits -= 55;
@@ -1229,7 +1240,7 @@
     }, state.buildings, state.technologies, state.nation.population);
     const output = industry.production;
     for (const [resource, amount] of Object.entries(creator.production)) output[resource] += amount;
-    for (const [resource, amount] of Object.entries(resourceExtractionOutput(state.mapWorld))) output[resource] += amount;
+    for (const [resource, amount] of Object.entries(resourceExtractionOutput(state.mapWorld, true))) output[resource] += amount;
     if (worldEventActiveThisTurn(state, "industrial_revolution")) output.goods = Math.floor(output.goods * 1.3);
     for (const resource of ["food", "materials", "ore", "goods", "science", "power"]) {
       state.resources[resource] = clamp(state.resources[resource] + output[resource], 0, RESOURCE_LIMIT);
