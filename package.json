@@ -5,7 +5,7 @@
   "description": "KINGMAKER local nation-building game engine",
   "scripts": {
     "dev": "node src/server.js",
-    "test": "node --test",
+    "test": "node --test tests/*.test.js",
     "check": "node --check src/engine.js && node --check src/citizens.js && node --check src/app.js && node --check src/server.js && node --check tests/engine.test.js && node --check tests/citizens.test.js && node --input-type=module --check < src/world3d.js && node --check src/web3.js",
     "contract:test": "hardhat test",
     "contract:compile": "hardhat compile"
