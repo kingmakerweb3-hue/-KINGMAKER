@@ -983,10 +983,57 @@ test("version 9 citizen saves migrate to the autonomous career schema", () => {
   old.schemaVersion = 9;
   old.citizens.forEach(c => { delete c.careerLevel; delete c.careerXp; delete c.civicTrust; delete c.aspiration; });
   const migrated = Engine.migrateSave(old);
-  assert.equal(migrated.schemaVersion, 10);
+  assert.equal(migrated.schemaVersion, 11);
   assert.ok(migrated.citizens.every(c => c.careerLevel === 1 && c.careerXp === 0 && c.civicTrust === 50 && c.aspiration));
 });
 
+
+
+test("citizen needs and trust shape transparent election forecasts", () => {
+  const state = Engine.createInitialState({ seed: 8812 });
+  state.election.incumbent = "civic";
+  state.citizens.forEach(c => {
+    c.needs = { food: 95, energy: 90, safety: 20, belonging: 25 };
+    c.civicTrust = 30;
+  });
+  const forecast = Engine.electionForecast(state);
+  assert.equal(forecast.winner, "prosperity");
+  assert.equal(Object.values(forecast.voteShares).reduce((sum, value) => sum + value, 0), 100);
+  assert.ok(forecast.voteShares.prosperity > forecast.voteShares.security);
+  assert.ok(forecast.turnout >= 25 && forecast.turnout <= 90);
+});
+
+test("elections resolve on schedule, change leadership, affect stability, and persist", () => {
+  const state = Engine.createInitialState({ seed: 8813 });
+  state.election.nextElectionTurn = 2;
+  state.citizens.forEach(c => {
+    c.needs = { food: 10, energy: 10, safety: 10, belonging: 10 };
+    c.mood = 10;
+    c.civicTrust = 10;
+  });
+  const before = state.nation.stability;
+  Engine.advanceTurn(state);
+  assert.equal(state.election.electionsHeld, 1);
+  assert.equal(state.election.lastResult.turn, 2);
+  assert.equal(state.election.incumbent, state.election.lastResult.winner);
+  assert.equal(state.election.nextElectionTurn, 14);
+  assert.ok(state.nation.stability < before);
+  assert.ok(state.events.some(event => event.type === "election"));
+  const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(saved.election, state.election);
+});
+
+test("version 10 saves migrate to election-enabled schema 11", () => {
+  const old = Engine.createInitialState({ seed: 8814 });
+  old.schemaVersion = 10;
+  delete old.election;
+  const migrated = Engine.migrateSave(old);
+  assert.equal(migrated.schemaVersion, 11);
+  assert.equal(migrated.election.incumbent, "civic");
+  assert.equal(migrated.election.electionsHeld, 0);
+  assert.equal(migrated.election.lastResult, null);
+  assert.ok(migrated.election.nextElectionTurn > migrated.turn);
+});
 
 test("civic mandate reflects citizen wellbeing, trust, and the leading public concern", () => {
   const state = Engine.createInitialState({ seed: 7210 });
