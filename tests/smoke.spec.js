@@ -44,3 +44,31 @@ test('save export creates a JSON download', async ({ page }) => {
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/kingmaker-save-v2\.json/);
 });
+
+test('legacy saves are migrated without losing valid progress', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('kingmaker_save', JSON.stringify({
+      turn: 9, name: 'Legacy Realm', credits: 420,
+      buildings: { farm: 3 }, relations: { Aurelia: 44 },
+      tech: ['agriculture'], events: ['Old campaign event']
+    }));
+  });
+  await page.goto('/');
+  await expect(page.locator('#nationName')).toHaveValue('Legacy Realm');
+  await expect(page.locator('#season')).toContainText('TURN 9');
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save')));
+  expect(saved.credits).toBe(420);
+  expect(saved.buildings.workshop).toBe(1);
+  expect(saved.relations.Meridian).toBe(-5);
+  expect(Array.isArray(saved.victories)).toBeTruthy();
+});
+
+test('malformed local save safely starts a fresh nation', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('kingmaker_save', '{broken json'));
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/');
+  await expect(page.locator('#nationName')).toHaveValue('New Horizon');
+  await expect(page.locator('#season')).toContainText('TURN 1');
+  expect(errors).toEqual([]);
+});
