@@ -10,6 +10,6 @@ module.exports = {
   },
   paths: {
     sources: "./contracts",
-    tests: "./test"
+    tests: "./contract-tests"
   }
 };
