@@ -160,14 +160,24 @@
   const CITIZEN_NAMES = ["Ari", "Mira", "Soren", "Nia", "Tarin", "Lena", "Oren", "Zara", "Kian", "Elia", "Ravi", "Noor", "Dara", "Ilan", "Sana", "Theo", "Amira", "Eren", "Milo", "Aya", "Ronan", "Iris", "Juno", "Kai"];
   function createCitizens(population, seed) {
     const count = clamp(Math.ceil(population / 5), 12, 48);
-    return Array.from({ length: count }, (_, i) => ({
+    const citizens = Array.from({ length: count }, (_, i) => ({
       id: "citizen-" + (i + 1), name: CITIZEN_NAMES[(i + (seed % CITIZEN_NAMES.length)) % CITIZEN_NAMES.length] + " " + (i + 1),
       role: CITIZEN_ROLES[i % CITIZEN_ROLES.length], home: "residential-" + (i % 3 + 1),
       workplace: "district-" + (i % 4 + 1),
       needs: { food: 70 + (i * 7) % 25, energy: 65 + (i * 11) % 30, safety: 72 + (i * 5) % 24, belonging: 60 + (i * 13) % 35 },
       mood: 65 + (i * 3) % 25, goal: ["improve home", "master profession", "support community", "save resources"][i % 4],
-      memory: [{ turn: 1, text: "Joined the new civilization." }], activity: "working", age: 18 + (i * 7) % 48
+      memory: [{ turn: 1, text: "Joined the new civilization." }], activity: "working", age: 18 + (i * 7) % 48,
+      relationships: []
     }));
+    citizens.forEach((citizen, i) => {
+      for (const offset of [-1, 1, 3]) {
+        const friend = citizens[(i + offset + count) % count];
+        if (friend.id !== citizen.id && !citizen.relationships.some(r => r.citizenId === friend.id)) {
+          citizen.relationships.push({ citizenId: friend.id, affinity: 42 + ((i * 13 + offset * 7) % 24) });
+        }
+      }
+    });
+    return citizens;
   }
   function normalizeCitizens(state) {
     if (!Array.isArray(state.citizens)) state.citizens = createCitizens(state.nation.population, state.seed);
@@ -187,9 +197,37 @@
       c.goal = typeof c.goal === "string" ? c.goal.slice(0, 80) : "support community";
       c.activity = typeof c.activity === "string" ? c.activity.slice(0, 48) : "working";
       c.age = safeInt(c.age, 25, 120);
+      c.relationships = (Array.isArray(c.relationships) ? c.relationships : []).filter(r => r && typeof r.citizenId === "string" && /^citizen-[1-9][0-9]*$/.test(r.citizenId) && r.citizenId !== c.id).slice(0, 8).map(r => ({ citizenId: r.citizenId, affinity: safeInt(r.affinity, 50, 100) }));
       c.memory = (Array.isArray(c.memory) ? c.memory : []).filter(m => m && Number.isInteger(m.turn) && m.turn >= 1 && m.turn <= state.turn && typeof m.text === "string").slice(-8).map(m => ({ turn: m.turn, text: m.text.slice(0, 120) }));
       return true;
     });
+  }
+  function updateCitizenRelationships(state) {
+    const citizens = state.citizens || [];
+    const byId = new Map(citizens.map(c => [c.id, c]));
+    if (state.turn % 3 !== 0) return;
+    for (const citizen of citizens) {
+      for (const bond of citizen.relationships || []) {
+        const other = byId.get(bond.citizenId);
+        if (!other || citizen.id > other.id) continue;
+        const compatibility = Math.round((citizen.mood + other.mood) / 2);
+        const sameHome = citizen.home === other.home;
+        const sameWork = citizen.workplace === other.workplace;
+        const change = (sameHome ? 2 : 0) + (sameWork ? 1 : 0) + (compatibility >= 65 ? 1 : compatibility < 35 ? -2 : 0);
+        bond.affinity = clamp(bond.affinity + change, 0, 100);
+        const reciprocal = (other.relationships || []).find(r => r.citizenId === citizen.id);
+        if (reciprocal) reciprocal.affinity = bond.affinity;
+        if (change > 0 && bond.affinity >= 70 && state.turn % 6 === 0) {
+          citizen.needs.belonging = clamp(citizen.needs.belonging + 2, 0, 100);
+          other.needs.belonging = clamp(other.needs.belonging + 2, 0, 100);
+          citizen.memory.push({ turn: state.turn, text: "Spent time with " + other.name + " and strengthened a friendship." });
+          other.memory.push({ turn: state.turn, text: "Spent time with " + citizen.name + " and strengthened a friendship." });
+          citizen.memory = citizen.memory.slice(-8); other.memory = other.memory.slice(-8);
+          citizen.activity = "socializing with " + other.name;
+          other.activity = "socializing with " + citizen.name;
+        }
+      }
+    }
   }
   function updateCitizens(state) {
     for (const c of state.citizens) {
@@ -205,6 +243,9 @@
         c.activity = ["cultivating fields", "building infrastructure", "maintaining systems", "trading goods", "studying new ideas", "caring for residents", "moving supplies", "crafting goods"][CITIZEN_ROLES.indexOf(c.role)];
       }
       c.mood = Math.round((c.needs.food + c.needs.energy + c.needs.safety + c.needs.belonging) / 4);
+    }
+    updateCitizenRelationships(state);
+    for (const c of state.citizens) {
       if (state.turn % 5 === 0) {
         c.memory.push({ turn: state.turn, text: c.mood < 45 ? "Struggled with " + lowest + " needs." : "Contributed as a " + c.role + "." });
         c.memory = c.memory.slice(-8);
