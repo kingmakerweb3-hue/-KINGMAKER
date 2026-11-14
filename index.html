@@ -313,6 +313,15 @@ function makePeace(name){
  militaryNote("A peace agreement ended the conflict with "+name+".");
  save();
 }
+
+const advanceBeforeMilitary=advanceTurn;
+advanceTurn=function(){
+ advanceBeforeMilitary();
+ const upkeep=(state.military.infantry||0)*troopTypes.infantry.upkeep+(state.military.guards||0)*troopTypes.guards.upkeep;
+ if(state.credits>=upkeep){state.credits-=upkeep;if(upkeep>0)militaryNote("Army upkeep paid: "+upkeep+" credits.");}
+ else if(upkeep>0){state.stability=Math.max(0,state.stability-2);militaryNote("Treasury could not cover army upkeep. Stability decreased.");}
+ save();
+};
 const renderBeforeMilitary=render;
 render=function(){
  renderBeforeMilitary();
