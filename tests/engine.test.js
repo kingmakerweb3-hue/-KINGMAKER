@@ -876,3 +876,27 @@ test("schema 7 saves migrate into the persistent citizen simulation", () => {
   assert.ok(migrated.citizens.length > 0);
   assert.doesNotThrow(() => Engine.validateSave(migrated));
 });
+
+
+test("citizens form persistent reciprocal social bonds and strengthen friendships over turns", () => {
+  const state = Engine.createInitialState({ seed: 19 });
+  const citizen = state.citizens[0];
+  assert.ok(citizen.relationships.length >= 2);
+  const bond = citizen.relationships[0];
+  const friend = state.citizens.find(c => c.id === bond.citizenId);
+  assert.ok(friend.relationships.some(r => r.citizenId === citizen.id));
+  const before = bond.affinity;
+  state.turn = 2;
+  Engine.advanceTurn(state);
+  assert.ok(citizen.relationships[0].affinity >= before);
+  const saved = Engine.validateSave(state);
+  assert.deepEqual(saved.citizens[0].relationships, state.citizens[0].relationships);
+});
+
+test("legacy citizens receive safe relationship defaults during save migration", () => {
+  const state = Engine.createInitialState({ seed: 20 });
+  state.schemaVersion = Engine.SAVE_VERSION - 1;
+  state.citizens.forEach(c => { delete c.relationships; });
+  const migrated = Engine.migrateSave(state);
+  assert.ok(Array.isArray(migrated.citizens[0].relationships));
+});
