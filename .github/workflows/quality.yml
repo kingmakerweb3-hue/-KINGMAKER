@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   test:
-    name: Node ${{ matrix.node }} · syntax and engine tests
+    name: Node ${{ matrix.node }} · game and smart contract tests
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -26,7 +26,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      - name: Install project and contract dependencies
+        run: npm install
       - name: Check JavaScript syntax
         run: npm run check
-      - name: Run automated engine tests
+      - name: Compile ERC-1155 contract
+        run: npm run contract:compile
+      - name: Run smart contract security behavior tests
+        run: npm run contract:test
+      - name: Run automated game engine tests
         run: npm test
