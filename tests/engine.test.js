@@ -1003,5 +1003,6 @@ test("civic mandate reflects citizen wellbeing, trust, and the leading public co
   report = Engine.civicMandate(state);
   assert.equal(report.leadingConcern, "food security");
   assert.equal(report.mandate, "Public confidence crisis");
-  assert.ok(report.concerns.every(item => item.affected === state.citizens.length));
+  assert.equal(report.concerns.find(item => item.key === "food").affected, state.citizens.length);
+  assert.ok(report.concerns.filter(item => item.key !== "food").every(item => item.affected === 0));
 });
