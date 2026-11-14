@@ -138,3 +138,7 @@ button{min-height:38px}
 .government-ledger b, .government-ledger span { display: block; }
 .government-ledger span { margin-top: .25rem; color: var(--gold); font-size: .82rem; }
 .government-ledger p { margin: .45rem 0 0; color: var(--muted); font-size: .82rem; line-height: 1.5; }
+
+.manifesto-card { margin-top: .8rem; padding: .85rem; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.025); }
+.manifesto-card strong { display: block; margin: .35rem 0; }
+.manifesto-card p, .manifesto-card small { color: var(--muted); line-height: 1.5; }
