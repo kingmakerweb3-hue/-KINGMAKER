@@ -24,7 +24,7 @@ Open <http://127.0.0.1:4173>. The server only binds to loopback.
 - **Creator Studio** lets you publish designs into a bounded local market. Rival nations can adopt designs when their needs match, apply their effects, and pay one capped royalty after successful use. Authors gain persistent experience and reputation; you can also commission up to three designs for your nation.
 - **3D World** opens an explorable island with orbit, zoom, pan, animated citizens, forests, a capital, and live building placement.
 - **3D construction** lets you select a building, place it at an exact island location, and pay the normal in-game resource cost. Building positions persist in your save.
-- **Road construction** lets you choose two island points to create road segments. Your road network is validated and saved with your nation. Up to 60 small vehicles animate along player-built road segments in the 3D view.
+- **Road construction** lets you choose two island points to create road segments. Your road network is validated and saved with your nation. Up to 60 small vehicles animate along player-built road segments in the 3D view. Roads crossing district zones connect them, improving logistics and adding credits each turn.
 - **Export save / Import save** move a versioned JSON save between browsers.
 - **New nation** starts over while retaining the prior game as a recovery backup.
 
