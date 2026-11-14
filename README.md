@@ -1,3 +1,9 @@
+## World Engine 2.8 — National Intelligence Agency
+
+- Added fictional intelligence operations against peaceful rival nations to reveal treasury, food, materials and strategic posture.
+- Operations have a 25-credit cost, four-turn per-rival cooldown, detection risk and diplomatic consequences.
+- Added three counterintelligence upgrade levels, persistent reports and safe defaults for existing saves.
+
 ## World Engine 2.7 — International World Council
 
 - Added a rotating international agenda every five turns, with food relief, scientific cooperation and regional security sessions.
@@ -53,7 +59,7 @@
 
 KINGMAKER is a browser-based nation-building and world-strategy game prototype. Build an economy, develop infrastructure, research technology, manage rival nations, expand territory, form alliances, wage simulated campaigns, and shape a national legacy.
 
-## Current build: World Engine 2.7
+## Current build: World Engine 2.8
 
 ### Playable systems
 - **Nation management** — name your nation and choose a government style.
