@@ -1,0 +1,44 @@
+name: Deploy KINGMAKER to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "github-pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Validate game files
+        run: |
+          test -s index.html
+          test -s manifest.json
+          test -s sw.js
+          python -m json.tool manifest.json > /dev/null
+      - name: Upload static game
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Publish KINGMAKER
+        id: deployment
+        uses: actions/deploy-pages@v4
