@@ -1,8 +1,8 @@
 {
   "name": "kingmaker-world-engine",
-  "version": "2.7.0",
+  "version": "2.8.0",
   "private": true,
-  "description": "Automated browser quality tests for KINGMAKER World Engine 2.7",
+  "description": "Automated browser quality tests for KINGMAKER World Engine 2.8",
   "scripts": {
     "test": "playwright test"
   },
