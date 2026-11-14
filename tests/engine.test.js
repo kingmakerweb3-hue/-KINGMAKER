@@ -782,6 +782,7 @@ test("military recruitment, training and fortification enforce costs", () => {
   assert.equal(state.resources.materials, materials - 2);
   Engine.trainArmy(state);
   assert.equal(state.military.training, 2);
+  state.resources.credits += 10;
   Engine.fortifyNation(state);
   assert.equal(state.military.fortification, 2);
   assert.throws(() => Engine.recruitTroops(state, 0), /Recruit between/);
