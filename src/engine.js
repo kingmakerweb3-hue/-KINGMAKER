@@ -363,6 +363,7 @@
     normalizeCitizens(normalized);
     if (!normalized.policies || typeof normalized.policies !== "object" || Array.isArray(normalized.policies)) normalized.policies = Object.fromEntries(Object.keys(NATIONAL_POLICIES).map(id => [id, null]));
     if (!normalized.election || typeof normalized.election !== "object") normalized.election = { nextElectionTurn: Math.max(12, normalized.turn + 1), incumbent: "civic", electionsHeld: 0, lastResult: null };
+    normalized.election.manifesto = normalized.election.manifesto || createPartyManifesto(normalized.election.incumbent, normalized.election.nextElectionTurn);
     if (!normalized.politics || typeof normalized.politics !== "object") normalized.politics = { unrest: 0, governmentStatus: "stable", lastProtestTurn: 0, protests: 0, lastDemand: "food security", crisisTurns: 0 };
     if (!normalized.governance || typeof normalized.governance !== "object") normalized.governance = { lastReviewTurn: 0, decisionsMade: 0, budgetSpent: 0, lastDecision: "No cabinet decision yet", lastPolicy: null };
     normalized.world = normalized.world || { nextEventId: 1, activeEvents: [], processedEventIds: [] };
