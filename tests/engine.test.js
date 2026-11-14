@@ -1053,3 +1053,36 @@ test("civic mandate reflects citizen wellbeing, trust, and the leading public co
   assert.equal(report.concerns.find(item => item.key === "food").affected, state.citizens.length);
   assert.ok(report.concerns.filter(item => item.key !== "food").every(item => item.affected === 0));
 });
+
+
+test("political pressure escalates into protests with cooldown and persists in saves", () => {
+  const state = Engine.createInitialState({ seed: 9912 });
+  state.citizens.forEach(c => {
+    c.needs = { food: 5, energy: 8, safety: 10, belonging: 6 };
+    c.mood = 8;
+    c.civicTrust = 5;
+  });
+  state.nation.stability = 25;
+  state.turn = 5;
+  const first = Engine.resolvePoliticalPressure(state);
+  assert.ok(first.unrest >= 65);
+  assert.equal(state.politics.protests, 1);
+  assert.ok(state.events.some(event => event.type === "protest"));
+  const after = state.nation.stability;
+  state.turn = 6;
+  Engine.resolvePoliticalPressure(state);
+  assert.equal(state.politics.protests, 1);
+  assert.equal(state.nation.stability, after);
+  const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(saved.politics, state.politics);
+});
+
+test("version 11 saves migrate to political pressure schema 12", () => {
+  const old = Engine.createInitialState({ seed: 9913 });
+  old.schemaVersion = 11;
+  delete old.politics;
+  const migrated = Engine.migrateSave(old);
+  assert.equal(migrated.schemaVersion, 12);
+  assert.equal(migrated.politics.governmentStatus, "stable");
+  assert.equal(migrated.politics.protests, 0);
+});
