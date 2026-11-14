@@ -850,3 +850,22 @@ test("resource deposits deplete at their finite extraction rate", () => {
   assert.equal(node.depleted, true);
   assert.equal(Engine.economicSnapshot(state).production.ore, Engine.productionFor(state.buildings, state.technologies).ore);
 });
+
+
+test("generated map data is validated and safely retained in save files", () => {
+  const state = Engine.createInitialState({ seed: 816 });
+  state.mapWorld = {
+    version: 2, seed: state.seed,
+    regions: [{ id: "frontier", name: "Frontier", owner: "Unclaimed", population: 1200, development: 12,
+      cities: [{ id: "frontier-city", name: "Newport", population: 1200, latitude: 12, longitude: 34 }],
+      resourceNodes: [{ id: "frontier-iron", resource: "Iron", quantity: 90, latitude: 13, longitude: 35, operational: false }] }]
+  };
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(restored.mapWorld, state.mapWorld);
+  const invalid = structuredClone(state);
+  invalid.mapWorld.regions[0].resourceNodes[0].quantity = -1;
+  assert.throws(() => Engine.validateSave(invalid), /resource deposit data/);
+  const duplicate = structuredClone(state);
+  duplicate.mapWorld.regions[0].cities.push({ ...duplicate.mapWorld.regions[0].cities[0] });
+  assert.throws(() => Engine.validateSave(duplicate), /settlement data/);
+});
