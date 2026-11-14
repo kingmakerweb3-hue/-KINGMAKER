@@ -243,14 +243,26 @@
     const policy = state.policies && state.policies[id];
     return !!policy && Number.isInteger(policy.expiresTurn) && policy.expiresTurn >= state.turn;
   }
+  const PARTY_GOVERNANCE = {
+    civic: { agenda: "Community services and civic trust", effects: "Citizens gain stronger community belonging and civic trust.", discount: ["food_assistance", "public_health"] },
+    prosperity: { agenda: "Jobs, food security, and economic growth", effects: "National production gains +3 food and +2 credits each turn.", discount: ["research_fund", "industry_incentive"] },
+    security: { agenda: "Public safety and national resilience", effects: "Citizens gain extra safety when national stability is at least 45; protests cause less disruption.", discount: ["public_health"] }
+  };
+  function partyGovernance(state) {
+    const id = state.election && PARTY_GOVERNANCE[state.election.incumbent] ? state.election.incumbent : "civic";
+    return { id, name: POLITICAL_PARTIES[id].name, ...PARTY_GOVERNANCE[id], policyDiscount: 15 };
+  }
   function enactPolicy(state, id) {
     const definition = NATIONAL_POLICIES[id];
     if (!definition) throw new Error("National policy is unavailable.");
     if (policyActive(state, id)) throw new Error("This policy is already active.");
-    for (const [resource, amount] of Object.entries(definition.cost)) {
+    const government = partyGovernance(state);
+    const discounted = government.discount.includes(id);
+    const actualCost = Object.fromEntries(Object.entries(definition.cost).map(([resource, amount]) => [resource, discounted ? Math.max(1, Math.ceil(amount * (1 - government.policyDiscount / 100))) : amount]));
+    for (const [resource, amount] of Object.entries(actualCost)) {
       if ((state.resources[resource] || 0) < amount) throw new Error("Not enough " + resource + " to enact this policy.");
     }
-    for (const [resource, amount] of Object.entries(definition.cost)) state.resources[resource] -= amount;
+    for (const [resource, amount] of Object.entries(actualCost)) state.resources[resource] -= amount;
     state.policies[id] = { activatedTurn: state.turn, expiresTurn: state.turn + definition.duration };
     addEvent(state, definition.name + " enacted for " + definition.duration + " turns.", "policy");
     return state.policies[id];
@@ -259,8 +271,9 @@
     for (const c of state.citizens) {
       c.needs.food = clamp(c.needs.food - (state.resources.food > 0 ? 3 : 12), 0, 100);
       c.needs.energy = clamp(c.needs.energy - 2 + (state.resources.power > 0 ? 1 : 0), 0, 100);
-      c.needs.safety = clamp(c.needs.safety + (state.nation.stability >= 60 ? 2 : -4) + (policyActive(state, "public_health") ? 3 : 0), 0, 100);
-      c.needs.belonging = clamp(c.needs.belonging + (state.nation.stability >= 55 ? 1 : -2), 0, 100);
+      const governingParty = state.election.incumbent;
+      c.needs.safety = clamp(c.needs.safety + (state.nation.stability >= 60 ? 2 : -4) + (policyActive(state, "public_health") ? 3 : 0) + (governingParty === "security" && state.nation.stability >= 45 ? 2 : 0), 0, 100);
+      c.needs.belonging = clamp(c.needs.belonging + (state.nation.stability >= 55 ? 1 : -2) + (governingParty === "civic" ? 1 : 0), 0, 100);
       const lowest = Object.keys(c.needs).sort((x, y) => c.needs[x] - c.needs[y])[0];
       if (c.needs[lowest] < 35) {
         c.activity = lowest === "food" ? "seeking food" : lowest === "energy" ? "resting" : lowest === "safety" ? "seeking safety" : "meeting neighbors";
@@ -271,7 +284,7 @@
       c.mood = Math.round((c.needs.food + c.needs.energy + c.needs.safety + c.needs.belonging) / 4);
       const supportedPolicies = ["food_assistance", "public_health"].filter(id => policyActive(state, id)).length;
       const pressuredPolicies = ["research_fund", "industry_incentive"].filter(id => policyActive(state, id)).length;
-      c.civicTrust = clamp(c.civicTrust + (c.mood >= 70 ? 1 : c.mood < 40 ? -3 : 0) + (supportedPolicies ? 1 : 0) - (pressuredPolicies && c.needs.food < 30 ? 1 : 0), 0, 100);
+      c.civicTrust = clamp(c.civicTrust + (c.mood >= 70 ? 1 : c.mood < 40 ? -3 : 0) + (supportedPolicies ? 1 : 0) - (pressuredPolicies && c.needs.food < 30 ? 1 : 0) + (governingParty === "civic" && c.mood >= 50 ? 1 : 0), 0, 100);
       if (state.turn % 4 === 0 && c.mood >= 65 && c.needs.food >= 35) {
         c.careerXp = Math.min(100000, c.careerXp + 12 + Math.floor(c.civicTrust / 25));
         const nextLevel = Math.min(20, 1 + Math.floor(c.careerXp / 40));
@@ -1398,6 +1411,7 @@
       power: clamp(state.resources.power + Math.floor(baseOutput.power * staffing), 0, RESOURCE_LIMIT)
     }, state.buildings, state.technologies, state.nation.population);
     const output = industry.production;
+    if (state.election.incumbent === "prosperity") { output.food += 3; output.credits += 2; }
     for (const [resource, amount] of Object.entries(creator.production)) output[resource] += amount;
     const districts = districtEffects(state);
     for (const [resource, amount] of Object.entries(districts.production)) output[resource] += amount;
@@ -1607,7 +1621,8 @@
     if (politics.unrest >= 65 && state.turn - politics.lastProtestTurn >= 4) {
       politics.lastProtestTurn = state.turn;
       politics.protests++;
-      const penalty = politics.unrest >= 82 ? 5 : 3;
+      const basePenalty = politics.unrest >= 82 ? 5 : 3;
+      const penalty = Math.max(1, basePenalty - (state.election.incumbent === "security" ? 2 : 0));
       state.nation.stability = clamp(state.nation.stability - penalty, 0, 100);
       const party = POLITICAL_PARTIES[state.election.incumbent].name;
       addEvent(state, "Public protests demand action on " + politics.lastDemand + ".", "protest", {
@@ -1642,7 +1657,7 @@
 
   return {
     SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, NATIONAL_POLICIES, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
-    MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE, POLITICAL_PARTIES,
+    MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE, POLITICAL_PARTIES, PARTY_GOVERNANCE, partyGovernance,
     createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, productionFor, build, trade,
     research, enactPolicy, policyActive, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
