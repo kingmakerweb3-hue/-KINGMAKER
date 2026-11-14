@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 13;
+  const SAVE_VERSION = 14;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -315,7 +315,7 @@
     const campaignId = CAMPAIGNS[options.campaignId] ? options.campaignId : "founding";
     const state = {
       schemaVersion: SAVE_VERSION, turn: 1, seed, citizens: createCitizens(100, seed),
-      election: { nextElectionTurn: 12, incumbent: "civic", electionsHeld: 0, lastResult: null },
+      election: { nextElectionTurn: 12, incumbent: "civic", electionsHeld: 0, lastResult: null, manifesto: { party: "civic", promise: "Raise community belonging and civic trust to at least 55", targetTurn: 12, status: "active", result: null } },
       politics: { unrest: 0, governmentStatus: "stable", lastProtestTurn: 0, protests: 0, lastDemand: "food security", crisisTurns: 0 },
       governance: { lastReviewTurn: 0, decisionsMade: 0, budgetSpent: 0, lastDecision: "No cabinet decision yet", lastPolicy: null },
       policies: Object.fromEntries(Object.keys(NATIONAL_POLICIES).map(id => [id, null])),
@@ -377,6 +377,7 @@
         !["civic", "prosperity", "security"].includes(normalized.election.incumbent) ||
         !Number.isInteger(normalized.election.electionsHeld) || normalized.election.electionsHeld < 0 || normalized.election.electionsHeld > 1_000_000 ||
         (normalized.election.lastResult !== null && (!normalized.election.lastResult || !Number.isInteger(normalized.election.lastResult.turn) || normalized.election.lastResult.turn < 1 || normalized.election.lastResult.turn > normalized.turn || !["civic", "prosperity", "security"].includes(normalized.election.lastResult.winner) || !Number.isInteger(normalized.election.lastResult.turnout) || normalized.election.lastResult.turnout < 25 || normalized.election.lastResult.turnout > 90 || !normalized.election.lastResult.voteShares || !["civic", "prosperity", "security"].every(id => Number.isInteger(normalized.election.lastResult.voteShares[id]) && normalized.election.lastResult.voteShares[id] >= 0 && normalized.election.lastResult.voteShares[id] <= 100) || Object.values(normalized.election.lastResult.voteShares).reduce((a,b)=>a+b,0)!==100))) throw new Error("Election state is invalid.");
+    if (!normalized.election.manifesto || !["civic", "prosperity", "security"].includes(normalized.election.manifesto.party) || typeof normalized.election.manifesto.promise !== "string" || normalized.election.manifesto.promise.length > 160 || !Number.isInteger(normalized.election.manifesto.targetTurn) || normalized.election.manifesto.targetTurn <= normalized.turn || normalized.election.manifesto.targetTurn > 10000000 || !["active", "fulfilled", "broken"].includes(normalized.election.manifesto.status) || (normalized.election.manifesto.result !== null && (!normalized.election.manifesto.result || !Number.isInteger(normalized.election.manifesto.result.turn) || normalized.election.manifesto.result.turn < 1 || normalized.election.manifesto.result.turn > normalized.turn || !Number.isInteger(normalized.election.manifesto.result.score) || normalized.election.manifesto.result.score < 0 || normalized.election.manifesto.result.score > 100 || typeof normalized.election.manifesto.result.summary !== "string" || normalized.election.manifesto.result.summary.length > 200))) throw new Error("Election manifesto state is invalid.");
     if (!Number.isInteger(normalized.governance.lastReviewTurn) || normalized.governance.lastReviewTurn < 0 || normalized.governance.lastReviewTurn > normalized.turn || !Number.isInteger(normalized.governance.decisionsMade) || normalized.governance.decisionsMade < 0 || normalized.governance.decisionsMade > 1000000 || !Number.isInteger(normalized.governance.budgetSpent) || normalized.governance.budgetSpent < 0 || normalized.governance.budgetSpent > RESOURCE_LIMIT || typeof normalized.governance.lastDecision !== "string" || normalized.governance.lastDecision.length > 160 || (normalized.governance.lastPolicy !== null && !NATIONAL_POLICIES[normalized.governance.lastPolicy])) throw new Error("Government agenda state is invalid.");
     if (!Number.isInteger(normalized.politics.unrest) || normalized.politics.unrest < 0 || normalized.politics.unrest > 100 || !["stable", "political pressure", "public protests", "government crisis"].includes(normalized.politics.governmentStatus) || !Number.isInteger(normalized.politics.lastProtestTurn) || normalized.politics.lastProtestTurn < 0 || normalized.politics.lastProtestTurn > normalized.turn || !Number.isInteger(normalized.politics.protests) || normalized.politics.protests < 0 || normalized.politics.protests > 1000000 || typeof normalized.politics.lastDemand !== "string" || normalized.politics.lastDemand.length > 64 || !Number.isInteger(normalized.politics.crisisTurns) || normalized.politics.crisisTurns < 0 || normalized.politics.crisisTurns > 1000000) throw new Error("Political pressure state is invalid.");
     if (Object.keys(normalized.policies).length !== Object.keys(NATIONAL_POLICIES).length || Object.keys(NATIONAL_POLICIES).some(id => !(id in normalized.policies))) throw new Error("National policy state is invalid.");
@@ -511,7 +512,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -524,6 +525,7 @@
       state.achievements = Array.isArray(state.achievements) ? state.achievements : [];
       state.policies = state.policies || Object.fromEntries(Object.keys(NATIONAL_POLICIES).map(id => [id, null]));
       state.election = state.election || { nextElectionTurn: Math.max(12, state.turn + 1), incumbent: "civic", electionsHeld: 0, lastResult: null };
+      state.election.manifesto = state.election.manifesto || createPartyManifesto(state.election.incumbent, state.election.nextElectionTurn);
       state.politics = state.politics || { unrest: 0, governmentStatus: "stable", lastProtestTurn: 0, protests: 0, lastDemand: "food security", crisisTurns: 0 };
       state.governance = state.governance || { lastReviewTurn: 0, decisionsMade: 0, budgetSpent: 0, lastDecision: "No cabinet decision yet", lastPolicy: null };
       state.schemaVersion = SAVE_VERSION;
@@ -1575,6 +1577,32 @@
     prosperity: { name: "Prosperity League", platform: "food security, jobs, and economic growth" },
     security: { name: "National Security Front", platform: "public safety, resilience, and stability" }
   };
+
+  function createPartyManifesto(party, targetTurn) {
+    const promises = { civic: "Raise community belonging and civic trust to at least 55", prosperity: "Raise citizen food security to at least 55 while maintaining a balanced economy", security: "Raise public safety and national stability to at least 55" };
+    return { party, promise: promises[party] || promises.civic, targetTurn, status: "active", result: null };
+  }
+  function evaluatePartyManifesto(state) {
+    const manifesto = state.election.manifesto;
+    if (!manifesto || manifesto.status !== "active") return manifesto;
+    const citizens = state.citizens || [];
+    const average = key => citizens.length ? Math.round(citizens.reduce((sum, c) => sum + (Number(c.needs && c.needs[key]) || 0), 0) / citizens.length) : 0;
+    const trust = citizens.length ? Math.round(citizens.reduce((sum, c) => sum + (Number(c.civicTrust) || 0), 0) / citizens.length) : 0;
+    let fulfilled = false, score = 0, summary = "";
+    if (manifesto.party === "civic") {
+      score = Math.round((average("belonging") + trust) / 2); fulfilled = average("belonging") >= 55 && trust >= 55;
+      summary = "Community belonging " + average("belonging") + "%; civic trust " + trust + "%.";
+    } else if (manifesto.party === "prosperity") {
+      score = Math.round((average("food") + (state.economy.lastBalance >= 0 ? 100 : 0)) / 2); fulfilled = average("food") >= 55 && state.economy.lastBalance >= 0;
+      summary = "Food security " + average("food") + "%; last economic balance " + state.economy.lastBalance + " credits.";
+    } else {
+      score = Math.round((average("safety") + state.nation.stability) / 2); fulfilled = average("safety") >= 55 && state.nation.stability >= 55;
+      summary = "Public safety " + average("safety") + "%; national stability " + state.nation.stability + "%.";
+    }
+    manifesto.status = fulfilled ? "fulfilled" : "broken";
+    manifesto.result = { turn: state.turn, score, summary };
+    return manifesto;
+  }
   function electionForecast(state) {
     const citizens = Array.isArray(state.citizens) ? state.citizens : [];
     const average = key => citizens.length ? citizens.reduce((sum, c) => sum + (Number(c.needs && c.needs[key]) || 0), 0) / citizens.length : 50;
@@ -1585,6 +1613,10 @@
       security: average("safety") * 0.55 + state.nation.stability * 0.3 + trust * 0.15
     };
     scores[state.election.incumbent] += 4;
+    if (state.election.manifesto && state.election.manifesto.party === state.election.incumbent) {
+      if (state.election.manifesto.status === "fulfilled") scores[state.election.incumbent] += 8;
+      else if (state.election.manifesto.status === "broken") scores[state.election.incumbent] -= 8;
+    }
     const total = Object.values(scores).reduce((sum, value) => sum + value, 0) || 1;
     const raw = Object.fromEntries(Object.keys(scores).map(id => [id, scores[id] / total * 100]));
     const shares = Object.fromEntries(Object.keys(raw).map(id => [id, Math.floor(raw[id])]));
@@ -1596,14 +1628,18 @@
   }
   function resolveElection(state) {
     if (state.turn < state.election.nextElectionTurn) return null;
-    const previous = state.election.incumbent, result = electionForecast(state);
+    const previous = state.election.incumbent;
+    const previousManifesto = evaluatePartyManifesto(state);
+    const result = electionForecast(state);
     state.election.incumbent = result.winner;
     state.election.electionsHeld++;
     state.election.lastResult = { turn: state.turn, winner: result.winner, voteShares: result.voteShares, turnout: result.turnout, approval: result.approval, previous };
     state.election.nextElectionTurn = Math.min(10_000_000, state.turn + 12);
+    state.election.manifesto = createPartyManifesto(result.winner, state.election.nextElectionTurn);
     const stabilityChange = result.approval >= 65 ? 3 : result.approval >= 45 ? 0 : -5;
     state.nation.stability = clamp(state.nation.stability + stabilityChange, 0, 100);
     const party = POLITICAL_PARTIES[result.winner].name;
+    if (previousManifesto && previousManifesto.result) addEvent(state, POLITICAL_PARTIES[previousManifesto.party].name + " manifesto " + previousManifesto.status + ".", "manifesto", { summary: previousManifesto.promise + ". " + previousManifesto.result.summary, affectedNationIds: ["player"] });
     addEvent(state, party + " won the national election with " + result.voteShares[result.winner] + "% of the vote.", "election", {
       summary: "Turnout " + result.turnout + "%. Public approval " + result.approval + "%. " + (stabilityChange >= 0 ? "The result strengthened national stability." : "Low confidence triggered post-election unrest."),
       affectedNationIds: ["player"]
@@ -1716,6 +1752,6 @@
     research, enactPolicy, policyActive, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
-    exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech, worldIntelligence, civicMandate, electionForecast, resolveElection, resolvePoliticalPressure, resolveGovernmentAgenda
+    exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech, worldIntelligence, civicMandate, electionForecast, resolveElection, resolvePoliticalPressure, resolveGovernmentAgenda, evaluatePartyManifesto, createPartyManifesto
   };
 });
