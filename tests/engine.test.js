@@ -909,7 +909,11 @@ test("national policies charge the treasury, apply bounded effects, and expire a
   assert.equal(state.resources.credits, credits - 45);
   assert.equal(Engine.policyActive(state, "research_fund"), true);
   assert.throws(() => Engine.enactPolicy(state, "research_fund"), /already active/);
-  for (let i = 0; i < 5; i++) Engine.advanceTurn(state);
+  const scienceBefore = state.resources.science;
+  Engine.advanceTurn(state);
+  assert.equal(state.resources.science - scienceBefore, 9);
+  assert.equal(state.economy.production.science, 9);
+  for (let i = 0; i < 4; i++) Engine.advanceTurn(state);
   assert.equal(state.turn, 6);
   assert.equal(Engine.policyActive(state, "research_fund"), true);
   Engine.advanceTurn(state);
