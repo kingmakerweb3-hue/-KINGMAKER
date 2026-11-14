@@ -324,6 +324,44 @@
           !Number.isInteger(conflict.startedTurn) || conflict.startedTurn > normalized.turn ||
           !Number.isInteger(conflict.playerScore) || !Number.isInteger(conflict.rivalScore)) throw new Error("Conflict record is invalid.");
     }
+    if (normalized.mapWorld !== undefined) {
+      const map = normalized.mapWorld;
+      if (!map || typeof map !== "object" || Array.isArray(map) ||
+          !Number.isInteger(map.version) || ![1, 2].includes(map.version) ||
+          !Number.isInteger(map.seed) || map.seed < 0 || map.seed > 0xffffffff ||
+          !Array.isArray(map.regions) || map.regions.length > 100) throw new Error("Generated map data is invalid.");
+      const regionIds = new Set();
+      for (const region of map.regions) {
+        if (!region || typeof region !== "object" || typeof region.id !== "string" || !region.id || region.id.length > 64 ||
+            regionIds.has(region.id) || (region.name !== undefined && (typeof region.name !== "string" || region.name.length > 80)) ||
+            (region.owner !== undefined && (typeof region.owner !== "string" || region.owner.length > 48)) ||
+            (region.population !== undefined && (!Number.isInteger(region.population) || region.population < 0 || region.population > RESOURCE_LIMIT)) ||
+            (region.development !== undefined && (!Number.isInteger(region.development) || region.development < 0 || region.development > 100)) ||
+            (region.cities !== undefined && (!Array.isArray(region.cities) || region.cities.length > 100)) ||
+            (region.resourceNodes !== undefined && (!Array.isArray(region.resourceNodes) || region.resourceNodes.length > 20))) throw new Error("Generated region data is invalid.");
+        regionIds.add(region.id);
+        const cityIds = new Set();
+        for (const city of region.cities || []) {
+          if (!city || typeof city.id !== "string" || !city.id || city.id.length > 96 || cityIds.has(city.id) ||
+              typeof city.name !== "string" || city.name.length > 80 ||
+              (city.population !== undefined && (!Number.isInteger(city.population) || city.population < 0 || city.population > RESOURCE_LIMIT)) ||
+              (city.latitude !== undefined && (!Number.isFinite(city.latitude) || city.latitude < -90 || city.latitude > 90)) ||
+              (city.longitude !== undefined && (!Number.isFinite(city.longitude) || city.longitude < -180 || city.longitude > 180))) throw new Error("Generated settlement data is invalid.");
+          cityIds.add(city.id);
+        }
+        const nodeIds = new Set();
+        for (const node of region.resourceNodes || []) {
+          if (!node || typeof node.id !== "string" || !node.id || node.id.length > 96 || nodeIds.has(node.id) ||
+              !["Fertile soil", "Iron", "Copper", "Coal", "Timber", "Stone", "Fresh water", "Rare crystals"].includes(node.resource) ||
+              !Number.isInteger(node.quantity) || node.quantity < 0 || node.quantity > RESOURCE_LIMIT ||
+              (node.operational !== undefined && typeof node.operational !== "boolean") ||
+              (node.latitude !== undefined && (!Number.isFinite(node.latitude) || node.latitude < -90 || node.latitude > 90)) ||
+              (node.longitude !== undefined && (!Number.isFinite(node.longitude) || node.longitude < -180 || node.longitude > 180)) ||
+              (node.operatedSinceTurn !== undefined && (!Number.isInteger(node.operatedSinceTurn) || node.operatedSinceTurn < 1 || node.operatedSinceTurn > normalized.turn))) throw new Error("Generated resource deposit data is invalid.");
+          nodeIds.add(node.id);
+        }
+      }
+    }
     if (!["playing", "victory", "defeat"].includes(normalized.status)) throw new Error("Game status is invalid.");
     return normalized;
   }
