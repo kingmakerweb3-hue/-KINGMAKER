@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 7;
+  const SAVE_VERSION = 8;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -168,6 +168,7 @@
       market: { stock: { food: 400, materials: 300, ore: 240, goods: 180, power: 260 }, basePrices: { food: 2, materials: 4, ore: 5, goods: 8, power: 4 }, prices: { food: 2, materials: 4, ore: 5, goods: 8, power: 4 }, lastFlow: { food: 0, materials: 0, ore: 0, goods: 0, power: 0 } },
       rivals: Object.fromEntries(RIVAL_TEMPLATES.map((r, i) => [r.id, createRival(r, i)])),
       diplomacy: { treaties: [], conflicts: [] },
+      military: { troops: 24, training: 1, fortification: 1, battlesWon: 0, battlesLost: 0 },
       economy: { lastIncome: 0, lastExpenses: 0, lastBalance: 0, workforce: 0, employed: 0, production: { food: 0, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, capacity: 0, logistics: 0 }, consumption: { food: 0, materials: 0, ore: 0, power: 0 }, phase: "stable", deficitTurns: 0, recoveryTurns: 0 },
       campaign: { id: campaignId, completedObjectives: [], status: "active", phaseIndex: 0, buildingStart: 6, progress: { tradeVolume: 0, agreementsSigned: 0, crisesSurvived: 0, peacefulDisputes: 0 } },
       achievements: [], creations: [], events: [{ id: "history-1-0", turn: 1, text: "Your civilization was founded. The first chapter begins.", type: "milestone", details: { summary: "A new campaign begins with a developing economy and six neighboring nations.", affectedNationIds: ["player"] } }],
@@ -214,6 +215,7 @@
       if (!Number.isInteger(level) || level < 0 || level > 10_000) throw new Error("Building level is invalid: " + id);
     }
     if (!Array.isArray(normalized.technologies) || normalized.technologies.some(id => !TECHNOLOGIES[id])) throw new Error("Technology list is invalid.");
+    if (!normalized.military || !Number.isInteger(normalized.military.troops) || normalized.military.troops < 0 || normalized.military.troops > 10000 || !Number.isInteger(normalized.military.training) || normalized.military.training < 1 || normalized.military.training > 5 || !Number.isInteger(normalized.military.fortification) || normalized.military.fortification < 0 || normalized.military.fortification > 5 || !Number.isInteger(normalized.military.battlesWon) || normalized.military.battlesWon < 0 || !Number.isInteger(normalized.military.battlesLost) || normalized.military.battlesLost < 0) throw new Error("Military forces are invalid.");
     if (!normalized.market || !normalized.market.stock || !normalized.market.prices || !normalized.market.basePrices || !normalized.market.lastFlow || !normalized.rivals ||
         !normalized.diplomacy || !Array.isArray(normalized.diplomacy.treaties) || !Array.isArray(normalized.diplomacy.conflicts) ||
         !normalized.campaign || !Array.isArray(normalized.campaign.completedObjectives) ||
@@ -330,7 +332,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -341,6 +343,7 @@
       normalizeCreatorRecords(state, input.schemaVersion === 6);
       migrateCreatorEconomy(state);
       state.achievements = Array.isArray(state.achievements) ? state.achievements : [];
+      state.military = state.military || { troops: 24, training: 1, fortification: 1, battlesWon: 0, battlesLost: 0 };
       state.schemaVersion = SAVE_VERSION;
       addIndustryDefaults(state);
       return validateSave(state);
@@ -737,6 +740,59 @@
     addEvent(state, "A peace accord ended the conflict with " + state.rivals[rivalId].name + ".", "diplomacy");
     rememberRival(state.rivals[rivalId], state.turn, "peace", "The player negotiated an end to conflict");
     return state;
+  }
+  function recruitTroops(state, count = 10) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const amount = safeInt(count, 0, 1000);
+    if (amount < 1 || amount > 1000) throw new Error("Recruit between 1 and 1,000 troops.");
+    const credits = amount * 3, materials = Math.ceil(amount / 5);
+    if (state.military.troops + amount > 10000) throw new Error("Army size limit reached.");
+    if (state.resources.credits < credits || state.resources.materials < materials) throw new Error("Recruitment requires " + credits + " credits and " + materials + " materials.");
+    state.resources.credits -= credits; state.resources.materials -= materials; state.military.troops += amount;
+    addEvent(state, amount + " troops joined the national army.", "military");
+    return state.military;
+  }
+  function trainArmy(state) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (state.military.training >= 5) throw new Error("Army training is already at maximum.");
+    const cost = 45 * state.military.training;
+    if (state.resources.credits < cost || state.resources.goods < 5) throw new Error("Training requires " + cost + " credits and 5 goods.");
+    state.resources.credits -= cost; state.resources.goods -= 5; state.military.training++;
+    addEvent(state, "Army training improved to level " + state.military.training + ".", "military");
+    return state.military;
+  }
+  function fortifyNation(state) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (state.military.fortification >= 5) throw new Error("National defenses are already at maximum.");
+    const level = state.military.fortification + 1, credits = 55 * level, materials = 20 * level;
+    if (state.resources.credits < credits || state.resources.materials < materials) throw new Error("Fortification requires " + credits + " credits and " + materials + " materials.");
+    state.resources.credits -= credits; state.resources.materials -= materials; state.military.fortification = level;
+    addEvent(state, "National defenses upgraded to level " + level + ".", "military");
+    return state.military;
+  }
+  function resolveBattle(state, rivalId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const rival = state.rivals[rivalId], conflict = state.diplomacy.conflicts.find(item => item.rivalId === rivalId && item.status === "active");
+    if (!rival || !conflict) throw new Error("Declare an active conflict before ordering a battle.");
+    if (state.military.troops < 5) throw new Error("At least 5 troops are required to fight.");
+    if (state.resources.power < 3) throw new Error("A battle requires 3 power.");
+    const attack = state.military.troops * (1 + (state.military.training - 1) * 0.22) + state.military.fortification * 2;
+    const defense = Math.max(8, Math.floor(rival.population * 0.22 + (rival.buildings.workshop || 0) * 4 + (rival.buildings.power || 0) * 3));
+    const won = attack >= defense;
+    state.resources.power -= 3;
+    if (won) {
+      const losses = Math.max(1, Math.ceil(state.military.troops * 0.12));
+      state.military.troops -= losses; state.military.battlesWon++; conflict.playerScore++;
+      rival.stability = Math.max(0, rival.stability - 8); rival.resources.credits = Math.max(0, rival.resources.credits - 12);
+      rival.relation = Math.max(-100, rival.relation - 5); state.resources.influence = clamp(state.resources.influence + 4, 0, RESOURCE_LIMIT);
+      addEvent(state, "Victory against " + rival.name + ". " + losses + " troops lost; 4 influence gained.", "victory");
+    } else {
+      const losses = Math.min(state.military.troops, Math.max(2, Math.ceil(state.military.troops * 0.3)));
+      state.military.troops -= losses; state.military.battlesLost++; conflict.rivalScore++;
+      state.nation.stability = Math.max(0, state.nation.stability - 7);
+      addEvent(state, "Defeat against " + rival.name + ". " + losses + " troops lost; stability fell.", "conflict");
+    }
+    return { won, attack: Math.floor(attack), defense, troops: state.military.troops };
   }
   function registerCreation(state, creation) {
     if (!creation || typeof creation !== "object") throw new Error("Creation details are required.");
@@ -1320,7 +1376,7 @@
     SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
     createInitialState, validateSave, migrateSave, productionFor, build, trade,
-    research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
+    research, sendGift, offerTreaty, declareConflict, makePeace, recruitTroops, trainArmy, fortifyNation, resolveBattle, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
     exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech
