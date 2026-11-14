@@ -817,6 +817,7 @@ test("unclaimed regional deposits can be developed and feed the national economy
   const beforeOre = state.resources.ore;
   Engine.advanceTurn(state);
   assert.equal(state.resources.ore, beforeOre + expectedOreProduction);
+  assert.equal(node.quantity, 86);
   const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
   assert.equal(restored.mapWorld.regions[0].resourceNodes[0].operational, true);
 });
@@ -831,4 +832,20 @@ test("resource sites reject foreign territory, duplicate development and unaffor
   assert.throws(() => Engine.developResourceSite(state, "frontier", "coal"), /already operational/);
   state.resources.materials = 0;
   assert.throws(() => Engine.developResourceSite(state, "frontier", "copper"), /35 materials and 55 credits/);
+});
+
+
+test("resource deposits deplete at their finite extraction rate", () => {
+  const state = Engine.createInitialState({ seed: 815 });
+  state.mapWorld = { version: 2, regions: [{
+    id: "frontier", owner: "Unclaimed",
+    resourceNodes: [{ id: "small-iron", resource: "Iron", quantity: 2, operational: true }]
+  }] };
+  const beforeOre = state.resources.ore;
+  Engine.advanceTurn(state);
+  const node = state.mapWorld.regions[0].resourceNodes[0];
+  assert.equal(state.resources.ore, beforeOre + 2);
+  assert.equal(node.quantity, 0);
+  assert.equal(node.depleted, true);
+  assert.equal(Engine.economicSnapshot(state).production.ore, Engine.productionFor(state.buildings, state.technologies).ore);
 });
