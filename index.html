@@ -1168,7 +1168,7 @@ render=function(){
  renderBeforeIntelligence();
  const panel=$("embassyPanel");if(!panel)return;
  const bureau=state.intelligenceBureau;
- let html='<h3 class="gold">National Intelligence Agency</h3><p class="muted small">Run simulated intelligence operations to reveal rival reserves and strategic posture. Operations can be detected. This is a fictional game system.</p><div class="item"><div class="row"><b>Intelligence Agency Level</b><span class="pill">LEVEL '+bureau.level+' / 3</span></div><p>Each level improves the success chance of your intelligence operations.</p><button '+(bureau.level>=3||state.credits<45||state.materials<12?'disabled':'')+' onclick="upgradeCounterintelligence()">Upgrade defence · 45 credits + 12 materials</button></div>';
+ let html='<h3 class="gold">National Intelligence Agency</h3><p class="muted small">Run simulated intelligence operations to reveal rival reserves and strategic posture. Operations can be detected. This is a fictional game system.</p><div class="item"><div class="row"><b>Intelligence Agency Level</b><span class="pill">LEVEL '+bureau.level+' / 3</span></div><p>Each level improves the success chance of your intelligence operations.</p><button '+(bureau.level>=3||state.credits<45||state.materials<12?'disabled':'')+' onclick="upgradeCounterintelligence()">Upgrade agency · 45 credits + 12 materials</button></div>';
  html+=rivalNames.map(function(n){
   const last=Number(bureau.lastOperation[n]),ready=!Number.isFinite(last)||state.turn-last>=4,war=!!state.conflicts[n];
   return '<div class="item"><div class="row"><b>'+esc(n)+'</b><span class="pill">'+(war?'OPERATIONS SUSPENDED':ready?'AVAILABLE':'COOLDOWN · '+(4-(state.turn-last))+' TURNS')+'</span></div><p class="small muted">Estimated operation success: '+Math.max(35,Math.min(90,72+bureau.level*8+(Number(state.relations[n])||0)*0.12)).toFixed(0)+'%</p><button '+(war||!ready||state.credits<25?'disabled':'')+' onclick="conductIntelligenceOperation(\''+n+'\')">Gather intelligence · 25 credits</button></div>';
@@ -1211,6 +1211,7 @@ function diplomaticStanding(value){
 }
 const renderBeforeEmbassy=render;
 render=function(){
+ const embassyRoot=$("embassyPanel");if(embassyRoot)embassyRoot.innerHTML="";
  renderBeforeEmbassy();const panel=$("embassyPanel");if(!panel)return;
  const appendedSystems=panel.innerHTML;
  panel.innerHTML=rivalNames.map(n=>{
