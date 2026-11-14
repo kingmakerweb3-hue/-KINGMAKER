@@ -212,10 +212,11 @@ test('World Council contribution spends resources and improves relations', async
   await page.goto('/');
   await page.getByRole('button',{name:'Advance World'}).click();
   await page.locator('[data-tab="market"]').click();
+  const before=await page.evaluate(()=>JSON.parse(localStorage.getItem('kingmaker_save')));
   await page.getByRole('button',{name:'Contribute to agenda'}).click();
   const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('kingmaker_save')));
-  expect(saved.food).toBe(35);
-  expect(saved.credits).toBe(80);
+  expect(saved.food).toBe(before.food-15);
+  expect(saved.credits).toBe(before.credits-20);
   expect(saved.relations.Aurelia).toBeGreaterThanOrEqual(0);
   expect(saved.worldCouncil.active.resolved).toBeTruthy();
   expect(saved.worldCouncil.history[0].decision).toBe('Contribution accepted');
