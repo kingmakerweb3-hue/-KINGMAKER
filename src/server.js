@@ -132,4 +132,4 @@ const server = http.createServer(async (request, response) => {
     else fs.createReadStream(target).pipe(response);
   });
 });
-server.listen(port, "127.0.0.1", () => process.stdout.write("KINGMAKER local server at http://127.0.0.1:" + port + "\n"));
+server.listen(port, "127.0.0.1", () => {\n  process.stdout.write("KINGMAKER local server at http://127.0.0.1:" + port + "\n");\n  if (marketplaceIndexer.configured()) {\n    marketplaceIndexer.sync().catch(error => process.stderr.write("KINGMAKER event indexer: " + error.message + "\n"));\n    const timer = setInterval(() => marketplaceIndexer.sync().catch(error => process.stderr.write("KINGMAKER event indexer: " + error.message + "\n")), 15_000);\n    timer.unref();\n  }\n});
