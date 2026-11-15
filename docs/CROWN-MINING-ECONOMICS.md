@@ -1,50 +1,47 @@
 # KINGMAKER CROWN Mining Economics
 
-## Owner direction
+## Owner supply direction
 
-Sponsorship and advertising receipts are KINGMAKER company revenue. They are not automatically shared with miners and are not an input to the CROWN reward formula. The owner may decide later how much CROWN to launch and what daily mining budget to authorize. Until that decision is configured, production issuance stays disabled.
+CROWN is designed with an **unlimited total supply**: no fixed maximum supply, finite launch pool or daily emission cap. Miners can continue participating without a hard supply ceiling.
+
+Unlimited supply does not mean guaranteed market value, guaranteed income or uncontrolled browser-side minting. The owner must configure the base reward rate. Actual rewards require authenticated server sessions, validated activity and an auditable ledger. The rate can be reviewed and adjusted transparently as the network grows. The 24-hour session limit remains.
+
+Sponsorship and advertising receipts are KINGMAKER company revenue. They are not automatically shared with miners and are not an input to the CROWN reward formula.
 
 ## Pi-inspired participation mechanics
 
-KINGMAKER independently implements the publicly described mechanics, not Pi Network code or branding:
+KINGMAKER independently implements these publicly described participation mechanics:
 
 - Daily, time-limited participation sessions (maximum 24 hours).
-- A validated security-circle contribution bonus: +20% per verified member, capped at five (+100% maximum).
-- A one-level direct-referral bonus: +25% per concurrently active eligible direct referral.
-- A dynamic base rate calculated from the approved daily CROWN budget and the network's forecast weighted miner-hours.
-- Referral and security-circle counts must be established by trusted server-side validation; never trust values sent by a browser.
-
-The multiplier currently used is:
+- Validated security-circle bonus: +20% per verified member, capped at five (+100% maximum).
+- One-level direct-referral bonus: +25% per concurrently active eligible direct referral.
+- Owner-configured base reward rate per weighted miner-hour.
+- No fixed maximum CROWN supply and no daily emission cap under this policy.
+- Referral and security-circle counts must be validated server-side; never trust browser-submitted values.
 
 `multiplier = (1 + 0.20 × min(verifiedSecurityMembers, 5)) × (1 + 0.25 × activeDirectReferrals)`
 
-The base rate is:
+`CROWN = configuredBaseRate × multiplier × validatedActiveHours`
 
-`baseRate = approvedDailyCrownBudget / forecastTotalWeightedMinerHours`
+This is a reward calculation, not a promise of earnings or token price. Until a base rate is configured, issuance remains disabled.
 
-A member's estimated accrual is:
-
-`CROWN = baseRate × multiplier × validatedActiveHours`
-
-This is an emission-allocation model, not a promise of earnings. Actual issuance must be reconciled against the approved daily cap. If actual weighted activity differs from the forecast, the production allocator must perform end-of-day reconciliation and enforce the cap; the quote function alone is not an issuance ledger.
-
-## What is deliberately excluded
+## Deliberate exclusions
 
 - Sponsorship income does not determine miner rewards.
 - No automatic CROWN-to-KGM conversion.
 - No loans, lending, borrowing or construction mechanics.
 - No phone CPU/GPU mining.
-- No reward for ad views or clicks unless a specific ad provider explicitly authorizes incentivized traffic.
-- No Node, app-usage or lockup bonuses until those real services and validation systems exist.
+- No rewards for ad views or clicks unless the provider explicitly authorizes incentivized traffic.
+- No Node, app-use or lockup bonuses until those services and validation systems exist.
 - No live rewards, wallet payouts or token claims are enabled by this calculation module.
 
 ## Production launch requirements
 
-Before real CROWN issuance: choose the total CROWN pool and daily emission budget; implement authenticated server sessions, validated referrals and security-circle membership, anti-sybil controls, an append-only auditable ledger, concurrency-safe daily cap enforcement, admin authorization, monitoring, legal/privacy review and independent security testing. The daily budget must never exceed the remaining approved pool. The public mining portal must continue to show pre-launch until those controls are deployed.
+Before real CROWN issuance: configure and publish the base reward rate; implement authenticated accounts and server-authoritative sessions; validate referrals and security-circle membership; deploy an append-only auditable ledger; implement anti-sybil controls, admin authorization, monitoring, legal/privacy review and independent security testing. Unlimited supply carries dilution/inflation risk; it does not establish market demand or value. The public portal must remain pre-launch until these controls are deployed.
 
 ## Code
 
-- `src/mining-economics.js`: pure, dependency-free calculation functions.
-- `tests/mining-economics.test.js`: formula, cap-configuration, validation and session-duration tests.
+- `src/mining-economics.js`: dependency-free calculation functions.
+- `tests/mining-economics.test.js`: formula, unlimited-supply policy, validation and session-duration tests.
 
-Run the suite with `npm test`.
+Run with `npm test`.
