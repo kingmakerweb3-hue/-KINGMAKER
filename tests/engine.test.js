@@ -2,6 +2,21 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const Engine = require("../src/engine.js");
 
+test("renewable power is available to factories in the same turn", () => {
+  const state = Engine.createInitialState({ seed: 72 });
+  for (const key of Object.keys(state.buildings)) state.buildings[key] = 0;
+  state.buildings.factory = 1;
+  state.resources.food = 500;
+  state.resources.materials = 5;
+  state.resources.ore = 3;
+  state.resources.power = 0;
+  Engine.advanceTurn(state);
+  assert.equal(state.economy.production.goods, 10);
+  assert.equal(state.economy.consumption.power, 2);
+  assert.equal(state.resources.power, 2);
+  assert.equal(Engine.economicSnapshot(state).activeFactories, 1);
+});
+
 test("island wind and solar installations add renewable power to the production ledger", () => {
   const state = Engine.createInitialState({ seed: 71 });
   for (const key of Object.keys(state.buildings)) state.buildings[key] = 0;
