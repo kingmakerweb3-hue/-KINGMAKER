@@ -83,6 +83,36 @@ test("save rotation backs up only a validated prior save", () => {
   assert.equal(Engine.migrateSave(JSON.parse(values.get("primary"))).turn, 3);
 });
 
+test("save recovery restores a valid backup when the primary save is missing", () => {
+  const backupState = Engine.createInitialState({ seed: 91 });
+  backupState.turn = 12;
+  const values = new Map([["recovery", Engine.exportSave(backupState)]]);
+  const storage = { getItem: key => values.get(key) ?? null };
+  const result = Engine.loadWithRecovery(storage, "primary", "recovery");
+  assert.equal(result.state.turn, 12);
+  assert.equal(result.recovered, true);
+  assert.equal(result.primaryError, false);
+});
+
+test("save recovery restores backup after primary corruption and rejects a corrupt backup", () => {
+  const backupState = Engine.createInitialState({ seed: 92 });
+  backupState.turn = 18;
+  const values = new Map([
+    ["primary", "{broken json"],
+    ["recovery", Engine.exportSave(backupState)]
+  ]);
+  const storage = { getItem: key => values.get(key) ?? null };
+  const recovered = Engine.loadWithRecovery(storage, "primary", "recovery");
+  assert.equal(recovered.state.turn, 18);
+  assert.equal(recovered.recovered, true);
+  assert.equal(recovered.primaryError, true);
+
+  values.set("recovery", "{also broken");
+  const empty = Engine.loadWithRecovery(storage, "primary", "recovery");
+  assert.equal(empty.state, null);
+  assert.equal(empty.primaryError, true);
+});
+
 test("version 2 saves migrate to strategic AI schema without losing the scenario baseline", () => {
   const old = Engine.createInitialState({ seed: 6 });
   old.schemaVersion = 2;
