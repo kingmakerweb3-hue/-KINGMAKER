@@ -109,3 +109,17 @@ The authenticated inventory endpoint and marketplace write route call `src/chain
 The server checks the authenticated session's chain ID, the RPC's actual chain ID, deployed bytecode at the configured contract, and the wallet's live `balanceOf(address,uint256)` result. It fails closed when configuration or RPC checks fail, when an asset has no token mapping, or when the wallet balance is zero. A compact verification snapshot (chain, token ID, balance and time) is stored with the listing.
 
 **Critical limitation:** this is an ownership check at listing creation time, not escrow or a continuing reservation. The seller can transfer the token after listing; the marketplace does not lock it or guarantee availability at purchase time. Buyers still cannot purchase, pay, or receive transfers. Configure only a verified deployment and trusted RPC. Do not enable real trading until atomic escrow/settlement, ongoing listing validity, authoritative token mapping, rate limits, monitoring and an independent security audit are complete.
+
+
+## ERC-1155 escrow marketplace prototype (not production)
+
+`contracts/KingmakerMarketplace.sol` is a separate local-EVM prototype that demonstrates a custody-based ERC-1155 listing flow:
+- Sellers approve the marketplace and create a listing; the listed quantity is transferred into contract custody.
+- Buyers pay the exact quoted native-chain currency amount; the contract transfers the escrowed ERC-1155 quantity to the buyer.
+- Sale proceeds are credited to the seller and withdrawn separately (pull-payment pattern).
+- Sellers can cancel active listings and recover escrowed assets.
+- Reentrancy protection guards listing, cancellation, purchase, and proceeds withdrawal.
+
+Automated behavior tests are in `contract-tests/KingmakerMarketplace.test.js`. These tests run on Hardhat's local test chain only.
+
+**Important limitations:** this prototype accepts the chain's native currency only, not USDT/BTC/ETH across multiple networks or stablecoin settlement. There is no fee/royalty system, expiry, dispute process, marketplace UI integration, production deployment, event indexer, or independent audit. It is not connected to the existing shared marketplace API. It must not be deployed with valuable assets or exposed as a live trading feature. A production design still needs an audited settlement contract, explicit admin/emergency governance, supported-token policy, chain-specific deployment, monitoring, economic/security review, and end-to-end wallet/UI integration. The code is a development experiment, not a claim of safe or complete trading.
