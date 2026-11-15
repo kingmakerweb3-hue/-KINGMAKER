@@ -26,7 +26,7 @@ import { BrowserProvider, Contract, formatEther, parseEther } from "https://cdn.
     const card = document.createElement("article");
     card.className = "panel span-12";
     card.id = "web3-escrow";
-    card.innerHTML = '<p class="eyebrow">ON-CHAIN EXCHANGE · WALLET TRANSACTIONS</p><h2>Escrow marketplace</h2><p class="muted">Create listings by depositing ERC-1155 assets into escrow. Buyers pay the chain native currency. Seller proceeds are withdrawn separately. Every write requires wallet confirmation.</p><div id="escrow-config" class="notice"></div><div class="web3-market-heading"><div><b id="escrow-wallet">Wallet not connected</b><small id="escrow-proceeds">Connect wallet to check seller proceeds.</small></div><button type="button" id="escrow-refresh">Refresh</button></div><form id="escrow-create" class="web3-listing-form"><h3>Deposit an asset for sale</h3><label for="escrow-asset">Asset</label><select id="escrow-asset"></select><label for="escrow-amount">Quantity</label><input id="escrow-amount" type="number" min="1" step="1" value="1" required><label for="escrow-price">Price (native currency)</label><input id="escrow-price" type="number" min="0.000000000000000001" step="any" placeholder="0.01" required><button class="primary" type="submit" id="escrow-submit" disabled>Create escrow listing</button></form><div class="web3-market-heading"><h3>On-chain listings</h3><span class="tag">LIVE CONTRACT DATA</span></div><div id="escrow-list" class="web3-market-list"><div class="empty">Configure a verified deployment to load listings.</div></div><div id="escrow-status" class="notice" role="status">Contract writes are disabled until deployment configuration and network checks pass.</div>';
+    card.innerHTML = '<p class="eyebrow">ON-CHAIN EXCHANGE · WALLET TRANSACTIONS</p><h2>Escrow marketplace</h2><p class="muted">Create listings by depositing ERC-1155 assets into escrow. Buyers pay the chain native currency. Seller proceeds are withdrawn separately. Every write requires wallet confirmation.</p><div id="escrow-config" class="notice"></div><div class="web3-market-heading"><div><b id="escrow-wallet">Wallet not connected</b><small id="escrow-proceeds">Connect wallet to check seller proceeds.</small></div><button type="button" id="escrow-refresh">Refresh</button></div><form id="escrow-create" class="web3-listing-form"><h3>Deposit an asset for sale</h3><label for="escrow-asset">Asset</label><select id="escrow-asset"></select><label for="escrow-amount">Quantity</label><input id="escrow-amount" type="number" min="1" step="1" value="1" required><label for="escrow-price">Price (native currency)</label><input id="escrow-price" type="number" min="0.000000000000000001" step="any" placeholder="0.01" required><button class="primary" type="submit" id="escrow-submit" disabled>Create escrow listing</button></form><div class="web3-market-heading"><h3>On-chain listings</h3><span class="tag">LIVE CONTRACT DATA</span></div><div id="escrow-list" class="web3-market-list"><div class="empty">Configure a verified deployment to load listings.</div></div><button type="button" id="escrow-older" hidden>Load older listings</button><div id="escrow-status" class="notice" role="status">Contract writes are disabled until deployment configuration and network checks pass.</div>';
     panel.append(card);
     const $ = selector => card.querySelector(selector);
     const assets = Array.isArray(config.assets) ? config.assets.filter(item => item && /^[0-9]+$/.test(String(item.tokenId))) : [];
@@ -35,7 +35,7 @@ import { BrowserProvider, Contract, formatEther, parseEther } from "https://cdn.
       ? "Deployment configuration detected. Verify contract addresses and chain before signing transactions."
       : "Not configured. Set KINGMAKER_WEB3_CONFIG.marketplaceAddress, contractAddress, chainId and assets before enabling escrow. No addresses are bundled.";
     $(" #escrow-asset".trim()).innerHTML = assets.map(item => '<option value="'+esc(item.tokenId)+'">'+esc(item.name || item.id)+' · token '+esc(item.tokenId)+'</option>').join("") || '<option value="">No token IDs configured</option>';
-    let provider, signer, account, market, token;
+    let provider, signer, account, market, token;\n    let oldestLoadedId = 0n;\n    const listingPageSize = 50;
     const status = message => { $(" #escrow-status".trim()).textContent = message; };
     const connected = async () => {
       if (!ready) throw new Error("Escrow contract configuration is incomplete.");
@@ -50,6 +50,28 @@ import { BrowserProvider, Contract, formatEther, parseEther } from "https://cdn.
       $(" #escrow-wallet".trim()).textContent = account;
       return account;
     };
+    async function loadListingPage(reset = false) {
+      if (!market || oldestLoadedId < 1n) return;
+      const rows = [];
+      let checked = 0;
+      while (oldestLoadedId >= 1n && checked < listingPageSize) {
+        const id = oldestLoadedId--;
+        checked++;
+        const item = await market.listings(id);
+        if (Number(item.status) !== 1) continue;
+        const asset = assets.find(entry => String(entry.tokenId) === item.tokenId.toString());
+        const own = item.seller.toLowerCase() === account.toLowerCase();
+        rows.push('<div class="web3-listing"><div><b>'+esc(asset?.name || ("Token "+item.tokenId))+'</b><small>#'+id+' · '+esc(item.amount.toString())+' units · '+(own?'Your escrow': 'Seller '+esc(item.seller.slice(0,6)+'…'+item.seller.slice(-4)))+'</small></div><strong>'+esc(formatEther(item.price))+'<small>NATIVE</small></strong>'+(own?'<button data-cancel="'+id+'">Cancel & return</button>':'<button data-buy="'+id+'">Buy</button>')+'</div>');
+      }
+      const list = $(" #escrow-list".trim());
+      if (rows.length) list.insertAdjacentHTML("beforeend", rows.join(""));
+      else if (reset && oldestLoadedId < 1n) list.innerHTML = '<div class="empty">No active on-chain listings.</div>';
+      $(" #escrow-older".trim()).hidden = oldestLoadedId < 1n;
+    }
+    $(" #escrow-older".trim()).addEventListener("click", async () => {
+      try { await connected(); await loadListingPage(); }
+      catch (error) { status(error.shortMessage || error.message || "Could not load older listings."); }
+    });
     async function refresh() {
       if (!ready) return;
       try {
@@ -57,15 +79,10 @@ import { BrowserProvider, Contract, formatEther, parseEther } from "https://cdn.
         const proceeds = await market.pendingProceeds(account);
         $(" #escrow-proceeds".trim()).textContent = "Withdrawable proceeds: "+formatEther(proceeds)+" native currency";
         const end = await market.nextListingId();
-        const rows = [];
-        for (let id = 1n; id < end; id++) {
-          const item = await market.listings(id);
-          if (Number(item.status) !== 1) continue;
-          const asset = assets.find(entry => String(entry.tokenId) === item.tokenId.toString());
-          const own = item.seller.toLowerCase() === account.toLowerCase();
-          rows.push('<div class="web3-listing"><div><b>'+esc(asset?.name || ("Token "+item.tokenId))+'</b><small>#'+id+' · '+esc(item.amount.toString())+' units · '+(own?'Your escrow': 'Seller '+esc(item.seller.slice(0,6)+'…'+item.seller.slice(-4)))+'</small></div><strong>'+esc(formatEther(item.price))+'<small>NATIVE</small></strong>'+(own?'<button data-cancel="'+id+'">Cancel & return</button>':'<button data-buy="'+id+'">Buy</button>')+'</div>');
-        }
-        $(" #escrow-list".trim()).innerHTML = rows.length ? rows.join("") : '<div class="empty">No active on-chain listings.</div>';
+        oldestLoadedId = end > 1n ? end - 1n : 0n;
+        $(" #escrow-list".trim()).innerHTML = "";
+        await loadListingPage(true);
+        $(" #escrow-older".trim()).hidden = oldestLoadedId <= 1n;
         if (proceeds > 0n) $(" #escrow-proceeds".trim()).insertAdjacentHTML("beforeend",' <button type="button" id="escrow-withdraw">Withdraw proceeds</button>');
         $(" #escrow-submit".trim()).disabled = false;
       } catch (error) {
