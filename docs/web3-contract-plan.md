@@ -130,3 +130,31 @@ Automated behavior tests are in `contract-tests/KingmakerMarketplace.test.js`. T
 A local-only deployment script is available at `scripts/deploy-local.js`. Run `npm run contract:deploy:local` to deploy the ERC-1155 asset contract, define the three initial catalog token IDs, deploy the escrow marketplace, and print a JSON summary with the resulting addresses and token mapping. Hardhat's default network is an ephemeral local network; the addresses are not persistent after the process exits and are not a public-chain deployment. For a persistent local node, start `npx hardhat node` separately and run `npx hardhat run scripts/deploy-local.js --network localhost`.
 
 The script does not mint assets, transfer funds, or publish deployment addresses into application configuration. Do not point the live server or browser at these ephemeral addresses. Public-network deployment remains intentionally out of scope until a target chain, funded deployer, verified configuration, end-to-end tests, and independent security review are available.
+
+
+## Wallet-connected escrow interface (configuration gated)
+
+The Web3 & Assets panel now includes an on-chain escrow interface in `src/web3-escrow.js`. When configured, it can:
+- Read active listings and seller proceeds from the escrow contract.
+- Request ERC-1155 operator approval, then deposit assets into escrow to create a listing.
+- Purchase an active listing using the exact native-currency price.
+- Cancel the seller's own listing and withdraw seller proceeds.
+
+The interface checks the connected wallet's chain ID against the configured chain before reads or writes. Every write is submitted through the user's EIP-1193 wallet and requires wallet confirmation. The browser loads ethers v6 from jsDelivr for contract interaction.
+
+Provide configuration **before** the Web3 modules load, for example in a deployment-specific script included before `src/web3.js`:
+
+```js
+window.KINGMAKER_WEB3_CONFIG = {
+  chainId: "0x7a69",
+  contractAddress: "0xYOUR_DEPLOYED_ASSET_CONTRACT",
+  marketplaceAddress: "0xYOUR_DEPLOYED_MARKETPLACE",
+  assets: [
+    { id: "founder-banner", tokenId: "1", name: "Founder Banner" },
+    { id: "frontier-surveyor", tokenId: "2", name: "Frontier Surveyor" },
+    { id: "royal-blueprint", tokenId: "3", name: "Royal Blueprint" }
+  ]
+};
+```
+
+The example chain ID is Hardhat's local chain (31337); replace both addresses with the contracts deployed to the same persistent local node. Never use placeholder addresses. If configuration is absent, invalid, or on the wrong chain, the escrow interface stays disabled. The interface is a development integration only: no public-chain deployment, stablecoin settlement, fee/royalty logic, indexing, production monitoring, or independent security audit is included. The CDN dependency requires an internet connection. Do not use with valuable assets or real funds.
