@@ -21,7 +21,7 @@ The visual target is a serious, high-fidelity next-generation world—not a cart
 
 ## Current prototype
 
-The current playable prototype is a local, single-player browser game built with JavaScript and a small Node.js development server. It does not currently require an account, database, wallet, external AI service, or paid service.
+The current playable prototype is a browser game built with JavaScript and a small Node.js development server. The nation simulation remains local single-player. The development marketplace supports signed EVM-wallet sessions, a server-verified on-chain inventory view, and an ownership check before listing; this does not make the nation simulation multiplayer or enable real asset trading.
 
 ### Run locally
 
@@ -36,18 +36,18 @@ Open <http://127.0.0.1:4173>. The server only binds to loopback.
 ### Current systems
 
 - **Advance World** resolves production and consumption, rival decisions, market supply and prices, diplomacy, agreements, conflicts, and world events.
-- **Nation** lets you rename the nation, set its government, and build infrastructure.
+- **Nation** lets you rename the nation, set its government, build infrastructure, and enact four temporary national policies: food assistance, research funding, public health, and industrial incentives.
 - **Economy** lets you build industries; buy and sell food, materials, ore, and goods against shared finite world-market stock; and review the national income and wage ledger.
 - **Diplomacy** lets you send aid, recall an envoy, offer agreements, and manage conflict.
 - **Research** unlocks production and resilience effects.
 - **Campaign** offers three scenarios with objectives, achievements, victory, and defeat.
-- **World Director** provides local rule-based advice based on current game state.
+- **World Director** provides local rule-based advice based on current game state. Citizens gain career experience and levels, pursue aspirations, adjust civic trust based on wellbeing and active policies, and retain career milestones in memory. This is deterministic simulation logic, not external LLM agents. A civic mandate report derives public approval, average trust, governing mandate strength, and the population's leading unmet need directly from citizen state. Governments publish measurable party manifestos; delivery is assessed at election time and fulfilled or broken promises change the incumbent's next vote forecast. National elections run every 12 turns: citizen needs, trust, national stability, and incumbent status shape transparent party vote forecasts and results. Election outcomes affect national stability and are recorded in world history. A political-pressure model converts low approval and unmet needs into an unrest index, public protests on a four-turn cooldown, stability penalties, and a sustained government-crisis status. Elected parties implement distinct governing agendas: Civic Alliance improves belonging and trust, Prosperity League boosts food and credit output, and National Security Front improves safety and reduces protest disruption. Each party discounts aligned policy costs by 15%. A cabinet reviews national needs every four turns and can automatically fund a matching policy when affordable, while protecting a 20-credit treasury reserve; cabinet decisions and spending are recorded in the save and world history. These are deterministic simulation rules, not real-world political polling.
 - **Creator Studio** lets you publish designs into a bounded local market. Rival nations can adopt designs when their needs match, apply their effects, and pay capped in-game royalties.
 - **3D World** opens an explorable 3D island with high-density procedural terrain, varied elevation, expanded forests, detailed building facades, animated citizens and traffic, a moving ocean surface, atmospheric clouds, a day/night lighting cycle, orbit/zoom/pan controls, and live terrain-surface construction.
 - **3D construction and roads** let players place buildings and connect districts. Positions and roads persist in local saves; connected districts gain logistics and credits.
 - **Save export/import** moves a versioned JSON save between browsers.
 
-All current game values are simulated and have no real-world or financial value. No cryptocurrency, token, wallet connection, real-money purchase, or on-chain ownership is currently implemented.
+All current game values are simulated and have no real-world or financial value. Wallet signature sign-in is implemented for development marketplace identity only. No cryptocurrency payment, real-money purchase, token transfer, or production on-chain ownership flow is enabled.
 
 ## Product direction and milestones
 
@@ -59,21 +59,13 @@ All current game values are simulated and have no real-world or financial value.
 6. **Web3 implementation:** only after the design and security gates are approved, build and test wallet connection, on-chain features, and purchase flows. Never expose private keys or seed phrases to the game or its support systems.
 7. **Web release:** prepare a secure, scalable web deployment and staged public launch. App-store distribution is not the product target.
 
-## Run quality checks
 
-```sh
-npm run check
-npm test
-```
+### Shared marketplace development API
 
-The engine is in `src/engine.js`; the browser interface is in `src/app.js`; automated rules tests are in `tests/engine.test.js`.
+Run `npm install` and `npm run dev`, then open the game through the local server. The Web3 & Assets tab uses a one-time EVM wallet signature to establish a server-side session before publishing or cancelling listings. The server verifies the signature, consumes the challenge nonce, stores the session in an HttpOnly SameSite=Strict cookie, and derives the listing seller from that verified session. Before accepting a listing, it also checks the wallet's live ERC-1155 balance through a configured server-side RPC endpoint and contract address. Listing records are persisted in `data/marketplace.json`, so browser sessions using the same server see the same feed.
 
-See [gameplay rules](docs/gameplay.md) and the [AI, 3D, and Web3 vision](docs/ai-3d-web3-vision.md).
+This remains a development prototype: wallet sign-in proves control of an address, not ownership of the locally recorded asset. The marketplace selector now uses live server-verified ERC-1155 balances for configured token IDs; the separate prototype collection remains browser-local. Prices are simulated game credits; there are no purchases, payments, escrow, asset transfers, or blockchain settlement. Sessions are in-memory and reset when the server restarts. The server binds to loopback by default and accepts only `http://127.0.0.1:4173` and `http://localhost:4173` origins by default; configure `KINGMAKER_APP_ORIGINS` explicitly if the local port changes. It must not be exposed publicly.
 
-## Save data
 
-Current saves use schema version 7. The importer validates bounded creator publications, adoption and royalty ledgers, event records, response choices, campaign phase progress, and required world data before replacing the active game. It migrates original v0.3 saves and development schemas 1 through 6. Active world effects, creator progression, processed event IDs, campaign progress, and structured history persist in saves. Automatic local saves keep a previous safe copy for recovery. Export backups regularly if you clear browser storage or change devices.
 
-## Development status
-
-The current development branch includes three playable local campaigns, six rival nations, a demand-driven Creator Studio economy, ten research technologies with prerequisites, versioned save migration, and automated engine tests. The existing 3D island and AI-like decision systems are prototypes, not the final world. Desktop and mobile browser acceptance, extended balance review, visual-performance validation, Web3 architecture, and release verification remain outstanding. KINGMAKER is in active development and is not declared a finished release.
+For live listing ownership checks, configure `KINGMAKER_RPC_URL`, `KINGMAKER_ASSET_CONTRACT`, `KINGMAKER_CHAIN_ID` (decimal), and `KINGMAKER_ASSET_TOKEN_IDS` (JSON mapping catalog asset IDs to ERC-1155 token IDs). Without these settings, the server deliberately refuses listing creation. See [the Web3 contract plan](docs/web3-contract-plan.md) for details and limitations.

@@ -900,3 +900,291 @@ test("legacy citizens receive safe relationship defaults during save migration",
   const migrated = Engine.migrateSave(state);
   assert.ok(Array.isArray(migrated.citizens[0].relationships));
 });
+
+
+test("national policies charge the treasury, apply bounded effects, and expire after five turns", () => {
+  const state = Engine.createInitialState({ seed: 901 });
+  const credits = state.resources.credits;
+  Engine.enactPolicy(state, "research_fund");
+  assert.equal(state.resources.credits, credits - 45);
+  assert.equal(Engine.policyActive(state, "research_fund"), true);
+  assert.throws(() => Engine.enactPolicy(state, "research_fund"), /already active/);
+  const scienceBefore = state.resources.science;
+  Engine.advanceTurn(state);
+  assert.equal(state.resources.science - scienceBefore, 9);
+  assert.equal(state.economy.production.science, 9);
+  for (let i = 0; i < 4; i++) Engine.advanceTurn(state);
+  assert.equal(state.turn, 6);
+  assert.equal(Engine.policyActive(state, "research_fund"), true);
+  Engine.advanceTurn(state);
+  assert.equal(state.turn, 7);
+  assert.equal(Engine.policyActive(state, "research_fund"), false);
+});
+
+test("food assistance and industrial incentives change the actual national ledger", () => {
+  const baseline = Engine.createInitialState({ seed: 902 });
+  const supported = Engine.createInitialState({ seed: 902 });
+  Engine.enactPolicy(supported, "food_assistance");
+  Engine.enactPolicy(supported, "industry_incentive");
+  Engine.advanceTurn(baseline);
+  Engine.advanceTurn(supported);
+  assert.ok(supported.economy.consumption.food < baseline.economy.consumption.food);
+  assert.equal(supported.economy.production.materials, baseline.economy.production.materials + 2);
+});
+
+test("public health policy improves citizen safety and population growth, and policy saves validate", () => {
+  const state = Engine.createInitialState({ seed: 903 });
+  state.resources.food = 500;
+  const population = state.nation.population;
+  const safety = state.citizens[0].needs.safety;
+  Engine.enactPolicy(state, "public_health");
+  Engine.advanceTurn(state);
+  assert.equal(state.citizens[0].needs.safety, Math.min(100, safety + 5));
+  assert.ok(state.nation.population >= population + 3);
+  const loaded = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.equal(loaded.policies.public_health.expiresTurn, 6);
+  loaded.policies.unknown = { activatedTurn: 1, expiresTurn: 5 };
+  assert.throws(() => Engine.validateSave(loaded), /National policy state is invalid/);
+});
+
+test("version 8 saves migrate through national policies, elections, and political pressure into schema version 13", () => {
+  const old = Engine.createInitialState({ seed: 904 });
+  old.schemaVersion = 8;
+  delete old.policies;
+  const migrated = Engine.migrateSave(old);
+  assert.equal(migrated.schemaVersion, 14);
+  assert.deepEqual(Object.keys(migrated.policies).sort(), ["food_assistance", "industry_incentive", "public_health", "research_fund"]);
+  assert.ok(Object.values(migrated.policies).every(policy => policy === null));
+});
+
+
+test("citizens autonomously develop careers and adjust civic trust in response to living conditions", () => {
+  const state = Engine.createInitialState({ seed: 5510 });
+  const citizen = state.citizens[0];
+  assert.equal(citizen.careerLevel, 1);
+  assert.equal(citizen.careerXp, 0);
+  assert.ok(citizen.aspiration.length > 0);
+  state.resources.food = 500;
+  state.resources.power = 100;
+  citizen.needs = { food: 95, energy: 95, safety: 95, belonging: 95 };
+  citizen.mood = 95;
+  for (let i = 0; i < 12; i++) Engine.advanceTurn(state);
+  assert.ok(citizen.careerXp > 0);
+  assert.ok(citizen.careerLevel >= 2);
+  assert.ok(citizen.civicTrust >= 50);
+  assert.ok(citizen.memory.some(item => item.text.includes("career level")));
+  const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.equal(saved.citizens[0].careerLevel, citizen.careerLevel);
+  assert.equal(saved.citizens[0].aspiration, citizen.aspiration);
+});
+
+test("version 9 citizen saves migrate to the current autonomous career schema", () => {
+  const old = Engine.createInitialState({ seed: 5511 });
+  old.schemaVersion = 9;
+  old.citizens.forEach(c => { delete c.careerLevel; delete c.careerXp; delete c.civicTrust; delete c.aspiration; });
+  const migrated = Engine.migrateSave(old);
+  assert.equal(migrated.schemaVersion, 14);
+  assert.ok(migrated.citizens.every(c => c.careerLevel === 1 && c.careerXp === 0 && c.civicTrust === 50 && c.aspiration));
+});
+
+
+
+test("citizen needs and trust shape transparent election forecasts", () => {
+  const state = Engine.createInitialState({ seed: 8812 });
+  state.election.incumbent = "civic";
+  state.citizens.forEach(c => {
+    c.needs = { food: 95, energy: 90, safety: 20, belonging: 25 };
+    c.civicTrust = 30;
+  });
+  const forecast = Engine.electionForecast(state);
+  assert.equal(forecast.winner, "prosperity");
+  assert.equal(Object.values(forecast.voteShares).reduce((sum, value) => sum + value, 0), 100);
+  assert.ok(forecast.voteShares.prosperity > forecast.voteShares.security);
+  assert.ok(forecast.turnout >= 25 && forecast.turnout <= 90);
+});
+
+test("elections resolve on schedule, change leadership, affect stability, and persist", () => {
+  const state = Engine.createInitialState({ seed: 8813 });
+  state.election.nextElectionTurn = 2;
+  state.citizens.forEach(c => {
+    c.needs = { food: 10, energy: 10, safety: 10, belonging: 10 };
+    c.mood = 10;
+    c.civicTrust = 10;
+  });
+  const before = state.nation.stability;
+  Engine.advanceTurn(state);
+  assert.equal(state.election.electionsHeld, 1);
+  assert.equal(state.election.lastResult.turn, 2);
+  assert.equal(state.election.incumbent, state.election.lastResult.winner);
+  assert.equal(state.election.nextElectionTurn, 14);
+  assert.ok(state.nation.stability < before);
+  assert.ok(state.events.some(event => event.type === "election"));
+  const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(saved.election, state.election);
+});
+
+test("version 10 saves migrate through elections into government schema 13", () => {
+  const old = Engine.createInitialState({ seed: 8814 });
+  old.schemaVersion = 10;
+  delete old.election;
+  const migrated = Engine.migrateSave(old);
+  assert.equal(migrated.schemaVersion, 14);
+  assert.equal(migrated.election.incumbent, "civic");
+  assert.equal(migrated.election.electionsHeld, 0);
+  assert.equal(migrated.election.lastResult, null);
+  assert.ok(migrated.election.nextElectionTurn > migrated.turn);
+});
+
+test("civic mandate reflects citizen wellbeing, trust, and the leading public concern", () => {
+  const state = Engine.createInitialState({ seed: 7210 });
+  state.citizens.forEach(c => {
+    c.needs = { food: 90, energy: 80, safety: 85, belonging: 75 };
+    c.mood = 82;
+    c.civicTrust = 78;
+  });
+  let report = Engine.civicMandate(state);
+  assert.equal(report.approval, 80);
+  assert.equal(report.mandate, "Strong public mandate");
+  assert.equal(report.leadingConcern, "community connection");
+  state.citizens.forEach(c => { c.needs.food = 10; c.mood = 25; c.civicTrust = 20; });
+  report = Engine.civicMandate(state);
+  assert.equal(report.leadingConcern, "food security");
+  assert.equal(report.mandate, "Public confidence crisis");
+  assert.equal(report.concerns.find(item => item.key === "food").affected, state.citizens.length);
+  assert.ok(report.concerns.filter(item => item.key !== "food").every(item => item.affected === 0));
+});
+
+
+test("political pressure escalates into protests with cooldown and persists in saves", () => {
+  const state = Engine.createInitialState({ seed: 9912 });
+  state.citizens.forEach(c => {
+    c.needs = { food: 5, energy: 8, safety: 10, belonging: 6 };
+    c.mood = 8;
+    c.civicTrust = 5;
+  });
+  state.nation.stability = 25;
+  state.turn = 5;
+  const first = Engine.resolvePoliticalPressure(state);
+  assert.ok(first.unrest >= 65);
+  assert.equal(state.politics.protests, 1);
+  assert.ok(state.events.some(event => event.type === "protest"));
+  const after = state.nation.stability;
+  state.turn = 6;
+  Engine.resolvePoliticalPressure(state);
+  assert.equal(state.politics.protests, 1);
+  assert.equal(state.nation.stability, after);
+  const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(saved.politics, state.politics);
+});
+
+test("version 11 saves migrate through political pressure into schema 13", () => {
+  const old = Engine.createInitialState({ seed: 9913 });
+  old.schemaVersion = 11;
+  delete old.politics;
+  const migrated = Engine.migrateSave(old);
+  assert.equal(migrated.schemaVersion, 14);
+  assert.equal(migrated.politics.governmentStatus, "stable");
+  assert.equal(migrated.politics.protests, 0);
+});
+
+
+test("elected parties implement distinct governing agendas and aligned policy discounts", () => {
+  const civic = Engine.createInitialState({ seed: 6201 });
+  const prosperity = Engine.createInitialState({ seed: 6202 });
+  const baseline = Engine.createInitialState({ seed: 6202 });
+  const security = Engine.createInitialState({ seed: 6203 });
+  prosperity.election.incumbent = "prosperity";
+  security.election.incumbent = "security";
+  assert.equal(Engine.partyGovernance(civic).agenda, "Community services and civic trust");
+  assert.equal(Engine.partyGovernance(prosperity).id, "prosperity");
+  assert.ok(Engine.partyGovernance(security).effects.includes("extra safety"));
+  Engine.advanceTurn(prosperity);
+  Engine.advanceTurn(baseline);
+  assert.equal(prosperity.economy.production.food, baseline.economy.production.food + 3);
+  assert.equal(prosperity.economy.production.credits, baseline.economy.production.credits + 2);
+  civic.resources.credits = 100;
+  Engine.enactPolicy(civic, "food_assistance");
+  assert.equal(civic.resources.credits, 100 - Math.ceil(30 * 0.85));
+  civic.resources.credits = 100;
+  Engine.enactPolicy(civic, "research_fund");
+  assert.equal(civic.resources.credits, 100 - 45);
+});
+
+
+test("elected government funds party-aligned policies on scheduled cabinet reviews", () => {
+  const state = Engine.createInitialState({ seed: 7301 });
+  state.election.incumbent = "prosperity";
+  state.turn = 3;
+  state.citizens.forEach(c => { c.needs.food = 35; c.needs.safety = 70; c.needs.belonging = 70; });
+  state.resources.credits = 120;
+  const decision = Engine.resolveGovernmentAgenda((state.turn++, state));
+  assert.equal(decision.enacted, true);
+  assert.equal(decision.policy, "food_assistance");
+  assert.equal(state.policies.food_assistance.activatedTurn, 4);
+  assert.equal(state.governance.decisionsMade, 1);
+  assert.equal(state.resources.credits, 120 - 30);
+  const after = state.resources.credits;
+  state.turn = 5;
+  assert.equal(Engine.resolveGovernmentAgenda(state), null);
+  assert.equal(state.resources.credits, after);
+  const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(saved.governance, state.governance);
+});
+
+test("cabinet protects a minimum treasury reserve and does not enact unaffordable policies", () => {
+  const state = Engine.createInitialState({ seed: 7302 });
+  state.election.incumbent = "civic";
+  state.turn = 4;
+  state.resources.credits = 40;
+  state.citizens.forEach(c => { c.needs.food = 20; c.needs.safety = 20; c.needs.belonging = 20; });
+  const decision = Engine.resolveGovernmentAgenda(state);
+  assert.equal(decision.enacted, false);
+  assert.equal(state.resources.credits, 40);
+  assert.equal(state.governance.decisionsMade, 0);
+  assert.ok(state.governance.lastDecision.includes("reserve"));
+});
+
+test("version 12 saves migrate to the cabinet governance schema 13", () => {
+  const old = Engine.createInitialState({ seed: 7303 });
+  old.schemaVersion = 12;
+  delete old.governance;
+  const migrated = Engine.migrateSave(old);
+  assert.equal(migrated.schemaVersion, 14);
+  assert.equal(migrated.governance.decisionsMade, 0);
+  assert.equal(migrated.governance.lastPolicy, null);
+});
+
+
+test("governing party manifestos are measured and affect incumbent election support", () => {
+  const fulfilled = Engine.createInitialState({ seed: 14001 });
+  fulfilled.turn = 12; fulfilled.election.nextElectionTurn = 12;
+  fulfilled.citizens.forEach(c => { c.needs.belonging = 90; c.civicTrust = 90; });
+  assert.equal(Engine.evaluatePartyManifesto(fulfilled).status, "fulfilled");
+  const failed = Engine.createInitialState({ seed: 14002 });
+  failed.turn = 12; failed.election.nextElectionTurn = 12;
+  failed.citizens.forEach(c => { c.needs.belonging = 10; c.civicTrust = 10; });
+  assert.equal(Engine.evaluatePartyManifesto(failed).status, "broken");
+  assert.ok(Engine.electionForecast(fulfilled).voteShares.civic > Engine.electionForecast(failed).voteShares.civic);
+});
+
+test("election resolution records manifesto delivery and issues the winner a new promise", () => {
+  const state = Engine.createInitialState({ seed: 14003 });
+  state.turn = 12; state.election.nextElectionTurn = 12;
+  state.citizens.forEach(c => { c.needs.belonging = 85; c.civicTrust = 85; });
+  const result = Engine.resolveElection(state);
+  assert.ok(state.events.some(event => event.type === "manifesto"));
+  assert.equal(state.election.manifesto.party, result.winner);
+  assert.equal(state.election.manifesto.status, "active");
+  assert.equal(state.election.manifesto.targetTurn, state.election.nextElectionTurn);
+  const loaded = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(loaded.election.manifesto, state.election.manifesto);
+});
+
+test("schema 13 saves migrate with a current party manifesto", () => {
+  const old = Engine.createInitialState({ seed: 14004 });
+  old.schemaVersion = 13; delete old.election.manifesto;
+  const migrated = Engine.migrateSave(old);
+  assert.equal(migrated.schemaVersion, 14);
+  assert.equal(migrated.election.manifesto.party, "civic");
+  assert.equal(migrated.election.manifesto.status, "active");
+});
