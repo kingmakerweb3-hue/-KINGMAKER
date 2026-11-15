@@ -23,7 +23,7 @@ test("web server serves the game shell and static assets", async t => {
 
   const manifestResponse = await fetch(base + "/api/agent/v1/manifest");
   assert.equal(manifestResponse.status, 200);
-  assert.match(manifestResponse.headers.get("content-type"), /application\\/json/);
+  assert.match(manifestResponse.headers.get("content-type"), /application\/json/);
   const manifest = await manifestResponse.json();
   assert.equal(manifest.game, "KINGMAKER");
   assert.equal(manifest.connection.writesEnabled, false);
