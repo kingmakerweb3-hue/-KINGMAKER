@@ -1,0 +1,13 @@
+{
+  "name": "KINGMAKER Network",
+  "short_name": "KINGMAKER",
+  "description": "KINGMAKER daily participation and community network demo.",
+  "start_url": "./network.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#07101d",
+  "theme_color": "#07101d",
+  "icons": [
+    {"src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
+  ]
+}
