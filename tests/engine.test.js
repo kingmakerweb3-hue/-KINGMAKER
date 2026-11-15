@@ -925,6 +925,24 @@ test("regional roads connect settlements, cost resources and improve logistics",
   assert.deepEqual(restored.mapWorld.regions[0].roads, state.mapWorld.regions[0].roads);
 });
 
+test("military recruitment spends resources and persists in saves", () => {
+  const s=Engine.createInitialState({seed:901}), m=s.resources.materials, c=s.resources.credits;
+  Engine.recruitTroops(s,2); assert.equal(s.military.troops,20); assert.equal(s.military.readiness,52);
+  assert.equal(s.resources.materials,m-40); assert.equal(s.resources.credits,c-80);
+  assert.deepEqual(Engine.migrateSave(JSON.parse(Engine.exportSave(s))).military,s.military);
+  assert.throws(()=>Engine.recruitTroops(s,0),/1 and 100 squads/);
+});
+test("regional fortifications require owned territory and enforce a five-level cap", () => {
+  const s=Engine.createInitialState({seed:902}); s.mapWorld={version:2,seed:s.seed,regions:[{id:"home",name:"Home Reach",owner:s.nation.name,development:10},{id:"foreign",name:"Foreign Reach",owner:"Aurelia"}]};
+  assert.throws(()=>Engine.fortifyRegion(s,"foreign"),/only fortify territory/);
+  const r=Engine.fortifyRegion(s,"home"); assert.equal(r.fortification,1); assert.equal(r.development,12);
+  r.fortification=5; assert.throws(()=>Engine.fortifyRegion(s,"home"),/fortification limit/);
+  assert.doesNotThrow(()=>Engine.validateSave(Engine.migrateSave(JSON.parse(Engine.exportSave(s)))));
+});
+test("schema 7 saves migrate with an empty defence force", () => {
+  const s=Engine.createInitialState({seed:903}); s.schemaVersion=7; delete s.military;
+  const m=Engine.migrateSave(s); assert.equal(m.schemaVersion,Engine.SAVE_VERSION); assert.deepEqual(m.military,{troops:0,readiness:50});
+});
 test("settlements can only be founded in claimed territory", () => {
   const state = Engine.createInitialState({ seed: 771 });
   state.mapWorld = { version: 2, seed: state.seed, regions: [
