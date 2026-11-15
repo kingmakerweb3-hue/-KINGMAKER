@@ -68,7 +68,7 @@ contract KingmakerMarketplace is IERC1155Receiver, ERC165, ReentrancyGuard {
         emit ListingCancelled(listingId);
     }
 
-    function purchase(uint256 listingId) external payable nonReentrant whenNotPaused {
+    function purchase(uint256 listingId) external payable nonReentrant {
         Listing storage listing = listings[listingId];
         if (listing.status != ListingStatus.Active) revert ListingNotActive();
         if (msg.value != listing.price) revert IncorrectPayment(listing.price, msg.value);
