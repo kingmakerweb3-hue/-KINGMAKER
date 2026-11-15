@@ -2,6 +2,9 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
 const { createServer } = require("../src/server.js");
 
 test("web server serves the game shell and static assets", async t => {
@@ -47,4 +50,29 @@ test("web server rejects unsupported methods and traversal", async t => {
 
   const missing = await fetch(base + "/missing-release-file.js");
   assert.equal(missing.status, 404);
+});
+
+
+test("web server blocks symlinks that point outside the game directory", async t => {
+  const outside = await fs.mkdtemp(path.join(os.tmpdir(), "kingmaker-outside-"));
+  const secret = path.join(outside, "secret.txt");
+  const linkName = ".kingmaker-server-test-" + process.pid + "-" + Date.now();
+  const linkPath = path.join(__dirname, "..", linkName);
+  await fs.writeFile(secret, "outside private file");
+  await fs.symlink(outside, linkPath, "dir");
+  t.after(async () => {
+    await fs.rm(linkPath, { force: true });
+    await fs.rm(outside, { recursive: true, force: true });
+  });
+
+  const server = createServer();
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  t.after(() => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())));
+
+  const response = await fetch("http://127.0.0.1:" + server.address().port + "/" + linkName + "/secret.txt");
+  assert.equal(response.status, 403);
+  assert.equal(await response.text(), "Forbidden");
 });
