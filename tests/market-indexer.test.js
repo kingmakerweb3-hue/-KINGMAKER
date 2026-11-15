@@ -53,7 +53,7 @@ test("persistent indexer stores decoded confirmed marketplace events and serves 
     assert.equal(page.events[0].name, "ListingCreated");
     assert.equal(page.events[0].args.listingId, "7");
     assert.equal(page.events[0].args.price, "10000000000000000");
-    assert.equal(page.events[0].transactionHash, mock.fetch ? page.events[0].transactionHash : "");
+    assert.equal(page.events[0].transactionHash, "0x" + "b".repeat(64));
     const restarted = createMarketplaceIndexer(options);
     assert.equal((await restarted.list(10)).events.length, 1);
     assert.ok(mock.methods.includes("eth_getLogs"));
