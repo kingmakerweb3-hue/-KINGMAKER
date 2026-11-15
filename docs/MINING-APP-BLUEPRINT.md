@@ -53,3 +53,12 @@ All endpoints require authentication, authorization, input schema validation, CS
 - The mining control remains disabled until a server-authoritative session service, eligibility rules, abuse controls and auditable CROWN ledger are deployed. No browser timer or local storage value may create rewards.
 - Sponsorship placement is a reserved, inactive area. Ad inventory must comply with the chosen provider's policies; users must not be paid CROWN or KGM for viewing or clicking ads unless an explicitly approved provider program permits that exact incentive.
 - This frontend is a design and PWA shell, not a live mining service, production account system, wallet payout service or token contract.
+
+
+## Portal experience scope (current PR)
+- The landing portal opens with the **SOMETHING NEW IS COMING** message and the premium KINGMAKER science-fiction identity.
+- The visual world section uses animated CSS 3D-style planetary, orbital and city elements as a lightweight concept preview; it is not represented as a production 3D game engine.
+- The portal explains the AI civilization and nation-building vision as roadmap concepts.
+- Daily community participation is a clearly labelled local-only preview. It does not create an account record, start a mining session or issue CROWN.
+- The sponsor video area is a reserved partner-content slot. No video ad is being served in the preview. Future placements must be labelled as sponsored and comply with the selected advertising provider's policies; do not reward ad views or clicks with tokens unless an approved program expressly permits it.
+- PWA installation is available where the browser supports the install prompt. iOS users receive manual Add to Home Screen guidance.
