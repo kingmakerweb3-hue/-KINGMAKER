@@ -123,3 +123,10 @@ The server checks the authenticated session's chain ID, the RPC's actual chain I
 Automated behavior tests are in `contract-tests/KingmakerMarketplace.test.js`. These tests run on Hardhat's local test chain only.
 
 **Important limitations:** this prototype accepts the chain's native currency only, not USDT/BTC/ETH across multiple networks or stablecoin settlement. There is no fee/royalty system, expiry, dispute process, marketplace UI integration, production deployment, event indexer, or independent audit. It is not connected to the existing shared marketplace API. It must not be deployed with valuable assets or exposed as a live trading feature. A production design still needs an audited settlement contract, explicit admin/emergency governance, supported-token policy, chain-specific deployment, monitoring, economic/security review, and end-to-end wallet/UI integration. The code is a development experiment, not a claim of safe or complete trading.
+
+
+## Repeatable local contract deployment
+
+A local-only deployment script is available at `scripts/deploy-local.js`. Run `npm run contract:deploy:local` to deploy the ERC-1155 asset contract, define the three initial catalog token IDs, deploy the escrow marketplace, and print a JSON summary with the resulting addresses and token mapping. Hardhat's default network is an ephemeral local network; the addresses are not persistent after the process exits and are not a public-chain deployment. For a persistent local node, start `npx hardhat node` separately and run `npx hardhat run scripts/deploy-local.js --network localhost`.
+
+The script does not mint assets, transfer funds, or publish deployment addresses into application configuration. Do not point the live server or browser at these ephemeral addresses. Public-network deployment remains intentionally out of scope until a target chain, funded deployer, verified configuration, end-to-end tests, and independent security review are available.
