@@ -53,7 +53,7 @@ function mountWeb3Panel() {
       <p class="notice">Prototype status: inventory entries are stored locally in this browser. They are not NFTs, on-chain tokens, or independently verifiable ownership.</p>
     </article>
     <article class="panel span-7"><p class="eyebrow">ASSET CATALOG · DEVELOPMENT</p><h2>World assets</h2><p class="muted">Explore the first asset categories planned for the player-owned economy.</p><div id="web3-catalog" class="web3-catalog"></div></article>
-    <article class="panel span-12"><p class="eyebrow">NETWORK & SECURITY</p><h2>Connection details</h2><div class="web3-facts"><div><small>Wallet standard</small><b>EIP-1193 browser provider</b></div><div><small>Connected network</small><b id="web3-chain">Not connected</b></div><div><small>On-chain contracts</small><b>Not deployed</b></div><div><small>Marketplace</small><b>Not enabled</b></div></div>
+    <article class="panel span-12"><p class="eyebrow">NETWORK & SECURITY</p><h2>Connection details</h2><div class="web3-facts"><div><small>Wallet standard</small><b>EIP-1193 browser provider</b></div><div><small>Connected network</small><b id="web3-chain">Not connected</b></div><div><small>On-chain contracts</small><b>Not deployed</b></div><div><small>Marketplace</small><b>Shared listing API · prototype</b></div></div>
       <p class="notice">No blockchain transactions are sent by this prototype. Contract deployment, audited minting, transfers, marketplace settlement, and server-side ownership verification are future integration work.</p>
     </article>`;
   main.append(panel);
