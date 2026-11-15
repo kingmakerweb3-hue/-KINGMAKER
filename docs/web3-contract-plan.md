@@ -38,7 +38,7 @@ The contract source and automated test suite are in development. A passing local
 
 ## Wallet integration boundary
 
-The browser wallet module currently detects an EIP-1193 provider and connects an account. It does not yet request signatures, read contract balances, submit transactions, or prove on-chain ownership. Those functions must be added only after the contract and chain configuration are finalized.
+The browser wallet module detects an EIP-1193 provider and connects an account. `src/web3-chain.js` can read ERC-1155 balances with read-only `eth_call` when a verified contract address, chain ID, and token IDs are configured. It keeps chain-read balances separate from local prototype inventory. It does not request signatures or submit transactions. A successful balance query is a view of the configured contract only; it does not establish that the contract or metadata is audited or production-ready.
 
 ## Live wallet balance reader
 
@@ -58,3 +58,11 @@ window.KINGMAKER_WEB3_CONFIG = {
 ```
 
 The example chain ID is Sepolia; the contract address and token IDs above are placeholders and must be replaced with values from a verified deployment. With no configuration, the UI explicitly reports that live balances are unavailable and retains the prototype disclosure. Do not enable minting or marketplace actions until deployment, access-control review, metadata hosting, server-side verification, and independent security audit are complete.
+
+
+## Integration safety notes
+
+- Local prototype inventory and on-chain balances are displayed in separate sections; local browser records must never be presented as verified ownership.
+- The reader queries the connected account through the provider and checks the configured chain before calling the contract.
+- The reader is intentionally read-only. No wallet signature, approval, mint, transfer, or marketplace settlement is implemented.
+- Do not publish a contract address as official until the deployed bytecode, verified source, role configuration, metadata, and network have been independently checked.
