@@ -384,7 +384,6 @@
           !Number.isFinite(node.x) || !Number.isFinite(node.z) || Math.abs(node.x) > 12.8 || Math.abs(node.z) > 12.8 ||
           typeof node.operational !== "boolean" || typeof node.depleted !== "boolean" ||
           (node.depleted !== (node.quantity === 0)) ||
-          (node.operational && node.depleted) ||
           (node.operatedSinceTurn !== null && (!Number.isInteger(node.operatedSinceTurn) || node.operatedSinceTurn < 1 || node.operatedSinceTurn > normalized.turn)) ||
           (node.operational && node.operatedSinceTurn === null)) return true;
       depositIds.add(node.id);
