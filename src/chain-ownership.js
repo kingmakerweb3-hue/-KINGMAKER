@@ -23,16 +23,21 @@ function createChainOwnership(options = {}) {
     if (typeof fetchImpl !== "function") throw configError("This Node.js runtime does not provide fetch.");
   }
   async function rpc(method, params) {
-    const response = await fetchImpl(rpcUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-      signal: AbortSignal.timeout(8000)
-    });
-    if (!response.ok) throw configError("Configured blockchain RPC is unavailable.");
-    const payload = await response.json();
-    if (payload.error || payload.id !== 1 || !("result" in payload)) throw configError("Blockchain RPC returned an invalid response.");
-    return payload.result;
+    try {
+      const response = await fetchImpl(rpcUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!response.ok) throw configError("Configured blockchain RPC is unavailable.");
+      const payload = await response.json();
+      if (payload.error || payload.id !== 1 || !("result" in payload)) throw configError("Blockchain RPC returned an invalid response.");
+      return payload.result;
+    } catch (error) {
+      if (error.statusCode) throw error;
+      throw configError("Configured blockchain RPC request failed or timed out.");
+    }
   }
   async function verifyOwnership(walletAddress, assetId, authenticatedChainId) {
     validateConfig();
