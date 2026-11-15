@@ -16,7 +16,7 @@ function contributionMultiplier({ verifiedSecurityMembers = 0, activeDirectRefer
   const security = finiteNonNegative(verifiedSecurityMembers, 'verifiedSecurityMembers');
   const referrals = finiteNonNegative(activeDirectReferrals, 'activeDirectReferrals');
   if (!Number.isInteger(security) || !Number.isInteger(referrals)) throw new TypeError('Member and referral counts must be integers');
-  return (1 + SECURITY_BONUS * Math.min(security, MAX_SECURITY_CIRCLE)) * (1 + DIRECT_REFERRAL_BONUS * referrals);
+  const multiplier = (1 + SECURITY_BONUS * Math.min(security, MAX_SECURITY_CIRCLE)) * (1 + DIRECT_REFERRAL_BONUS * referrals);\n  return Number(multiplier.toFixed(12));
 }
 /** Unlimited supply has no pool or daily cap; only the reward rate is configured. */
 function calculateBaseRate({ baseRatePerWeightedHour } = {}) {
@@ -30,6 +30,6 @@ function quoteSession({ baseRatePerWeightedHour, verifiedSecurityMembers = 0, ac
   const seconds = finiteNonNegative(activeSeconds, 'activeSeconds');
   if (seconds > SESSION_SECONDS) throw new RangeError('A mining session cannot exceed 24 hours');
   const multiplier = contributionMultiplier({ verifiedSecurityMembers, activeDirectReferrals });
-  return { multiplier, activeSeconds: seconds, estimatedCrown: rate * multiplier * (seconds / 3600), supplyPolicy: 'unlimited' };
+  return { multiplier, activeSeconds: seconds, estimatedCrown: Number((rate * multiplier * (seconds / 3600)).toFixed(12)), supplyPolicy: 'unlimited' };
 }
 module.exports = { SESSION_SECONDS, MAX_SECURITY_CIRCLE, SECURITY_BONUS, DIRECT_REFERRAL_BONUS, contributionMultiplier, calculateBaseRate, quoteSession };
