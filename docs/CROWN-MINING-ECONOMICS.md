@@ -35,6 +35,10 @@ This is a reward calculation, not a promise of earnings or token price. Until a 
 - No Node, app-use or lockup bonuses until those services and validation systems exist.
 - No live rewards, wallet payouts or token claims are enabled by this calculation module.
 
+## Session and ledger implementation
+
+`src/mining-ledger.js` now contains a tested reference service for starting a single 24-hour session per account, settling only server-measured elapsed time, applying server-supplied validated contribution counts, preventing cross-account settlement and duplicate settlement, and deriving balances from reward ledger entries. It is intentionally in-memory and is not connected to public endpoints. Restarting the process loses its data; it is not a production database, wallet, token contract or payout system. It must be replaced with durable transactional storage and connected only behind real authenticated identity before launch.
+
 ## Production launch requirements
 
 Before real CROWN issuance: configure and publish the base reward rate; implement authenticated accounts and server-authoritative sessions; validate referrals and security-circle membership; deploy an append-only auditable ledger; implement anti-sybil controls, admin authorization, monitoring, legal/privacy review and independent security testing. Unlimited supply carries dilution/inflation risk; it does not establish market demand or value. The public portal must remain pre-launch until these controls are deployed.
