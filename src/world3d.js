@@ -26,7 +26,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const group=new THREE.Group();
     group.position.set(node.x,heightAt(node.x,node.z)+.12,node.z);
     group.userData.resourceNodeId=node.id;
-    const ring=new THREE.Mesh(new THREE.TorusGeometry(.48,.065,8,28),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:node.operational&&!node.depleted?.34:.08,roughness:.62,transparent:node.depleted,opacity:node.depleted?.5:1}));
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(.48,.065,8,28),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:node.operational && !node.depleted ? 0.34 : 0.08,roughness:.62,transparent:node.depleted,opacity:node.depleted ? 0.5 : 1}));
     ring.rotation.x=-Math.PI/2;group.add(ring);
     const crystalGeometry=node.resource==="Rare crystals"?new THREE.OctahedronGeometry(.34,1):new THREE.DodecahedronGeometry(.32,0);
     const count=node.resource==="Rare crystals"?3:2;
