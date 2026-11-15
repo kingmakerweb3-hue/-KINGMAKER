@@ -674,6 +674,22 @@
     addEvent(state, "Established a " + node.resource.toLowerCase() + " extraction site in " + region.name + ".", "economy");
     return node;
   }
+  function claimRegion(state, regionId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (!state.mapWorld || !Array.isArray(state.mapWorld.regions)) throw new Error("No generated world is available.");
+    const region = state.mapWorld.regions.find(item => item.id === regionId);
+    if (!region) throw new Error("Region not found.");
+    if (region.owner !== "Unclaimed") throw new Error("Only unclaimed regions can be claimed.");
+    if (state.nation.stability < 50) throw new Error("National stability must be at least 50 to establish a regional claim.");
+    if (state.resources.credits < 100 || state.resources.influence < 10) throw new Error("A regional claim requires 100 credits and 10 influence.");
+    state.resources.credits -= 100;
+    state.resources.influence -= 10;
+    region.owner = state.nation.name;
+    region.claimedTurn = state.turn;
+    region.development = Math.min(100, (region.development || 0) + 8);
+    addEvent(state, state.nation.name + " established sovereignty over " + region.name + ".", "milestone");
+    return region;
+  }
   function buildRegionalRoad(state, regionId) {
     if (state.status !== "playing") throw new Error("This campaign has ended.");
     if (!state.mapWorld || !Array.isArray(state.mapWorld.regions)) throw new Error("No generated world is available.");
@@ -1438,7 +1454,7 @@
   return {
     SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, productionFor, developResourceSite, buildRegionalRoad, build, trade,
+    createInitialState, validateSave, migrateSave, productionFor, developResourceSite, claimRegion, buildRegionalRoad, build, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
