@@ -94,3 +94,13 @@ button{min-height:38px}
 /* Clickable 3D citizen profile */
 .world3d-citizen-inspector{position:absolute;right:14px;bottom:14px;width:min(320px,calc(100% - 28px));max-height:70%;overflow:auto;padding:16px;border:1px solid rgba(229,189,106,.55);border-radius:14px;background:rgba(10,20,34,.94);color:#eef3f8;box-shadow:0 12px 36px rgba(0,0,0,.35);backdrop-filter:blur(12px);z-index:4}
 .world3d-citizen-inspector h3{margin:6px 30px 2px 0;font-size:1.2rem}.world3d-citizen-inspector p{margin:0 0 9px;color:#aebdd0;font-size:.82rem}.citizen-inspector-close{position:absolute;right:10px;top:8px;width:32px;height:32px;padding:0;font-size:1.3rem}.citizen-mood{display:inline-block;color:var(--gold);margin:4px 0 10px}.citizen-needs{display:grid;gap:8px}.citizen-need{display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-size:.76rem;text-transform:capitalize}.citizen-need i{grid-column:1/-1;height:5px;border-radius:8px;background:#29394d;overflow:hidden}.citizen-need em{display:block;height:100%;background:#6dc9a1}.world3d-citizen-inspector h4{margin:14px 0 5px;font-size:.85rem}.world3d-citizen-inspector ul{padding-left:18px;margin:0;color:#aebdd0;font-size:.75rem;line-height:1.6}
+
+
+/* 3D world resource deposit inspector */
+.world3d-resource-inspector{display:grid;gap:10px;margin-top:12px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:#0d1727;min-width:0}
+.world3d-resource-inspector>p{margin:0;font-size:.82rem}
+.world3d-resource-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.world3d-resource-heading h3{margin:3px 0;font-size:1.05rem;color:var(--gold)}
+.world3d-resource-heading p{margin:0;color:var(--muted);font-size:.8rem;overflow-wrap:anywhere}
+.world3d-resource-inspector button{justify-self:start;max-width:100%}
+@media(max-width:640px){.world3d-resource-inspector{padding:12px}.world3d-resource-heading{gap:8px}}
