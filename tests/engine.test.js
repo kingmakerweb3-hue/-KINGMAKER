@@ -2,6 +2,17 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const Engine = require("../src/engine.js");
 
+test("island wind and solar installations add renewable power to the production ledger", () => {
+  const state = Engine.createInitialState({ seed: 71 });
+  for (const key of Object.keys(state.buildings)) state.buildings[key] = 0;
+  state.technologies = [];
+  state.resources.power = 0;
+  Engine.advanceTurn(state);
+  assert.deepEqual(Engine.RENEWABLE_POWER_OUTPUT, { wind: 2, solar: 2 });
+  assert.equal(state.economy.production.power, 4);
+  assert.equal(state.resources.power, 4);
+});
+
 test("new game has a complete, validated state", () => {
   const state = Engine.createInitialState({ seed: 2 });
   assert.equal(state.schemaVersion, Engine.SAVE_VERSION);
