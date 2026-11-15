@@ -80,3 +80,10 @@ The module is deliberately separate from the ERC-1155 balance reader. Its listin
 The browser prototype includes a local player-to-player listing interface. A connected wallet can list a locally recorded catalog item, browse active listings, cancel its own listing, or simulate an exchange with another wallet address available in the same browser profile. Inventory records and listing records are stored in browser local storage.
 
 This is strictly a UI and game-flow simulation. Asking prices are display-only game credits: the prototype does not debit or credit a balance, collect payment, prove ownership, escrow assets, or submit a blockchain transaction. Listings are not shared between browsers or players. Production trading requires authenticated server-side listings, authoritative inventory and ownership checks, atomic settlement, payment/credit accounting, replay protection, anti-fraud controls, and audited contract integration.
+
+
+## Shared server listing API (development prototype)
+
+The local Node server now exposes `GET /api/market/listings`, `POST /api/market/listings`, and seller-address-checked `DELETE /api/market/listings/:id`. Active listing records are persisted atomically to `data/marketplace.json` (or `KINGMAKER_MARKET_FILE`). The browser marketplace reads and publishes through these routes, so browsers connected to the same running server see the same listings. Storage is server-side; the seller's asset inventory remains a local browser record.
+
+**Security boundary:** this is an unauthenticated development prototype. A caller can spoof a wallet address because wallet signatures and user sessions are not implemented. The seller-address check is not authentication or proof of ownership. Other players can view listings but cannot buy them; no payment, balance debit, asset transfer, escrow, or blockchain settlement is implemented. Do not expose this server publicly or use these endpoints for valuable assets. Production requires signed challenge authentication, rate limiting, database transactions, authoritative inventory, audit logging, anti-abuse controls, and independently reviewed settlement contracts.
