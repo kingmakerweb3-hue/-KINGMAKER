@@ -21,6 +21,25 @@ test("web server serves the game shell and static assets", async t => {
   assert.match(page.headers.get("content-type"), /text\/html/);
   assert.match(await page.text(), /KINGMAKER/);
 
+  const manifestResponse = await fetch(base + "/api/agent/v1/manifest");
+  assert.equal(manifestResponse.status, 200);
+  assert.match(manifestResponse.headers.get("content-type"), /application\\/json/);
+  const manifest = await manifestResponse.json();
+  assert.equal(manifest.game, "KINGMAKER");
+  assert.equal(manifest.connection.writesEnabled, false);
+  assert.deepEqual(manifest.actions, []);
+  assert.equal(manifest.safety.directSaveAccess, false);
+
+  const agentStatus = await fetch(base + "/api/agent/v1/status");
+  assert.equal(agentStatus.status, 200);
+  assert.deepEqual(await agentStatus.json(), {
+    game: "KINGMAKER",
+    status: "prototype",
+    productStage: "local-single-player-prototype",
+    agentConnections: 0,
+    writesEnabled: false
+  });
+
   const script = await fetch(base + "/src/engine.js");
   assert.equal(script.status, 200);
   assert.match(script.headers.get("content-type"), /javascript/);
