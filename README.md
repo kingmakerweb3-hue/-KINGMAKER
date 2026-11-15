@@ -72,7 +72,7 @@ npm test
 
 The engine is in `src/engine.js`; the browser interface is in `src/app.js`; automated rules tests are in `tests/engine.test.js`.
 
-See [gameplay rules](docs/gameplay.md) and the [AI, 3D, and Web3 vision](docs/ai-3d-web3-vision.md).
+See [gameplay rules](docs/gameplay.md) and the [AI, 3D, and Web3 vision](docs/ai-3d-web3-vision.md). For the planned external-agent integration and current read-only discovery endpoints, see the [AI Agent Gateway](docs/AI-AGENT-GATEWAY.md).
 
 ## Save data
 
