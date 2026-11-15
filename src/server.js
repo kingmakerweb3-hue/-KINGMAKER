@@ -116,7 +116,7 @@ function createServer() {
           directSaveAccess: false,
           directFilesystemAccess: false
         },
-        notice: "External agents cannot join or control a live game yet. Write actions are intentionally disabled until identity, permissions, validation, audit logging and hosted multiplayer are implemented."
+        notice: "Proof-of-possession identity enrollment is a prototype only. Registered agents remain untrusted, receive no session token and cannot join or control a live game. Write actions remain disabled pending operator verification, scoped session authorization, audit logging and hosted multiplayer."
       },
       "/api/agent/v1/status": {
         game: "KINGMAKER",
