@@ -204,6 +204,19 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     for(const side of [-1,1])for(let z=0;z<4;z++){const post=new THREE.Mesh(new THREE.CylinderGeometry(.09,.12,.9,8),timber);post.position.set(8.2+side*.38,dockY-.18,5.5+z*1.65);harborGroup.add(post);}
     for(const side of [-1,1]){const bollard=new THREE.Mesh(new THREE.CylinderGeometry(.07,.08,.28,8),metal);bollard.position.set(8.2+side*.23,dockY+.3,5.35);harborGroup.add(bollard);}
     const warehouse=new THREE.Group();const walls=new THREE.Mesh(new THREE.BoxGeometry(2.1,1.25,1.55),material(0xb8aa8b));walls.position.set(6.6,heightAt(6.6,7.5)+.68,7.5);warehouse.add(walls);const roof=new THREE.Mesh(new THREE.BoxGeometry(2.3,.18,1.75),material(0x53636b));roof.position.set(6.6,heightAt(6.6,7.5)+1.38,7.5);warehouse.add(roof);harborGroup.add(warehouse);
+    const crane=new THREE.Group(),cranePaint=material(0xd5a43e,.58),darkMetal=material(0x414d53,.5);
+    const cx=5.25,cz=9.45,cy=heightAt(cx,cz);
+    for(const x of [-.62,.62]){const leg=new THREE.Mesh(new THREE.BoxGeometry(.16,2.65,.18),cranePaint);leg.position.set(x,1.32,0);crane.add(leg);const foot=new THREE.Mesh(new THREE.BoxGeometry(.42,.16,.48),darkMetal);foot.position.set(x,.08,0);crane.add(foot);}
+    const crossbar=new THREE.Mesh(new THREE.BoxGeometry(1.5,.18,.2),cranePaint);crossbar.position.y=2.55;crane.add(crossbar);
+    const boom=new THREE.Mesh(new THREE.BoxGeometry(.22,.2,3.5),cranePaint);boom.position.set(0,2.9,1.55);crane.add(boom);
+    const counter=new THREE.Mesh(new THREE.BoxGeometry(.52,.42,.58),darkMetal);counter.position.set(0,2.65,-.5);crane.add(counter);
+    const trolley=new THREE.Mesh(new THREE.BoxGeometry(.38,.2,.42),darkMetal);trolley.position.set(0,2.72,1.55);crane.add(trolley);
+    const cable=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.9,6),darkMetal);cable.position.set(0,2.15,1.55);crane.add(cable);
+    const hook=new THREE.Mesh(new THREE.TorusGeometry(.12,.025,6,12,Math.PI*1.5),darkMetal);hook.position.set(0,1.67,1.55);hook.rotation.x=Math.PI/2;crane.add(hook);
+    crane.position.set(cx,cy,cz);crane.rotation.y=-.72;crane.traverse(o=>{if(o.isMesh)o.castShadow=true;});harborGroup.add(crane);
+    const cargoColors=[0x426e83,0xb45c43,0x597b62,0xc29a50];
+    for(let i=0;i<4;i++){const container=new THREE.Group();const body=new THREE.Mesh(new THREE.BoxGeometry(.72,.58,1.28),material(cargoColors[i],.72));body.castShadow=true;container.add(body);for(let rib=-2;rib<=2;rib++){const bar=new THREE.Mesh(new THREE.BoxGeometry(.025,.52,1.3),material(0x26343a,.8));bar.position.x=rib*.13;container.add(bar);}container.position.set(5.15+(i%2)*.82,cy+.31,7.45+Math.floor(i/2)*1.42);container.rotation.y=-.72;harborGroup.add(container);}
+    for(const [lx,lz] of [[7.25,6.25],[9.05,9.35]]){const lamp=new THREE.Group();const pole=new THREE.Mesh(new THREE.CylinderGeometry(.045,.065,1.9,8),darkMetal);pole.position.y=.95;lamp.add(pole);const arm=new THREE.Mesh(new THREE.BoxGeometry(.55,.055,.055),darkMetal);arm.position.set(.22,1.83,0);lamp.add(arm);const glow=new THREE.Mesh(new THREE.SphereGeometry(.13,10,8),new THREE.MeshStandardMaterial({color:0xffe3a0,emissive:0xffc45a,emissiveIntensity:1.7}));glow.position.set(.46,1.76,0);lamp.add(glow);lamp.position.set(lx,heightAt(lx,lz),lz);harborGroup.add(lamp);}
     cargoShip=new THREE.Group();
     const hull=new THREE.Mesh(new THREE.BoxGeometry(1.05,.48,2.9),material(0x263f50,.48));hull.position.y=.02;cargoShip.add(hull);
     const bow=new THREE.Mesh(new THREE.ConeGeometry(.56,.85,4),material(0x314f60));bow.rotation.x=Math.PI/2;bow.position.set(0,.02,1.72);cargoShip.add(bow);
