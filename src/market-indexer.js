@@ -91,9 +91,11 @@ function createMarketplaceIndexer(options = {}) {
           const parsed = eventInterface.parseLog({ topics: log.topics, data: log.data });
           if (!parsed) continue;
           const args = {};
-          for (const [key, value] of Object.entries(parsed.args)) {
-            if (!/^\d+$/.test(key)) args[key] = typeof value === "bigint" ? value.toString() : value;
-          }
+          parsed.fragment.inputs.forEach((input, index) => {
+            if (!input.name) return;
+            const value = parsed.args[index];
+            args[input.name] = typeof value === "bigint" ? value.toString() : value;
+          });
           current.events.push({
             id: log.transactionHash + ":" + Number(BigInt(log.logIndex)),
             name: parsed.name, args, blockNumber: Number(BigInt(log.blockNumber)),
