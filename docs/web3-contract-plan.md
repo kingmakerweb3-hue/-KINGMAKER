@@ -66,3 +66,10 @@ The example chain ID is Sepolia; the contract address and token IDs above are pl
 - The reader queries the connected account through the provider and checks the configured chain before calling the contract.
 - The reader is intentionally read-only. No wallet signature, approval, mint, transfer, or marketplace settlement is implemented.
 - Do not publish a contract address as official until the deployed bytecode, verified source, role configuration, metadata, and network have been independently checked.
+
+
+## Player asset economy domain model
+
+The browser prototype now includes a deterministic asset-economy domain module in `src/asset-economy.js`. It defines a stable asset catalog, validates wallet identities and listing bounds, models listing expiry and cancellation, prevents self-purchases, and creates simulated trade records using the explicitly non-financial `GAME_CREDITS` unit.
+
+The module is deliberately separate from the ERC-1155 balance reader. Its listing and trade records are local simulation data, not proof of ownership, escrow, payment, or blockchain settlement. A production marketplace still requires authenticated server-side state, authoritative inventory ownership checks, atomic settlement, anti-fraud controls, contract integration, and independent security review.
