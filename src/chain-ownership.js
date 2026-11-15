@@ -39,7 +39,7 @@ function createChainOwnership(options = {}) {
       throw configError("Configured blockchain RPC request failed or timed out.");
     }
   }
-  async function verifyOwnership(walletAddress, assetId, authenticatedChainId) {
+  async function readBalance(walletAddress, assetId, authenticatedChainId) {
     validateConfig();
     if (String(BigInt(authenticatedChainId)) !== chainId) {
       throw Object.assign(new Error("Your signed-in wallet is connected to a different network than the KINGMAKER asset contract."), { statusCode: 409 });
@@ -57,11 +57,22 @@ function createChainOwnership(options = {}) {
     const data = "0x" + BALANCE_OF_SELECTOR + owner.slice(2).padStart(64, "0") + BigInt(tokenId).toString(16).padStart(64, "0");
     const raw = await rpc("eth_call", [{ to: contractAddress, data }, "latest"]);
     if (typeof raw !== "string" || !/^0x[0-9a-fA-F]{64,}$/.test(raw)) throw configError("The asset contract returned an invalid balance response.");
-    const balance = BigInt(raw);
-    if (balance <= 0n) throw Object.assign(new Error("Your connected wallet does not own this on-chain asset."), { statusCode: 403 });
-    return Object.freeze({ wallet: owner, assetId, tokenId: String(tokenId), balance: balance.toString(), chainId });
+    return Object.freeze({ wallet: owner, assetId, tokenId: String(tokenId), balance: BigInt(raw).toString(), chainId });
   }
-  return Object.freeze({ verifyOwnership });
+  async function verifyOwnership(walletAddress, assetId, authenticatedChainId) {
+    const result = await readBalance(walletAddress, assetId, authenticatedChainId);
+    if (BigInt(result.balance) <= 0n) throw Object.assign(new Error("Your connected wallet does not own this on-chain asset."), { statusCode: 403 });
+    return result;
+  }
+  async function readInventory(walletAddress, authenticatedChainId) {
+    validateConfig();
+    const configured = Object.entries(assetTokenIds).filter(([assetId, tokenId]) =>
+      /^[a-z0-9-]{1,64}$/.test(assetId) && /^[0-9]+$/.test(String(tokenId))
+    );
+    const balances = await Promise.all(configured.map(([assetId]) => readBalance(walletAddress, assetId, authenticatedChainId)));
+    return balances;
+  }
+  return Object.freeze({ verifyOwnership, readInventory });
 }
 
 module.exports = { createChainOwnership };
