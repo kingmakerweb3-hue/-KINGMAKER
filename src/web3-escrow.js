@@ -10,7 +10,11 @@ import { BrowserProvider, Contract, formatEther, parseEther } from "https://cdn.
     "function withdrawProceeds()",
     "function nextListingId() view returns (uint256)",
     "function listings(uint256) view returns (address seller,address assetContract,uint256 tokenId,uint256 amount,uint256 price,uint8 status)",
-    "function pendingProceeds(address) view returns (uint256)"
+    "function pendingProceeds(address) view returns (uint256)",
+    "event ListingCreated(uint256 indexed listingId,address indexed seller,address indexed assetContract,uint256 tokenId,uint256 amount,uint256 price)",
+    "event ListingCancelled(uint256 indexed listingId)",
+    "event AssetPurchased(uint256 indexed listingId,address indexed buyer,address indexed seller,uint256 price)",
+    "event ProceedsWithdrawn(address indexed seller,uint256 amount)"
   ];
   const assetAbi = [
     "function setApprovalForAll(address operator,bool approved)",
@@ -26,7 +30,7 @@ import { BrowserProvider, Contract, formatEther, parseEther } from "https://cdn.
     const card = document.createElement("article");
     card.className = "panel span-12";
     card.id = "web3-escrow";
-    card.innerHTML = '<p class="eyebrow">ON-CHAIN EXCHANGE · WALLET TRANSACTIONS</p><h2>Escrow marketplace</h2><p class="muted">Create listings by depositing ERC-1155 assets into escrow. Buyers pay the chain native currency. Seller proceeds are withdrawn separately. Every write requires wallet confirmation.</p><div id="escrow-config" class="notice"></div><div class="web3-market-heading"><div><b id="escrow-wallet">Wallet not connected</b><small id="escrow-proceeds">Connect wallet to check seller proceeds.</small></div><button type="button" id="escrow-refresh">Refresh</button></div><form id="escrow-create" class="web3-listing-form"><h3>Deposit an asset for sale</h3><label for="escrow-asset">Asset</label><select id="escrow-asset"></select><label for="escrow-amount">Quantity</label><input id="escrow-amount" type="number" min="1" step="1" value="1" required><label for="escrow-price">Price (native currency)</label><input id="escrow-price" type="number" min="0.000000000000000001" step="any" placeholder="0.01" required><button class="primary" type="submit" id="escrow-submit" disabled>Create escrow listing</button></form><div class="web3-market-heading"><h3>On-chain listings</h3><span class="tag">LIVE CONTRACT DATA</span></div><div id="escrow-list" class="web3-market-list"><div class="empty">Configure a verified deployment to load listings.</div></div><button type="button" id="escrow-older" hidden>Load older listings</button><div id="escrow-status" class="notice" role="status">Contract writes are disabled until deployment configuration and network checks pass.</div>';
+    card.innerHTML = '<p class="eyebrow">ON-CHAIN EXCHANGE · WALLET TRANSACTIONS</p><h2>Escrow marketplace</h2><p class="muted">Create listings by depositing ERC-1155 assets into escrow. Buyers pay the chain native currency. Seller proceeds are withdrawn separately. Every write requires wallet confirmation.</p><div id="escrow-config" class="notice"></div><div class="web3-market-heading"><div><b id="escrow-wallet">Wallet not connected</b><small id="escrow-proceeds">Connect wallet to check seller proceeds.</small></div><button type="button" id="escrow-refresh">Refresh</button></div><form id="escrow-create" class="web3-listing-form"><h3>Deposit an asset for sale</h3><label for="escrow-asset">Asset</label><select id="escrow-asset"></select><label for="escrow-amount">Quantity</label><input id="escrow-amount" type="number" min="1" step="1" value="1" required><label for="escrow-price">Price (native currency)</label><input id="escrow-price" type="number" min="0.000000000000000001" step="any" placeholder="0.01" required><button class="primary" type="submit" id="escrow-submit" disabled>Create escrow listing</button></form><div class="web3-market-heading"><h3>On-chain listings</h3><span class="tag">LIVE CONTRACT DATA</span></div><div id="escrow-list" class="web3-market-list"><div class="empty">Configure a verified deployment to load listings.</div></div><button type="button" id="escrow-older" hidden>Load older listings</button><div class="web3-market-heading"><h3>Transaction activity</h3><span class="tag">RECENT ON-CHAIN EVENTS</span></div><div id="escrow-activity" class="web3-market-list"><div class="empty">Connect to load recent activity.</div></div><div id="escrow-status" class="notice" role="status">Contract writes are disabled until deployment configuration and network checks pass.</div>';
     panel.append(card);
     const $ = selector => card.querySelector(selector);
     const assets = Array.isArray(config.assets) ? config.assets.filter(item => item && /^[0-9]+$/.test(String(item.tokenId))) : [];
@@ -35,7 +39,9 @@ import { BrowserProvider, Contract, formatEther, parseEther } from "https://cdn.
       ? "Deployment configuration detected. Verify contract addresses and chain before signing transactions."
       : "Not configured. Set KINGMAKER_WEB3_CONFIG.marketplaceAddress, contractAddress, chainId and assets before enabling escrow. No addresses are bundled.";
     $(" #escrow-asset".trim()).innerHTML = assets.map(item => '<option value="'+esc(item.tokenId)+'">'+esc(item.name || item.id)+' · token '+esc(item.tokenId)+'</option>').join("") || '<option value="">No token IDs configured</option>';
-    let provider, signer, account, market, token;\n    let oldestLoadedId = 0n;\n    const listingPageSize = 50;
+    let provider, signer, account, market, token;
+    let oldestLoadedId = 0n;
+    const listingPageSize = 50;
     const status = message => { $(" #escrow-status".trim()).textContent = message; };
     const connected = async () => {
       if (!ready) throw new Error("Escrow contract configuration is incomplete.");
@@ -72,6 +78,38 @@ import { BrowserProvider, Contract, formatEther, parseEther } from "https://cdn.
       try { await connected(); await loadListingPage(); }
       catch (error) { status(error.shortMessage || error.message || "Could not load older listings."); }
     });
+    async function loadActivity() {
+      const feed = $(" #escrow-activity".trim());
+      try {
+        const latest = await provider.getBlockNumber();
+        const fromBlock = Math.max(0, latest - 4999);
+        const eventSpecs = [
+          ["ListingCreated", market.filters.ListingCreated()],
+          ["ListingCancelled", market.filters.ListingCancelled()],
+          ["AssetPurchased", market.filters.AssetPurchased()],
+          ["ProceedsWithdrawn", market.filters.ProceedsWithdrawn()]
+        ];
+        const batches = await Promise.all(eventSpecs.map(async ([name, filter]) =>
+          (await market.queryFilter(filter, fromBlock, latest)).map(event => ({ name, event }))
+        ));
+        const events = batches.flat().sort((a, b) => b.event.blockNumber - a.event.blockNumber || b.event.index - a.event.index).slice(0, 20);
+        if (!events.length) {
+          feed.innerHTML = '<div class="empty">No marketplace activity in the most recent 5,000 blocks.</div>';
+          return;
+        }
+        feed.innerHTML = events.map(({name, event}) => {
+          const a = event.args;
+          let detail = "";
+          if (name === "ListingCreated") detail = "Listing #"+a.listingId+" created · "+a.amount+" units · "+formatEther(a.price)+" native";
+          if (name === "ListingCancelled") detail = "Listing #"+a.listingId+" cancelled";
+          if (name === "AssetPurchased") detail = "Listing #"+a.listingId+" purchased · "+formatEther(a.price)+" native";
+          if (name === "ProceedsWithdrawn") detail = "Seller withdrew "+formatEther(a.amount)+" native";
+          return '<div class="web3-listing"><div><b>'+esc(name.replace(/([A-Z])/g, " $1").trim())+'</b><small>'+esc(detail)+' · block '+event.blockNumber+'</small></div><a href="'+esc(config.explorerUrl ? config.explorerUrl.replace(/\\/$/, "")+"/tx/"+event.transactionHash : "#")+'" '+(config.explorerUrl?'target="_blank" rel="noopener noreferrer"':'hidden')+'>View tx</a></div>';
+        }).join("");
+      } catch (error) {
+        feed.innerHTML = '<div class="empty">Activity unavailable: '+esc(error.shortMessage || error.message || "RPC log query failed")+'</div>';
+      }
+    }
     async function refresh() {
       if (!ready) return;
       try {
