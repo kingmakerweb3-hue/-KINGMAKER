@@ -5,7 +5,7 @@ const ASSET_CATALOG = [
   { id: "royal-blueprint", name: "Royal Blueprint", category: "Blueprint", rarity: "Epic", description: "An architectural blueprint concept for your capital." }
 ];
 
-const shortAddress = (value) => value ? `${value.slice(0, 6)}…`${value.slice(-4)}` : "";
+const shortAddress = (value) => value ? `${value.slice(0, 6)}…${value.slice(-4)}` : "";
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, char => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
 }[char]));
