@@ -203,7 +203,7 @@
       if(!persist()){state=previous;render();return;}
       toast("Save imported and validated.","success");
     } catch(e){toast("Save not imported: "+e.message,"error");}
-    $("import-file").value="";
+    finally {$("import-file").value="";}
   }
   const worldBuildPalette=document.getElementById("world3d-build-palette");
   if(worldBuildPalette)worldBuildPalette.innerHTML=Object.entries(E.BUILDINGS).map(([id,b])=>'<button type="button" data-world-build="'+id+'" title="'+esc(b.name)+' · '+Object.entries(b.cost).map(([r,n])=>n+" "+r).join(" + ")+'">'+esc(b.name)+' <small>Lv '+((state&&state.buildings[id])||0)+'</small></button>').join("");
