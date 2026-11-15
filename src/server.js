@@ -10,6 +10,8 @@ const root = path.resolve(__dirname, "..");
 const marketplace = createMarketplaceStore({ filePath: process.env.KINGMAKER_MARKET_FILE || path.join(root, "data", "marketplace.json") });
 const walletAuth = createWalletAuth();
 const SESSION_COOKIE = "km_session";
+const port = Number(process.env.PORT || 4173);
+const allowedOrigins = new Set((process.env.KINGMAKER_APP_ORIGINS || `http://127.0.0.1:${port},http://localhost:${port}`).split(",").map(value => value.trim()).filter(Boolean));
 const mime = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8" };
 
 function sendJson(response, status, payload, extraHeaders = {}) {
@@ -33,14 +35,9 @@ function cookieValue(request, name) {
   }
   return "";
 }
-function expectedOrigin(request) {
-  const host = request.headers.host;
-  if (!host || /[\\s/\\\\]/.test(host)) throw Object.assign(new Error("Invalid request host."), { statusCode: 400 });
-  return (request.socket.encrypted ? "https://" : "http://") + host;
-}
 function requireSameOrigin(request) {
   const origin = request.headers.origin;
-  if (!origin || origin !== expectedOrigin(request)) throw Object.assign(new Error("Request origin is missing or does not match this server."), { statusCode: 403 });
+  if (!origin || !allowedOrigins.has(origin)) throw Object.assign(new Error("Request origin is not on the KINGMAKER application allowlist."), { statusCode: 403 });
   return origin;
 }
 function requireSession(request) {
@@ -125,5 +122,4 @@ const server = http.createServer(async (request, response) => {
     else fs.createReadStream(target).pipe(response);
   });
 });
-const port = Number(process.env.PORT || 4173);
 server.listen(port, "127.0.0.1", () => process.stdout.write("KINGMAKER local server at http://127.0.0.1:" + port + "\n"));
