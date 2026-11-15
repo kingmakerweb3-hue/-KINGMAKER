@@ -900,3 +900,77 @@ test("legacy citizens receive safe relationship defaults during save migration",
   const migrated = Engine.migrateSave(state);
   assert.ok(Array.isArray(migrated.citizens[0].relationships));
 });
+
+
+test("new worlds generate stable finite resource deposits across seeded campaigns", () => {
+  const first = Engine.createInitialState({ seed: 42001 });
+  const repeat = Engine.createInitialState({ seed: 42001 });
+  const alternate = Engine.createInitialState({ seed: 42002 });
+  assert.equal(first.world.resourceNodes.length, 8);
+  assert.deepEqual(first.world.resourceNodes, repeat.world.resourceNodes);
+  assert.notDeepEqual(first.world.resourceNodes, alternate.world.resourceNodes);
+  assert.equal(new Set(first.world.resourceNodes.map(node => node.id)).size, 8);
+  for (const node of first.world.resourceNodes) {
+    assert.ok(Engine.RESOURCE_SITE_TYPES.includes(node.resource));
+    assert.ok(node.quantity >= 80 && node.quantity <= 200);
+    assert.ok(Math.hypot(node.x, node.z) >= 4.5 && Math.hypot(node.x, node.z) <= 11.7);
+    assert.equal(node.operational, false);
+    assert.equal(node.depleted, false);
+  }
+});
+
+test("resource extraction sites charge the treasury and report their real production", () => {
+  const state = Engine.createInitialState({ seed: 42003 });
+  const node = state.world.resourceNodes[0];
+  const beforeMaterials = state.resources.materials;
+  const beforeCredits = state.resources.credits;
+  const yields = Engine.RESOURCE_SITE_OUTPUT[node.resource];
+  const [resource, rate] = Object.entries(yields)[0];
+  Engine.developResourceSite(state, node.id);
+  assert.equal(node.operational, true);
+  assert.equal(node.operatedSinceTurn, state.turn);
+  assert.equal(state.resources.materials, beforeMaterials - Engine.RESOURCE_SITE_COST.materials);
+  assert.equal(state.resources.credits, beforeCredits - Engine.RESOURCE_SITE_COST.credits);
+  assert.equal(Engine.resourceSiteEffects(state)[resource], rate);
+  assert.ok(Engine.economicSnapshot(state).production[resource] >= rate);
+  assert.throws(() => Engine.developResourceSite(state, node.id), /already operational/);
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(restored.world.resourceNodes, state.world.resourceNodes);
+});
+
+test("rare-crystal extraction contributes science and finite deposits deplete", () => {
+  const state = Engine.createInitialState({ seed: 42004 });
+  const control = Engine.createInitialState({ seed: 42004 });
+  state.world.resourceNodes = [{
+    id: "rare-test", resource: "Rare crystals", quantity: 1, x: 0, z: 0,
+    operational: true, depleted: false, operatedSinceTurn: state.turn
+  }];
+  const beforeScience = state.resources.science;
+  Engine.advanceTurn(state);
+  Engine.advanceTurn(control);
+  assert.equal(state.resources.science - control.resources.science, 1);
+  assert.equal(state.world.resourceNodes[0].quantity, 0);
+  assert.equal(state.world.resourceNodes[0].depleted, true);
+  assert.equal(Engine.resourceSiteEffects(state).science, 0);
+  assert.equal(state.resources.science, beforeScience + Engine.economicSnapshot(control).production.science + 1);
+});
+
+test("schema 8 saves migrate to version 9 with deterministic island deposits", () => {
+  const state = Engine.createInitialState({ seed: 42005 });
+  state.schemaVersion = 8;
+  delete state.world.resourceNodes;
+  const migrated = Engine.migrateSave(state);
+  assert.equal(migrated.schemaVersion, 9);
+  assert.deepEqual(migrated.world.resourceNodes, Engine.createResourceDeposits(state.seed));
+  const roundTrip = Engine.migrateSave(JSON.parse(Engine.exportSave(migrated)));
+  assert.deepEqual(roundTrip.world.resourceNodes, migrated.world.resourceNodes);
+});
+
+test("save validation rejects malformed island resource deposits", () => {
+  const state = Engine.createInitialState({ seed: 42006 });
+  state.world.resourceNodes[0].x = 99;
+  assert.throws(() => Engine.validateSave(state), /Resource deposit data is invalid/);
+  const invalidType = Engine.createInitialState({ seed: 42007 });
+  invalidType.world.resourceNodes[0].resource = "Unobtainium";
+  assert.throws(() => Engine.validateSave(invalidType), /Resource deposit data is invalid/);
+});
