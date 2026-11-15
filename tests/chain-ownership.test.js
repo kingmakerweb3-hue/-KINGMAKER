@@ -14,7 +14,7 @@ function mockFetch({ chain = "0x89", code = "0x60006000", balance = "0x1" } = {}
     let result;
     if (body.method === "eth_chainId") result = chain;
     else if (body.method === "eth_getCode") result = code;
-    else if (body.method === "eth_call") result = balance;
+    else if (body.method === "eth_call") result = "0x" + BigInt(balance).toString(16).padStart(64, "0");
     else throw new Error("Unexpected RPC method");
     return { ok: true, json: async () => ({ jsonrpc: "2.0", id: body.id, result }) };
   };
