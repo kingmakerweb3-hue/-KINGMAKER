@@ -44,3 +44,21 @@ All endpoints require authentication, authorization, input schema validation, CS
 
 ## Current implementation
 `mining.html` is a responsive, read-only product preview. It intentionally contains no fake start button, simulated earning rate, wallet request, token balance or claim action. This avoids presenting an unimplemented financial feature as live.
+
+
+## Visual and client application direction
+- The public mining gateway is the front door to the KINGMAKER civilization identity: cinematic science-fiction art direction, orbital/celestial motifs, restrained gold/cyan accents, premium typography and responsive layouts. It must not resemble a cartoon or a generic exchange dashboard.
+- The website is intended to be mobile-first and installable as a Progressive Web App (PWA). The first client shell includes a web manifest, service worker and app icon; offline support is limited to the static shell.
+- The optional wallet button uses an injected EIP-1193 provider to request account access only. It does not request a signature, initiate a transaction, transmit an address to a server or prove account ownership. A production account-link flow must use a server-generated nonce and a domain-bound signature challenge, with replay protection.
+- The mining control remains disabled until a server-authoritative session service, eligibility rules, abuse controls and auditable CROWN ledger are deployed. No browser timer or local storage value may create rewards.
+- Sponsorship placement is a reserved, inactive area. Ad inventory must comply with the chosen provider's policies; users must not be paid CROWN or KGM for viewing or clicking ads unless an explicitly approved provider program permits that exact incentive.
+- This frontend is a design and PWA shell, not a live mining service, production account system, wallet payout service or token contract.
+
+
+## Portal experience scope (current PR)
+- The landing portal opens with the **SOMETHING NEW IS COMING** message and the premium KINGMAKER science-fiction identity.
+- The visual world section uses animated CSS 3D-style planetary, orbital and city elements as a lightweight concept preview; it is not represented as a production 3D game engine.
+- The portal explains the AI civilization and nation-building vision as roadmap concepts.
+- Daily community participation is a clearly labelled local-only preview. It does not create an account record, start a mining session or issue CROWN.
+- The sponsor video area is a reserved partner-content slot. No video ad is being served in the preview. Future placements must be labelled as sponsored and comply with the selected advertising provider's policies; do not reward ad views or clicks with tokens unless an approved program expressly permits it.
+- PWA installation is available where the browser supports the install prompt. iOS users receive manual Add to Home Screen guidance.
