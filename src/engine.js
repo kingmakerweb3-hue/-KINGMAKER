@@ -1356,6 +1356,35 @@
       if (rival.stability < 25) rival.stance = "Facing unrest";
     }
   }
+  function rivalExpansionRoll(state, rival) {
+    let hash = (state.seed ^ Math.imul(state.turn, 0x9e3779b1)) >>> 0;
+    for (const char of rival.id) hash = (Math.imul(hash ^ char.charCodeAt(0), 16777619)) >>> 0;
+    return hash / 0x100000000;
+  }
+  function expandRivalTerritory(state) {
+    if (!state.mapWorld || !Array.isArray(state.mapWorld.regions) || state.turn % 3 !== 0) return null;
+    const unclaimed = state.mapWorld.regions.filter(region => region.owner === "Unclaimed");
+    if (!unclaimed.length) return null;
+    const candidates = Object.values(state.rivals).filter(rival =>
+      rival.resources.credits >= 100 && rival.resources.influence >= 10 &&
+      rival.stability >= 45 && rival.riskTolerance >= 0.25 &&
+      rivalExpansionRoll(state, rival) < 0.18 + rival.riskTolerance * 0.42
+    ).sort((a, b) => b.riskTolerance - a.riskTolerance || a.id.localeCompare(b.id));
+    const rival = candidates[0];
+    if (!rival) return null;
+    const regionIndex = Math.floor(rivalExpansionRoll(state, { id: rival.id + "-region" }) * unclaimed.length);
+    const region = unclaimed[regionIndex];
+    rival.resources.credits -= 100;
+    rival.resources.influence -= 10;
+    region.owner = rival.name;
+    region.claimedTurn = state.turn;
+    region.development = Math.min(100, (region.development || 0) + 5);
+    rival.activity = "Expanded into " + region.name;
+    rival.stance = "Securing new territory";
+    rememberRival(rival, state.turn, "expansion", "Claimed " + region.name);
+    addEvent(state, rival.name + " established a new territorial claim in " + region.name + ".", "world");
+    return { rivalId: rival.id, regionId: region.id };
+  }
   function advanceTurn(state) {
     if (state.status !== "playing") throw new Error("This campaign has ended.");
     if (state.turn >= 10_000_000) throw new Error("Turn limit reached.");
@@ -1445,6 +1474,7 @@
     if (state.resources.power < state.nation.population / 10) state.nation.stability = Math.max(0, state.nation.stability - 2);
     const royaltiesBeforeRivals = state.creatorEconomy.lastTurnRoyalties;
     developRivals(state, flow);
+    expandRivalTerritory(state);
     const creatorRoyalties = state.creatorEconomy.lastTurnRoyalties - royaltiesBeforeRivals;
     if (creatorRoyalties > 0) {
       state.economy.lastIncome = Math.min(RESOURCE_LIMIT, state.economy.lastIncome + creatorRoyalties);
