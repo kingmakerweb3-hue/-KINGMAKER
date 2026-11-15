@@ -188,7 +188,7 @@
         if(cityIndex>0)addRoute(cities[0],city);
       });
     });
-    const buildingBuffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buildingBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(buildingData),gl.STATIC_DRAW);
+    // Re-upload markers after adding the district window lights above.\n    gl.bindBuffer(gl.ARRAY_BUFFER,markerBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(markerData),gl.STATIC_DRAW);\n    const buildingBuffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buildingBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(buildingData),gl.STATIC_DRAW);
     const roadBuffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,roadBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(roadData),gl.STATIC_DRAW);
     const transportBuffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,transportBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(transportRoutes.length*7),gl.DYNAMIC_DRAW);
 
