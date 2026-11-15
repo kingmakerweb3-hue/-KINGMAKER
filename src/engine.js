@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 7;
+  const SAVE_VERSION = 8;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -168,6 +168,7 @@
       market: { stock: { food: 400, materials: 300, ore: 240, goods: 180, power: 260 }, basePrices: { food: 2, materials: 4, ore: 5, goods: 8, power: 4 }, prices: { food: 2, materials: 4, ore: 5, goods: 8, power: 4 }, lastFlow: { food: 0, materials: 0, ore: 0, goods: 0, power: 0 } },
       rivals: Object.fromEntries(RIVAL_TEMPLATES.map((r, i) => [r.id, createRival(r, i)])),
       diplomacy: { treaties: [], conflicts: [] },
+      military: { troops: 0, readiness: 50 },
       economy: { lastIncome: 0, lastExpenses: 0, lastBalance: 0, workforce: 0, employed: 0, production: { food: 0, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, capacity: 0, logistics: 0 }, consumption: { food: 0, materials: 0, ore: 0, power: 0 }, phase: "stable", deficitTurns: 0, recoveryTurns: 0 },
       campaign: { id: campaignId, completedObjectives: [], status: "active", phaseIndex: 0, buildingStart: 6, progress: { tradeVolume: 0, agreementsSigned: 0, crisesSurvived: 0, peacefulDisputes: 0 } },
       achievements: [], creations: [], events: [{ id: "history-1-0", turn: 1, text: "Your civilization was founded. The first chapter begins.", type: "milestone", details: { summary: "A new campaign begins with a developing economy and six neighboring nations.", affectedNationIds: ["player"] } }],
@@ -216,6 +217,7 @@
     if (!Array.isArray(normalized.technologies) || normalized.technologies.some(id => !TECHNOLOGIES[id])) throw new Error("Technology list is invalid.");
     if (!normalized.market || !normalized.market.stock || !normalized.market.prices || !normalized.market.basePrices || !normalized.market.lastFlow || !normalized.rivals ||
         !normalized.diplomacy || !Array.isArray(normalized.diplomacy.treaties) || !Array.isArray(normalized.diplomacy.conflicts) ||
+        !normalized.military || !Number.isInteger(normalized.military.troops) || normalized.military.troops < 0 || normalized.military.troops > 100_000 || !Number.isInteger(normalized.military.readiness) || normalized.military.readiness < 0 || normalized.military.readiness > 100 ||
         !normalized.campaign || !Array.isArray(normalized.campaign.completedObjectives) ||
         !Array.isArray(normalized.achievements) || !Array.isArray(normalized.creations) || !Array.isArray(normalized.events) || !normalized.creatorEconomy) {
       throw new Error("Save is missing world simulation data.");
@@ -337,6 +339,7 @@
             (region.owner !== undefined && (typeof region.owner !== "string" || region.owner.length > 48)) ||
             (region.population !== undefined && (!Number.isInteger(region.population) || region.population < 0 || region.population > RESOURCE_LIMIT)) ||
             (region.development !== undefined && (!Number.isInteger(region.development) || region.development < 0 || region.development > 100)) ||
+            (region.fortification !== undefined && (!Number.isInteger(region.fortification) || region.fortification < 0 || region.fortification > 5)) ||
             (region.cities !== undefined && (!Array.isArray(region.cities) || region.cities.length > 100)) ||
             (region.resourceNodes !== undefined && (!Array.isArray(region.resourceNodes) || region.resourceNodes.length > 20)) ||
             (region.roads !== undefined && (!Array.isArray(region.roads) || region.roads.length > 20))) throw new Error("Generated region data is invalid.");
@@ -377,7 +380,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -388,6 +391,9 @@
       normalizeCreatorRecords(state, input.schemaVersion === 6);
       migrateCreatorEconomy(state);
       state.achievements = Array.isArray(state.achievements) ? state.achievements : [];
+      state.military = state.military && typeof state.military === "object" ? state.military : { troops: 0, readiness: 50 };
+      state.military.troops = safeInt(state.military.troops, 0, 100_000);
+      state.military.readiness = safeInt(state.military.readiness, 50, 100);
       state.schemaVersion = SAVE_VERSION;
       addIndustryDefaults(state);
       return validateSave(state);
@@ -689,6 +695,28 @@
     region.development = Math.min(100, (region.development || 0) + 8);
     addEvent(state, state.nation.name + " established sovereignty over " + region.name + ".", "milestone");
     return region;
+  }
+  function recruitTroops(state, squads = 1) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (!Number.isInteger(squads) || squads < 1 || squads > 100) throw new Error("Recruit between 1 and 100 squads per order.");
+    const troops = squads * 10, materials = squads * 20, credits = squads * 40;
+    if (state.military.troops + troops > 100_000) throw new Error("National force limit reached.");
+    if (state.resources.materials < materials || state.resources.credits < credits) throw new Error("Recruitment requires " + materials + " materials and " + credits + " credits.");
+    state.resources.materials -= materials; state.resources.credits -= credits; state.military.troops += troops;
+    state.military.readiness = clamp(state.military.readiness + squads, 0, 100);
+    addEvent(state, "Trained " + troops + " personnel for the national defence force.", "milestone"); return state.military;
+  }
+  function fortifyRegion(state, regionId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const region = state.mapWorld && Array.isArray(state.mapWorld.regions) ? state.mapWorld.regions.find(item => item.id === regionId) : null;
+    if (!region) throw new Error("Region not found.");
+    if (region.owner !== state.nation.name) throw new Error("You can only fortify territory controlled by your nation.");
+    region.fortification = Number.isInteger(region.fortification) ? region.fortification : 0;
+    if (region.fortification >= 5) throw new Error("This region has reached the fortification limit.");
+    if (state.resources.materials < 50 || state.resources.credits < 80) throw new Error("Fortifying a region requires 50 materials and 80 credits.");
+    state.resources.materials -= 50; state.resources.credits -= 80; region.fortification++;
+    region.development = Math.min(100, (region.development || 0) + 2);
+    addEvent(state, "Defensive works upgraded in " + region.name + ".", "milestone"); return region;
   }
   function foundSettlement(state, regionId) {
     if (state.status !== "playing") throw new Error("This campaign has ended.");
@@ -1482,7 +1510,7 @@
   return {
     SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, productionFor, developResourceSite, claimRegion, foundSettlement, buildRegionalRoad, build, trade,
+    createInitialState, validateSave, migrateSave, productionFor, developResourceSite, claimRegion, foundSettlement, recruitTroops, fortifyRegion, buildRegionalRoad, build, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
