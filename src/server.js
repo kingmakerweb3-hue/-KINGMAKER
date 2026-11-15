@@ -76,6 +76,11 @@ async function handleApi(request, response, url) {
     walletAuth.revoke(cookieValue(request, SESSION_COOKIE));
     return sendJson(response, 200, { ok: true }, { "Set-Cookie": clearSessionCookie(request) });
   }
+  if (url.pathname === "/api/market/inventory" && request.method === "GET") {
+    const session = requireSession(request);
+    const assets = await chainOwnership.readInventory(session.address, session.chainId);
+    return sendJson(response, 200, { account: session.address, chainId: session.chainId, assets });
+  }
   if (url.pathname === "/api/market/listings" && request.method === "GET") {
     const session = walletAuth.getSession(cookieValue(request, SESSION_COOKIE));
     return sendJson(response, 200, { listings: await marketplace.list(), authenticated: Boolean(session), account: session?.address || null, mode: "SIGNED_WALLET_SESSION_DEVELOPMENT" });
