@@ -76,7 +76,7 @@ function createMiningLedgerService({ baseRatePerWeightedHour, getContribution = 
       verifiedSecurityMembers: contribution.verifiedSecurityMembers || 0,
       activeDirectReferrals: contribution.activeDirectReferrals || 0
     });
-    const amount = baseRatePerWeightedHour * multiplier * activeSeconds / 3600;
+    const amount = Number((baseRatePerWeightedHour * multiplier * activeSeconds / 3600).toFixed(12));
     const entry = {
       entryId: id(),
       type: 'CROWN_REWARD_ACCRUED',
