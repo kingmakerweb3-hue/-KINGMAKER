@@ -924,3 +924,35 @@ test("regional roads connect settlements, cost resources and improve logistics",
   const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
   assert.deepEqual(restored.mapWorld.regions[0].roads, state.mapWorld.regions[0].roads);
 });
+
+test("settlements can only be founded in claimed territory", () => {
+  const state = Engine.createInitialState({ seed: 771 });
+  state.mapWorld = { version: 2, seed: state.seed, regions: [
+    { id: "owned", name: "Owned Reach", owner: state.nation.name, latitude: 10, longitude: 20, population: 5000, development: 10, cities: [{ id: "owned-city-1", name: "Old Port", population: 5000 }] },
+    { id: "frontier", name: "Open Frontier", owner: "Unclaimed", latitude: -10, longitude: -20, population: 2000, development: 5, cities: [] }
+  ] };
+  const materials = state.resources.materials, credits = state.resources.credits;
+  assert.throws(() => Engine.foundSettlement(state, "frontier"), /claim this territory/);
+  assert.equal(state.resources.materials, materials);
+  assert.equal(state.resources.credits, credits);
+  const city = Engine.foundSettlement(state, "owned");
+  assert.equal(city.name, "New Settlement 2");
+  assert.equal(city.population, 10000);
+  assert.equal(state.resources.materials, materials - 50);
+  assert.equal(state.resources.credits, credits - 80);
+  assert.equal(state.mapWorld.regions[0].cities.length, 2);
+  assert.equal(state.mapWorld.regions[0].population, 15000);
+  assert.equal(state.mapWorld.regions[0].development, 13);
+});
+
+test("settlement founding enforces affordability and the region cap", () => {
+  const state = Engine.createInitialState({ seed: 772 });
+  state.mapWorld = { version: 2, seed: state.seed, regions: [
+    { id: "owned", name: "Owned Reach", owner: state.nation.name, latitude: 0, longitude: 0, population: 1, development: 1, cities: [] }
+  ] };
+  state.resources.materials = 49;
+  assert.throws(() => Engine.foundSettlement(state, "owned"), /50 materials and 80 credits/);
+  state.resources.materials = 100;
+  state.mapWorld.regions[0].cities = Array.from({ length: 100 }, (_, i) => ({ id: "city-" + i, name: "City " + i }));
+  assert.throws(() => Engine.foundSettlement(state, "owned"), /settlement limit/);
+});
