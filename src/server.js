@@ -5,10 +5,12 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { createMarketplaceStore } = require("./market-store.js");
 const { createWalletAuth } = require("./wallet-auth.js");
+const { createChainOwnership } = require("./chain-ownership.js");
 
 const root = path.resolve(__dirname, "..");
 const marketplace = createMarketplaceStore({ filePath: process.env.KINGMAKER_MARKET_FILE || path.join(root, "data", "marketplace.json") });
 const walletAuth = createWalletAuth();
+const chainOwnership = createChainOwnership();
 const SESSION_COOKIE = "km_session";
 const port = Number(process.env.PORT || 4173);
 const allowedOrigins = new Set((process.env.KINGMAKER_APP_ORIGINS || `http://127.0.0.1:${port},http://localhost:${port}`).split(",").map(value => value.trim()).filter(Boolean));
@@ -82,7 +84,8 @@ async function handleApi(request, response, url) {
     requireSameOrigin(request);
     const session = requireSession(request);
     const body = await readJson(request);
-    const listing = await marketplace.create({ ...body, seller: session.address });
+    const ownership = await chainOwnership.verifyOwnership(session.address, body.assetId, session.chainId);
+    const listing = await marketplace.create({ ...body, seller: session.address, ownershipVerification: ownership });
     return sendJson(response, 201, { listing, mode: "SIGNED_WALLET_SESSION_DEVELOPMENT" });
   }
   const cancelMatch = url.pathname.match(/^\/api\/market\/listings\/([a-zA-Z0-9-]+)$/);
