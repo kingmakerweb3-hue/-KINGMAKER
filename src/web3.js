@@ -5,7 +5,10 @@ const ASSET_CATALOG = [
   { id: "royal-blueprint", name: "Royal Blueprint", category: "Blueprint", rarity: "Epic", description: "An architectural blueprint concept for your capital." }
 ];
 
-const shortAddress = (value) => value ? `${value.slice(0, 6)}…${value.slice(-4)}` : "";
+const shortAddress = (value) => value ? `${value.slice(0, 6)}…`${value.slice(-4)}` : "";
+const escapeHtml = (value) => String(value).replace(/[&<>"']/g, char => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+}[char]));
 const readInventory = (account) => {
   try {
     const all = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
@@ -69,7 +72,7 @@ function mountWeb3Panel() {
       return;
     }
     const owned = readInventory(account);
-    inventoryBox.innerHTML = owned.length ? owned.map(item => `<div class="web3-item"><div><b>${item.name}</b><small>${item.category} · Prototype record</small></div><span>${item.rarity}</span></div>`).join("") : '<div class="empty">Your collection is empty. Choose a catalog asset to add a local prototype record.</div>';
+    inventoryBox.innerHTML = owned.length ? owned.map(item => `<div class="web3-item"><div><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.category)} · Prototype record</small></div><span>${escapeHtml(item.rarity)}</span></div>`).join("") : '<div class="empty">Your collection is empty. Choose a catalog asset to add a local prototype record.</div>';
   };
 
   const renderConnection = async () => {
@@ -90,6 +93,7 @@ function mountWeb3Panel() {
     if (!connected) chainBox.textContent = "Not connected";
     showInventory();
     if (connected) await renderConnection();
+    renderCatalog();
   };
 
   const renderCatalog = () => {
