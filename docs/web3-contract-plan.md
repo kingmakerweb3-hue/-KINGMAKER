@@ -88,6 +88,7 @@ The local Node server exposes:
 - `POST /api/auth/challenge` — issues a short-lived, one-time sign-in message bound to the wallet address, chain ID, and exact application origin.
 - `POST /api/auth/verify` — verifies the EIP-191 personal-signature using ethers, consumes the nonce, and issues an opaque server-side session.
 - `GET /api/auth/session` and `POST /api/auth/logout` — inspect or revoke the current session.
+- `GET /api/market/inventory` — returns the signed-in wallet’s server-verified ERC-1155 balances for configured catalog token IDs.
 - `GET /api/market/listings`, `POST /api/market/listings`, and `DELETE /api/market/listings/:id` — browse listings and manage the signed-in seller's own listings.
 
 The session token is held in an HttpOnly, SameSite=Strict cookie; it is not exposed to browser JavaScript or local storage. Marketplace write requests require a same-origin request and a valid wallet session. The server derives the seller address from the verified session rather than trusting a seller address supplied in the request. Challenge nonces are single-use and expire after five minutes; sessions expire after twelve hours. The listing store persists active listings to `data/marketplace.json` (or `KINGMAKER_MARKET_FILE`).
@@ -99,7 +100,7 @@ Before production, add persistent and distributed session/challenge storage, IP 
 
 ## Server-side on-chain ownership gate (development)
 
-The marketplace write route now calls `src/chain-ownership.js` before accepting a listing. Configure the server environment with:
+The authenticated inventory endpoint and marketplace write route call `src/chain-ownership.js`. The inventory endpoint returns live balances for configured catalog assets; the listing route independently repeats the ownership check before accepting a listing. Configure the server environment with:
 - `KINGMAKER_RPC_URL` — trusted EVM JSON-RPC endpoint.
 - `KINGMAKER_ASSET_CONTRACT` — deployed ERC-1155 contract address.
 - `KINGMAKER_CHAIN_ID` — decimal chain ID expected by the server.
