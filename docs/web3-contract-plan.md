@@ -158,3 +158,8 @@ window.KINGMAKER_WEB3_CONFIG = {
 ```
 
 The example chain ID is Hardhat's local chain (31337); replace both addresses with the contracts deployed to the same persistent local node. Never use placeholder addresses. If configuration is absent, invalid, or on the wrong chain, the escrow interface stays disabled. The interface is a development integration only: no public-chain deployment, stablecoin settlement, fee/royalty logic, indexing, production monitoring, or independent security audit is included. The CDN dependency requires an internet connection. Do not use with valuable assets or real funds.
+
+
+### Escrow listing pagination and activity feed
+
+The browser escrow panel loads active listings newest-first in pages of 50 and exposes a **Load older listings** control. It also queries the contract's `ListingCreated`, `ListingCancelled`, `AssetPurchased`, and `ProceedsWithdrawn` events over the most recent 5,000 blocks and displays up to 20 events. This is a lightweight browser-side history view, not a durable indexer: older events are not included, RPC providers may limit log ranges, and activity can be unavailable when the configured RPC does not support historical log queries. A production marketplace needs a separately operated event indexer with reorg handling, persistent storage, pagination, and transaction-status reconciliation. Optionally set `explorerUrl` in `KINGMAKER_WEB3_CONFIG` to show transaction links for the selected chain.
