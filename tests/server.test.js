@@ -112,3 +112,36 @@ test("web server blocks symlinks that point outside the game directory", async t
   assert.equal(response.status, 403);
   assert.equal(await response.text(), "Forbidden");
 });
+
+
+test("CROWN mining status is explicit and enrollment stays closed before launch", async t => {
+  const server = createServer();
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  t.after(() => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())));
+
+  const base = "http://127.0.0.1:" + server.address().port;
+  const statusResponse = await fetch(base + "/api/mining/v1/status");
+  assert.equal(statusResponse.status, 200);
+  assert.equal(statusResponse.headers.get("cache-control"), "no-store");
+  const status = await statusResponse.json();
+  assert.equal(status.status, "pre-launch");
+  assert.equal(status.enrollmentOpen, false);
+  assert.equal(status.miningEnabled, false);
+  assert.equal(status.rewardIssuanceEnabled, false);
+  assert.equal(status.sessionDurationSeconds, 86400);
+  assert.equal(status.sponsorshipRevenueSharedWithMiners, false);
+  assert.equal(status.rewardFormula.securityCircleBonusPerVerifiedMember, 0.20);
+  assert.equal(status.rewardFormula.maximumSecurityCircleMembers, 5);
+  assert.equal(status.rewardFormula.activeDirectReferralBonus, 0.25);
+
+  const enrollment = await fetch(base + "/api/mining/v1/enrollment", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({})
+  });
+  assert.equal(enrollment.status, 503);
+  assert.match((await enrollment.json()).error, /not open/i);
+});
