@@ -833,8 +833,9 @@
     const industry = industrialOutput({ ...state.resources,
       materials: clamp(state.resources.materials + Math.floor(base.materials * staffing), 0, RESOURCE_LIMIT),
       ore: clamp(state.resources.ore + Math.floor(base.ore * staffing), 0, RESOURCE_LIMIT),
-      power: clamp(state.resources.power + Math.floor(base.power * staffing), 0, RESOURCE_LIMIT)
+      power: clamp(state.resources.power + Math.floor(base.power * staffing) + RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar, 0, RESOURCE_LIMIT)
     }, state.buildings, state.technologies, state.nation.population);
+    industry.production.power += RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar;
     for (const [resource, amount] of Object.entries(creator.production)) industry.production[resource] += amount;
     const districts = districtEffects(state);
     for (const [resource, amount] of Object.entries(districts.production)) industry.production[resource] += amount;
@@ -1416,10 +1417,9 @@
     const industry = industrialOutput({ ...state.resources,
       materials: clamp(state.resources.materials + Math.floor(baseOutput.materials * staffing), 0, RESOURCE_LIMIT),
       ore: clamp(state.resources.ore + Math.floor(baseOutput.ore * staffing), 0, RESOURCE_LIMIT),
-      power: clamp(state.resources.power + Math.floor(baseOutput.power * staffing), 0, RESOURCE_LIMIT)
+      power: clamp(state.resources.power + Math.floor(baseOutput.power * staffing) + RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar, 0, RESOURCE_LIMIT)
     }, state.buildings, state.technologies, state.nation.population);
     const output = industry.production;
-    output.power += RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar;
     for (const [resource, amount] of Object.entries(creator.production)) output[resource] += amount;
     const districts = districtEffects(state);
     for (const [resource, amount] of Object.entries(districts.production)) output[resource] += amount;
