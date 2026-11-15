@@ -146,6 +146,7 @@ import { BrowserProvider, Contract, formatEther, parseEther } from "https://cdn.
         $(" #escrow-older".trim()).hidden = oldestLoadedId <= 1n;
         if (proceeds > 0n) $(" #escrow-proceeds".trim()).insertAdjacentHTML("beforeend",' <button type="button" id="escrow-withdraw">Withdraw proceeds</button>');
         $(" #escrow-submit".trim()).disabled = false;
+        await loadActivity();
       } catch (error) {
         $(" #escrow-submit".trim()).disabled = true;
         status(error.message || "Could not read marketplace contract.");
