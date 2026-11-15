@@ -16,12 +16,12 @@ function fixture() {
   return { service, advance: seconds => { time += seconds * 1000; } };
 }
 
-test('starts one 24-hour session per authenticated account', () => {
+test('starts one 6-hour session per authenticated account', () => {
   const { service } = fixture();
   const principal = { accountId: 'account-0001' };
   const session = service.startSession(principal);
   assert.equal(session.status, 'active');
-  assert.equal(session.endsAt - session.startedAt, 86400 * 1000);
+  assert.equal(session.endsAt - session.startedAt, 21600 * 1000);
   assert.throws(() => service.startSession(principal), error => error.code === 'SESSION_ALREADY_ACTIVE');
 });
 
@@ -49,14 +49,14 @@ test('cannot settle another account session or settle twice', () => {
   assert.throws(() => service.settleSession(owner, session.sessionId), error => error.code === 'SESSION_ALREADY_SETTLED');
 });
 
-test('session accrual never exceeds the 24-hour session window', () => {
+test('session accrual never exceeds the 6-hour session window', () => {
   const { service, advance } = fixture();
   const principal = { accountId: 'account-0001' };
   const session = service.startSession(principal);
-  advance(86400 + 3600);
+  advance(21600 + 3600);
   const entry = service.settleSession(principal, session.sessionId);
-  assert.equal(entry.activeSeconds, 86400);
-  assert.equal(entry.amount, 86.4);
+  assert.equal(entry.activeSeconds, 21600);
+  assert.equal(entry.amount, 21.6);
 });
 
 test('requires a positive configured reward rate and authenticated account identifier', () => {
