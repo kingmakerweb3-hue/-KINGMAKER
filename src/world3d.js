@@ -201,7 +201,18 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     document.getElementById("world3d-home")?.addEventListener("click",()=>{camera.position.set(17,15,20);controls.target.set(0,0,0);controls.update();});
     document.getElementById("world3d-rotate")?.addEventListener("click",e=>{autoRotate=!autoRotate;controls.autoRotate=autoRotate;e.currentTarget.setAttribute("aria-pressed",String(autoRotate));e.currentTarget.textContent="Auto-rotate: "+(autoRotate?"on":"off");});
     document.getElementById("world3d-road")?.addEventListener("click",e=>{roadMode=!roadMode;roadStart=null;districtMode=false;selectedDistrict=null;selectedBuilding=null;if(previewMarker)previewMarker.visible=false;e.currentTarget.classList.toggle("selected",roadMode);e.currentTarget.setAttribute("aria-pressed",String(roadMode));e.currentTarget.textContent=roadMode?"Cancel road":"Build road";const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent=roadMode?"Tap two points on the island to connect them. Tap again to draw another segment.":"Select a structure or build a road.";if(renderer)renderer.domElement.style.cursor=roadMode?"crosshair":"grab";});
-    document.querySelectorAll("[data-world-district]").forEach(button=>button.addEventListener("click",()=>{selectedDistrict=button.dataset.worldDistrict;districtMode=true;roadMode=false;roadStart=null;selectedBuilding=null;document.getElementById("world3d-road")?.classList.remove("selected");document.getElementById("world3d-road")?.setAttribute("aria-pressed","false");document.getElementById("world3d-road")&&(document.getElementById("world3d-road").textContent="Build road");document.querySelectorAll("[data-world-district]").forEach(b=>b.classList.toggle("selected",b===button));const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Tap the island to place a "+selectedDistrict+" district.";if(renderer)renderer.domElement.style.cursor="crosshair";}));
+    document.querySelectorAll("[data-world-district]").forEach(button=>button.addEventListener("click",()=>{
+      const togglingOff=districtMode&&selectedDistrict===button.dataset.worldDistrict;
+      selectedDistrict=togglingOff?null:button.dataset.worldDistrict;districtMode=!togglingOff;
+      roadMode=false;roadStart=null;selectedBuilding=null;
+      document.getElementById("world3d-road")?.classList.remove("selected");document.getElementById("world3d-road")?.setAttribute("aria-pressed","false");
+      const roadButton=document.getElementById("world3d-road");if(roadButton)roadButton.textContent="Build road";
+      document.querySelectorAll("[data-world-build]").forEach(b=>b.classList.remove("selected"));
+      document.querySelectorAll("[data-world-district]").forEach(b=>b.classList.toggle("selected",districtMode&&b===button));
+      const hint=document.getElementById("world3d-build-hint");
+      if(hint)hint.textContent=districtMode?"Tap the island to place a "+selectedDistrict+" district.":"Select a structure or a world object to inspect.";
+      if(renderer)renderer.domElement.style.cursor=districtMode?"crosshair":"grab";
+    }));
     animate();
   }
   function inspectCitizen(event){
@@ -247,7 +258,19 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   function placeSelectedBuilding(event){if(!selectedBuilding||event.button!==0)return;const point=getGroundPoint(event);if(!point)return;window.dispatchEvent(new CustomEvent("kingmaker:place-building",{detail:{type:selectedBuilding,x:point.x,z:point.z}}));}
   function placeSelectedDistrict(event){if(!selectedDistrict||event.button!==0)return;const point=getGroundPoint(event);if(!point)return;if(Math.abs(point.x)>10.5||Math.abs(point.z)>10.5){const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Districts must be placed farther inside the island.";return;}window.dispatchEvent(new CustomEvent("kingmaker:place-district",{detail:{type:selectedDistrict,x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2)),radius:2.6}}));}
   function placeRoadPoint(event){if(event.button!==0)return;const point=getGroundPoint(event);if(!point)return;const spot={x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2))};if(!roadStart){roadStart=spot;const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Start selected. Tap the road destination.";return;}if(Math.hypot(spot.x-roadStart.x,spot.z-roadStart.z)<1){roadStart=spot;return;}window.dispatchEvent(new CustomEvent("kingmaker:place-road",{detail:{from:roadStart,to:spot}}));roadStart=null;const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Road built. Tap two points to add another segment."; }
-  function selectBuilding(type){selectedBuilding=type||null;districtMode=false;selectedDistrict=null;document.querySelectorAll("[data-world-district]").forEach(b=>b.classList.remove("selected"));if(previewMarker)previewMarker.visible=false;const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent=selectedBuilding?"Tap an open spot on the island to build a "+selectedBuilding+".":"Select a structure to begin.";document.querySelectorAll("[data-world-build]").forEach(button=>button.classList.toggle("selected",button.dataset.worldBuild===selectedBuilding));if(renderer)renderer.domElement.style.cursor=selectedBuilding?"crosshair":"grab";}
+  function selectBuilding(type){
+    selectedBuilding=type&&selectedBuilding!==type?type:null;
+    roadMode=false;roadStart=null;districtMode=false;selectedDistrict=null;
+    const roadButton=document.getElementById("world3d-road");
+    roadButton?.classList.remove("selected");roadButton?.setAttribute("aria-pressed","false");
+    if(roadButton)roadButton.textContent="Build road";
+    document.querySelectorAll("[data-world-district]").forEach(button=>button.classList.remove("selected"));
+    if(previewMarker)previewMarker.visible=false;
+    const hint=document.getElementById("world3d-build-hint");
+    if(hint)hint.textContent=selectedBuilding?"Tap an open spot on the island to build a "+selectedBuilding+".":"Select a structure or a world object to inspect.";
+    document.querySelectorAll("[data-world-build]").forEach(button=>button.classList.toggle("selected",button.dataset.worldBuild===selectedBuilding));
+    if(renderer)renderer.domElement.style.cursor=selectedBuilding?"crosshair":"grab";
+  }
   function resize(){if(!renderer||!host.clientWidth)return;const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
   function animate(){
     animationId=requestAnimationFrame(animate);const t=clock.getElapsedTime();controls.update();
