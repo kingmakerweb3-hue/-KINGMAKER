@@ -5,7 +5,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   "use strict";
   const host=document.getElementById("world3d-viewport");
   if(!host)return;
-  let scene,camera,renderer,controls,sunLight,landGroup,buildingGroup,peopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup,resourceGroup,cloudGroup,harborGroup,cargoShip,waterMesh,waterPositions,terrainMesh;
+  let scene,camera,renderer,controls,sunLight,landGroup,buildingGroup,peopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup,resourceGroup,cloudGroup,harborGroup,cargoShip,lighthouseBeacon,waterMesh,waterPositions,terrainMesh;
   const trafficVehicles=[];
   let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,raycaster,groundPlane,previewMarker,placementPointer=null;
   const COLORS={farm:0xc6a35d,mine:0x78838d,workshop:0x9c7652,factory:0x697b8e,transport:0x9b9b8b,market:0xc49b52,academy:0x8b80b8,power:0x75b9c9,housing:0xd6c5a3};
@@ -228,6 +228,24 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     cargoShip.position.set(12.1,-.13,12.4);cargoShip.rotation.y=.75;harborGroup.add(cargoShip);
   }
 
+  function createCoastalLighthouse(){
+    const tower=new THREE.Group(),stone=material(0xe5dfc9),red=material(0xb95748),dark=material(0x394b55,.55);
+    const x=-9.8,z=-7.4,base=heightAt(x,z);
+    const footing=new THREE.Mesh(new THREE.CylinderGeometry(.78,.9,.32,20),dark);footing.position.y=.16;tower.add(footing);
+    const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.42,.66,3.65,20),stone);shaft.position.y=2.05;shaft.castShadow=true;tower.add(shaft);
+    for(const y of [.95,2.05,3.12]){const stripe=new THREE.Mesh(new THREE.CylinderGeometry(.55-(y-1)*.08,.62-(y-1)*.08,.24,20),red);stripe.position.y=y;tower.add(stripe);}
+    const balcony=new THREE.Mesh(new THREE.CylinderGeometry(.72,.72,.13,24),dark);balcony.position.y=3.85;tower.add(balcony);
+    const rail=new THREE.Mesh(new THREE.TorusGeometry(.68,.035,6,24),dark);rail.rotation.x=Math.PI/2;rail.position.y=4.02;tower.add(rail);
+    for(let i=0;i<12;i++){const post=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.34,6),dark);const a=i*Math.PI/6;post.position.set(Math.cos(a)*.68,3.99,Math.sin(a)*.68);tower.add(post);}
+    const lantern=new THREE.Mesh(new THREE.CylinderGeometry(.38,.42,.62,12),new THREE.MeshStandardMaterial({color:0x9dcbd0,emissive:0x427e88,emissiveIntensity:.5,metalness:.25,roughness:.22,transparent:true,opacity:.78}));lantern.position.y=4.38;tower.add(lantern);
+    const cap=new THREE.Mesh(new THREE.ConeGeometry(.48,.48,12),red);cap.position.y=4.93;tower.add(cap);
+    const beacon=new THREE.Group();beacon.position.y=4.38;
+    const lamp=new THREE.Mesh(new THREE.SphereGeometry(.15,12,10),new THREE.MeshStandardMaterial({color:0xffefb2,emissive:0xffd15a,emissiveIntensity:3}));beacon.add(lamp);
+    const beam=new THREE.Mesh(new THREE.ConeGeometry(.28,5.8,16,1,true),new THREE.MeshBasicMaterial({color:0xffe8a3,transparent:true,opacity:.19,depthWrite:false,side:THREE.DoubleSide}));beam.rotation.x=-Math.PI/2;beam.position.z=2.9;beacon.add(beam);
+    const glow=new THREE.PointLight(0xffd77a,2.2,10);glow.position.set(0,0,.35);beacon.add(glow);
+    tower.add(beacon);lighthouseBeacon=beacon;tower.position.set(x,base,z);tower.traverse(o=>{if(o.isMesh)o.castShadow=true;});scene.add(tower);
+  }
+
   function createScene(){
     scene=new THREE.Scene();scene.background=new THREE.Color(0x9bb8c7);scene.fog=new THREE.FogExp2(0x9bb8c7,.012);
     camera=new THREE.PerspectiveCamera(42,1,.1,150);camera.position.set(17,15,20);
@@ -240,7 +258,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     for(let ring=0;ring<=waterRings;ring++){const radius=42*ring/waterRings;for(let seg=0;seg<=waterSegments;seg++){const angle=seg/waterSegments*Math.PI*2;waterVerts.push(Math.cos(angle)*radius,-.5,Math.sin(angle)*radius);if(ring<waterRings&&seg<waterSegments){const a=ring*(waterSegments+1)+seg,b=a+1,c=a+waterSegments+1,d=c+1;waterIndices.push(a,c,b,b,c,d);}}}
     waterGeo.setAttribute("position",new THREE.Float32BufferAttribute(waterVerts,3));waterGeo.setIndex(waterIndices);waterGeo.computeVertexNormals();
     waterMesh=new THREE.Mesh(waterGeo,new THREE.MeshPhysicalMaterial({color:0x286b80,roughness:.23,metalness:.12,clearcoat:.8,clearcoatRoughness:.16,transparent:true,opacity:.94,side:THREE.DoubleSide}));scene.add(waterMesh);waterPositions=waterMesh.geometry.attributes.position.array.slice();
-    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();cloudGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup);createHarbor();
+    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();cloudGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup);createHarbor();createCoastalLighthouse();
     const n=176,verts=[],indices=[],colors=[];
     for(let iz=0;iz<=n;iz++)for(let ix=0;ix<=n;ix++){
       const x=(ix/n-.5)*30,z=(iz/n-.5)*30,d=Math.hypot(x,z),y=heightAt(x,z);verts.push(x,y,z);
@@ -353,6 +371,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     peopleGroup.children.forEach((p,i)=>{const a=t*(.12+.05*p.userData.walkFactor)+p.userData.phase,step=t*(2.1+1.2*p.userData.walkFactor)+p.userData.phase;p.position.x=Math.cos(a)*p.userData.radius;p.position.z=Math.sin(a)*p.userData.radius;p.position.y=heightAt(p.position.x,p.position.z);p.rotation.y=-a;for(const limb of p.userData.limbs){const swing=Math.sin(step)*.42*limb.side;limb.arm.rotation.x=-swing;limb.leg.rotation.x=swing;}});
     trafficVehicles.forEach(v=>{const p=(t*v.speed+v.phase)%1;const x=v.a.x+(v.b.x-v.a.x)*p,z=v.a.z+(v.b.z-v.a.z)*p;v.mesh.position.set(x,heightAt(x,z)+.055,z);v.mesh.rotation.y=Math.atan2(v.b.x-v.a.x,v.b.z-v.a.z);});
     if(cargoShip){cargoShip.position.x=12.1+Math.sin(t*.12)*.42;cargoShip.position.z=12.4+Math.cos(t*.12)*.32;cargoShip.position.y=-.13+Math.sin(t*1.35)*.045;cargoShip.rotation.y=.75+Math.sin(t*.12)*.035;}
+    if(lighthouseBeacon)lighthouseBeacon.rotation.y=-t*.42;
     renderer.render(scene,camera);
   }
   function update(state){
