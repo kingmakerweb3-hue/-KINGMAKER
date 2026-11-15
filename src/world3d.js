@@ -5,7 +5,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   "use strict";
   const host=document.getElementById("world3d-viewport");
   if(!host)return;
-  let scene,camera,renderer,controls,sunLight,landGroup,buildingGroup,peopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup,resourceGroup,cloudGroup,waterMesh,waterPositions,terrainMesh;
+  let scene,camera,renderer,controls,sunLight,landGroup,buildingGroup,peopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup,resourceGroup,cloudGroup,harborGroup,cargoShip,waterMesh,waterPositions,terrainMesh;
   const trafficVehicles=[];
   let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,raycaster,groundPlane,previewMarker,placementPointer=null;
   const COLORS={farm:0xc6a35d,mine:0x78838d,workshop:0x9c7652,factory:0x697b8e,transport:0x9b9b8b,market:0xc49b52,academy:0x8b80b8,power:0x75b9c9,housing:0xd6c5a3};
@@ -195,6 +195,26 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     residents.forEach((citizen,i)=>syncCitizenAvatar(peopleGroup.children[i],i,citizen));
   }
 
+  function createHarbor(){
+    harborGroup=new THREE.Group();scene.add(harborGroup);
+    const timber=material(0x76583d),metal=material(0x56636a,.55);
+    const dockY=heightAt(8.2,8.2)+.02;
+    const dock=new THREE.Mesh(new THREE.BoxGeometry(.72,.2,6.2),timber);dock.position.set(8.2,dockY,8.2);dock.rotation.y=.75;dock.castShadow=true;harborGroup.add(dock);
+    for(let i=0;i<13;i++){const plank=new THREE.Mesh(new THREE.BoxGeometry(.76,.035,.075),material(i%2?0x9a7650:0x806044));plank.position.set(8.2,dockY+.12,5.35+i*.47);plank.rotation.y=.75;harborGroup.add(plank);}
+    for(const side of [-1,1])for(let z=0;z<4;z++){const post=new THREE.Mesh(new THREE.CylinderGeometry(.09,.12,.9,8),timber);post.position.set(8.2+side*.38,dockY-.18,5.5+z*1.65);harborGroup.add(post);}
+    for(const side of [-1,1]){const bollard=new THREE.Mesh(new THREE.CylinderGeometry(.07,.08,.28,8),metal);bollard.position.set(8.2+side*.23,dockY+.3,5.35);harborGroup.add(bollard);}
+    const warehouse=new THREE.Group();const walls=new THREE.Mesh(new THREE.BoxGeometry(2.1,1.25,1.55),material(0xb8aa8b));walls.position.set(6.6,heightAt(6.6,7.5)+.68,7.5);warehouse.add(walls);const roof=new THREE.Mesh(new THREE.BoxGeometry(2.3,.18,1.75),material(0x53636b));roof.position.set(6.6,heightAt(6.6,7.5)+1.38,7.5);warehouse.add(roof);harborGroup.add(warehouse);
+    cargoShip=new THREE.Group();
+    const hull=new THREE.Mesh(new THREE.BoxGeometry(1.05,.48,2.9),material(0x263f50,.48));hull.position.y=.02;cargoShip.add(hull);
+    const bow=new THREE.Mesh(new THREE.ConeGeometry(.56,.85,4),material(0x314f60));bow.rotation.x=Math.PI/2;bow.position.set(0,.02,1.72);cargoShip.add(bow);
+    const deck=new THREE.Mesh(new THREE.BoxGeometry(.94,.12,2.55),material(0x9a7650));deck.position.y=.29;cargoShip.add(deck);
+    for(let row=0;row<2;row++)for(let col=0;col<2;col++){const box=new THREE.Mesh(new THREE.BoxGeometry(.39,.48,.72),material([0xb45c43,0x426e83,0xc29a50,0x597b62][row*2+col]));box.position.set(col?.23:-.23,.57,row?.48:-.38);cargoShip.add(box);}
+    const bridge=new THREE.Mesh(new THREE.BoxGeometry(.52,.62,.48),material(0xd9d5c6));bridge.position.set(0,.66,-1.02);cargoShip.add(bridge);
+    const windows=new THREE.Mesh(new THREE.BoxGeometry(.4,.16,.025),new THREE.MeshStandardMaterial({color:0x8fc5d2,emissive:0x315765,emissiveIntensity:.35}));windows.position.set(0,.82,-.77);cargoShip.add(windows);
+    const mast=new THREE.Mesh(new THREE.CylinderGeometry(.025,.035,.8,6),metal);mast.position.set(.22,1.05,-.92);cargoShip.add(mast);
+    cargoShip.position.set(12.1,-.13,12.4);cargoShip.rotation.y=.75;harborGroup.add(cargoShip);
+  }
+
   function createScene(){
     scene=new THREE.Scene();scene.background=new THREE.Color(0x9bb8c7);scene.fog=new THREE.FogExp2(0x9bb8c7,.012);
     camera=new THREE.PerspectiveCamera(42,1,.1,150);camera.position.set(17,15,20);
@@ -207,7 +227,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     for(let ring=0;ring<=waterRings;ring++){const radius=42*ring/waterRings;for(let seg=0;seg<=waterSegments;seg++){const angle=seg/waterSegments*Math.PI*2;waterVerts.push(Math.cos(angle)*radius,-.5,Math.sin(angle)*radius);if(ring<waterRings&&seg<waterSegments){const a=ring*(waterSegments+1)+seg,b=a+1,c=a+waterSegments+1,d=c+1;waterIndices.push(a,c,b,b,c,d);}}}
     waterGeo.setAttribute("position",new THREE.Float32BufferAttribute(waterVerts,3));waterGeo.setIndex(waterIndices);waterGeo.computeVertexNormals();
     waterMesh=new THREE.Mesh(waterGeo,new THREE.MeshPhysicalMaterial({color:0x286b80,roughness:.23,metalness:.12,clearcoat:.8,clearcoatRoughness:.16,transparent:true,opacity:.94,side:THREE.DoubleSide}));scene.add(waterMesh);waterPositions=waterMesh.geometry.attributes.position.array.slice();
-    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();cloudGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup);
+    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();cloudGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup);createHarbor();
     const n=176,verts=[],indices=[],colors=[];
     for(let iz=0;iz<=n;iz++)for(let ix=0;ix<=n;ix++){
       const x=(ix/n-.5)*30,z=(iz/n-.5)*30,d=Math.hypot(x,z),y=heightAt(x,z);verts.push(x,y,z);
@@ -319,6 +339,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     cloudGroup.children.forEach((cloud,i)=>{cloud.position.x+=.0012+Math.sin(t*.025+i)*.0005;if(cloud.position.x>24)cloud.position.x=-24;});
     peopleGroup.children.forEach((p,i)=>{const a=t*(.12+.05*p.userData.walkFactor)+p.userData.phase,step=t*(2.1+1.2*p.userData.walkFactor)+p.userData.phase;p.position.x=Math.cos(a)*p.userData.radius;p.position.z=Math.sin(a)*p.userData.radius;p.position.y=heightAt(p.position.x,p.position.z);p.rotation.y=-a;for(const limb of p.userData.limbs){const swing=Math.sin(step)*.42*limb.side;limb.arm.rotation.x=-swing;limb.leg.rotation.x=swing;}});
     trafficVehicles.forEach(v=>{const p=(t*v.speed+v.phase)%1;const x=v.a.x+(v.b.x-v.a.x)*p,z=v.a.z+(v.b.z-v.a.z)*p;v.mesh.position.set(x,heightAt(x,z)+.055,z);v.mesh.rotation.y=Math.atan2(v.b.x-v.a.x,v.b.z-v.a.z);});
+    if(cargoShip){cargoShip.position.x=12.1+Math.sin(t*.12)*.42;cargoShip.position.z=12.4+Math.cos(t*.12)*.32;cargoShip.position.y=-.13+Math.sin(t*1.35)*.045;cargoShip.rotation.y=.75+Math.sin(t*.12)*.035;}
     renderer.render(scene,camera);
   }
   function update(state){
