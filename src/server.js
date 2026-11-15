@@ -6,11 +6,13 @@ const path = require("node:path");
 const { createMarketplaceStore } = require("./market-store.js");
 const { createWalletAuth } = require("./wallet-auth.js");
 const { createChainOwnership } = require("./chain-ownership.js");
+const { createMarketplaceIndexer } = require("./market-indexer.js");
 
 const root = path.resolve(__dirname, "..");
 const marketplace = createMarketplaceStore({ filePath: process.env.KINGMAKER_MARKET_FILE || path.join(root, "data", "marketplace.json") });
 const walletAuth = createWalletAuth();
 const chainOwnership = createChainOwnership();
+const marketplaceIndexer = createMarketplaceIndexer({ filePath: process.env.KINGMAKER_MARKET_EVENTS_FILE || path.join(root, "data", "market-events.json") });
 const SESSION_COOKIE = "km_session";
 const port = Number(process.env.PORT || 4173);
 const allowedOrigins = new Set((process.env.KINGMAKER_APP_ORIGINS || `http://127.0.0.1:${port},http://localhost:${port}`).split(",").map(value => value.trim()).filter(Boolean));
@@ -81,7 +83,7 @@ async function handleApi(request, response, url) {
     const assets = await chainOwnership.readInventory(session.address, session.chainId);
     return sendJson(response, 200, { account: session.address, chainId: session.chainId, assets });
   }
-  if (url.pathname === "/api/market/listings" && request.method === "GET") {
+  if (url.pathname === "/api/market/activity" && request.method === "GET") {\n    const limit = Number(url.searchParams.get("limit") || 20);\n    const cursor = url.searchParams.get("cursor") || "";\n    return sendJson(response, 200, await marketplaceIndexer.list(limit, cursor));\n  }\n  if (url.pathname === "/api/market/listings" && request.method === "GET") {
     const session = walletAuth.getSession(cookieValue(request, SESSION_COOKIE));
     return sendJson(response, 200, { listings: await marketplace.list(), authenticated: Boolean(session), account: session?.address || null, mode: "SIGNED_WALLET_SESSION_DEVELOPMENT" });
   }
