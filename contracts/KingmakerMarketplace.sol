@@ -7,9 +7,9 @@ import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-contract KingmakerMarketplace is IERC1155Receiver, ERC165, ReentrancyGuard, Pausable {
+contract KingmakerMarketplace is IERC1155Receiver, ERC165, ReentrancyGuard {
     enum ListingStatus { None, Active, Sold, Cancelled }
 
     struct Listing {
@@ -39,7 +39,7 @@ contract KingmakerMarketplace is IERC1155Receiver, ERC165, ReentrancyGuard, Paus
     event ProceedsWithdrawn(address indexed seller, uint256 amount);
 
     function createListing(address assetContract, uint256 tokenId, uint256 amount, uint256 price)
-        external nonReentrant whenNotPaused returns (uint256 listingId)
+        external nonReentrant returns (uint256 listingId)
     {
         if (assetContract == address(0)) revert InvalidAddress();
         if (amount == 0 || price == 0) revert InvalidAmountOrPrice();
@@ -58,7 +58,7 @@ contract KingmakerMarketplace is IERC1155Receiver, ERC165, ReentrancyGuard, Paus
         emit ListingCreated(listingId, msg.sender, assetContract, tokenId, amount, price);
     }
 
-    function cancelListing(uint256 listingId) external nonReentrant whenNotPaused {
+    function cancelListing(uint256 listingId) external nonReentrant {
         Listing storage listing = listings[listingId];
         if (listing.status != ListingStatus.Active) revert ListingNotActive();
         if (listing.seller != msg.sender) revert NotSeller();
@@ -86,19 +86,6 @@ contract KingmakerMarketplace is IERC1155Receiver, ERC165, ReentrancyGuard, Paus
         (bool success,) = payable(msg.sender).call{value: amount}("");
         if (!success) revert TransferFailed();
         emit ProceedsWithdrawn(msg.sender, amount);
-    }
-
-    function pause() external {
-        // Prototype emergency pause is intentionally controlled by the deployer only
-        // in a future audited access-control revision; this instance is permissionless
-        // to pause to allow any observer to halt suspicious activity.
-        _pause();
-    }
-
-    function unpause() external {
-        // Only the account that paused is not tracked; keep this prototype paused
-        // permanently once paused rather than introduce an unaudited admin key.
-        revert("manual redeployment required");
     }
 
     function onERC1155Received(address, address, uint256, uint256, bytes calldata)
