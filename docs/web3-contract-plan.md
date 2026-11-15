@@ -95,3 +95,16 @@ The session token is held in an HttpOnly, SameSite=Strict cookie; it is not expo
 **Security boundary:** this is still a local development prototype, not a production marketplace. It authenticates control of an EVM address but does not prove that a seller owns the listed asset; inventory remains browser-local. Prices are simulated game credits. There is no purchase, payment, escrow, balance debit, asset transfer, or blockchain settlement. Sessions and challenges are held in process memory and are lost on server restart. There is no database-backed multi-instance session store, robust IP/wallet rate limiting, production TLS/proxy configuration, authoritative inventory, monitoring, or independent security audit. The server accepts only origins listed in `KINGMAKER_APP_ORIGINS`; the default allowlist is the local `127.0.0.1` and `localhost` origins for the configured port. The server binds to loopback by default and must not be exposed publicly or used for valuable assets.
 
 Before production, add persistent and distributed session/challenge storage, IP and wallet rate limits, strict deployment-origin configuration, HTTPS behind a correctly configured trusted proxy, authoritative inventory/ownership checks, database transactions, audit logging, anti-abuse controls, operational monitoring, and independently reviewed settlement contracts.
+
+
+## Server-side on-chain ownership gate (development)
+
+The marketplace write route now calls `src/chain-ownership.js` before accepting a listing. Configure the server environment with:
+- `KINGMAKER_RPC_URL` — trusted EVM JSON-RPC endpoint.
+- `KINGMAKER_ASSET_CONTRACT` — deployed ERC-1155 contract address.
+- `KINGMAKER_CHAIN_ID` — decimal chain ID expected by the server.
+- `KINGMAKER_ASSET_TOKEN_IDS` — JSON object mapping KINGMAKER catalog IDs to decimal ERC-1155 token IDs, for example `{"founder-banner":"1","frontier-surveyor":"2"}`.
+
+The server checks the authenticated session's chain ID, the RPC's actual chain ID, deployed bytecode at the configured contract, and the wallet's live `balanceOf(address,uint256)` result. It fails closed when configuration or RPC checks fail, when an asset has no token mapping, or when the wallet balance is zero. A compact verification snapshot (chain, token ID, balance and time) is stored with the listing.
+
+**Critical limitation:** this is an ownership check at listing creation time, not escrow or a continuing reservation. The seller can transfer the token after listing; the marketplace does not lock it or guarantee availability at purchase time. Buyers still cannot purchase, pay, or receive transfers. Configure only a verified deployment and trusted RPC. Do not enable real trading until atomic escrow/settlement, ongoing listing validity, authoritative token mapping, rate limits, monitoring and an independent security audit are complete.
