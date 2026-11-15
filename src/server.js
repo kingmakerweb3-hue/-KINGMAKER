@@ -58,6 +58,8 @@ function createServer() {
         "Content-Type": "application/json; charset=utf-8",
         "Content-Length": Buffer.byteLength(body),
         "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "no-referrer",
+        "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
         "Cache-Control": "no-store"
       });
       response.end(request.method === "HEAD" ? undefined : body);
