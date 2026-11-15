@@ -1,5 +1,5 @@
-const CACHE = 'kingmaker-mining-shell-v1';
-const CORE = ['./mining.html', './mining.js', './mining-manifest.json'];
+const CACHE = 'kingmaker-mining-shell-v2';
+const CORE = ['./mining.html', './mining.js', './mining-manifest.json', './assets/kingmaker-app-icon.svg'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(CORE)));
   self.skipWaiting();
