@@ -39,3 +39,22 @@ The contract source and automated test suite are in development. A passing local
 ## Wallet integration boundary
 
 The browser wallet module currently detects an EIP-1193 provider and connects an account. It does not yet request signatures, read contract balances, submit transactions, or prove on-chain ownership. Those functions must be added only after the contract and chain configuration are finalized.
+
+## Live wallet balance reader
+
+`src/web3-chain.js` adds a read-only ERC-1155 `balanceOf` integration using the connected EIP-1193 provider's `eth_call`. It never requests signatures and never sends transactions.
+
+Before balances can be read, the hosting page must define `window.KINGMAKER_WEB3_CONFIG` before the module loads:
+
+```js
+window.KINGMAKER_WEB3_CONFIG = {
+  chainId: "0xaa36a7",
+  contractAddress: "0xYOUR_DEPLOYED_CONTRACT_ADDRESS",
+  assets: [
+    { id: "founder-banner", tokenId: "1", name: "Founder Banner" },
+    { id: "frontier-surveyor", tokenId: "2", name: "Frontier Surveyor" }
+  ]
+};
+```
+
+The example chain ID is Sepolia; the contract address and token IDs above are placeholders and must be replaced with values from a verified deployment. With no configuration, the UI explicitly reports that live balances are unavailable and retains the prototype disclosure. Do not enable minting or marketplace actions until deployment, access-control review, metadata hosting, server-side verification, and independent security audit are complete.
