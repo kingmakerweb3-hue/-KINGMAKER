@@ -4,7 +4,7 @@
  * No browser-side minting; real rewards require authenticated server sessions
  * and validated contributions. Sponsorship is company revenue, not miner rewards.
  */
-const SESSION_SECONDS = 86400;
+const SESSION_SECONDS = 21600;
 const MAX_SECURITY_CIRCLE = 5;
 const SECURITY_BONUS = 0.20;
 const DIRECT_REFERRAL_BONUS = 0.25;
@@ -28,7 +28,7 @@ function calculateBaseRate({ baseRatePerWeightedHour } = {}) {
 function quoteSession({ baseRatePerWeightedHour, verifiedSecurityMembers = 0, activeDirectReferrals = 0, activeSeconds = SESSION_SECONDS }) {
   const rate = finiteNonNegative(baseRatePerWeightedHour, 'baseRatePerWeightedHour');
   const seconds = finiteNonNegative(activeSeconds, 'activeSeconds');
-  if (seconds > SESSION_SECONDS) throw new RangeError('A mining session cannot exceed 24 hours');
+  if (seconds > SESSION_SECONDS) throw new RangeError('A mining session cannot exceed 6 hours');
   const multiplier = contributionMultiplier({ verifiedSecurityMembers, activeDirectReferrals });
   return { multiplier, activeSeconds: seconds, estimatedCrown: Number((rate * multiplier * (seconds / 3600)).toFixed(12)), supplyPolicy: 'unlimited' };
 }
