@@ -16,7 +16,8 @@ function contributionMultiplier({ verifiedSecurityMembers = 0, activeDirectRefer
   const security = finiteNonNegative(verifiedSecurityMembers, 'verifiedSecurityMembers');
   const referrals = finiteNonNegative(activeDirectReferrals, 'activeDirectReferrals');
   if (!Number.isInteger(security) || !Number.isInteger(referrals)) throw new TypeError('Member and referral counts must be integers');
-  const multiplier = (1 + SECURITY_BONUS * Math.min(security, MAX_SECURITY_CIRCLE)) * (1 + DIRECT_REFERRAL_BONUS * referrals);\n  return Number(multiplier.toFixed(12));
+  const multiplier = (1 + SECURITY_BONUS * Math.min(security, MAX_SECURITY_CIRCLE)) * (1 + DIRECT_REFERRAL_BONUS * referrals);
+  return Number(multiplier.toFixed(12));
 }
 /** Unlimited supply has no pool or daily cap; only the reward rate is configured. */
 function calculateBaseRate({ baseRatePerWeightedHour } = {}) {
