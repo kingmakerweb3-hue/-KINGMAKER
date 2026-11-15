@@ -7,5 +7,7 @@
   "display": "standalone",
   "background_color": "#050912",
   "theme_color": "#050912",
-  "icons": []
+  "icons": [
+    { "src": "./assets/kingmaker-app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
 }
