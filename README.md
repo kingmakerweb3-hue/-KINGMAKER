@@ -21,7 +21,7 @@ The visual target is a serious, high-fidelity next-generation world—not a cart
 
 ## Current prototype
 
-The current playable prototype is a local, single-player browser game built with JavaScript and a small Node.js development server. It does not currently require an account, database, wallet, external AI service, or paid service.
+The current playable prototype is a local browser game built with JavaScript and a small Node.js development server. The nation simulation remains local single-player; a small shared marketplace listing API is now available in development mode. It does not currently require an account, database, wallet, external AI service, or paid service.
 
 ### Run locally
 
@@ -58,6 +58,11 @@ All current game values are simulated and have no real-world or financial value.
 5. **Web3 architecture:** finalize the purpose and distinction of any coin and token, chain selection, wallet model, asset ownership rules, marketplace design, security review, and applicable legal/compliance requirements.
 6. **Web3 implementation:** only after the design and security gates are approved, build and test wallet connection, on-chain features, and purchase flows. Never expose private keys or seed phrases to the game or its support systems.
 7. **Web release:** prepare a secure, scalable web deployment and staged public launch. App-store distribution is not the product target.
+
+
+### Shared marketplace development API
+
+Run `npm run dev` and open the game through the local server. The Web3 & Assets tab can publish and view marketplace listings stored in `data/marketplace.json`; separate browser sessions using the same server see the same listing feed. Wallet inventory is still local to each browser. This is only a listing-feed prototype: there is no authenticated multiplayer identity, wallet-signature verification, real purchase, payment, asset transfer, or blockchain settlement. The server binds to loopback by default and must not be exposed publicly in its current unauthenticated state.
 
 ## Run quality checks
 
