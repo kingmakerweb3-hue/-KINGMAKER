@@ -15,7 +15,7 @@ const mime = {
 
 function readJsonBody(request, maxBytes = 16 * 1024) {
   return new Promise((resolve, reject) => {
-    if (!/^application\\/json(?:;|$)/i.test(request.headers["content-type"] || "")) {
+    if (!/^application\/json(?:;|$)/i.test(request.headers["content-type"] || "")) {
       const error = new Error("Content-Type must be application/json");
       error.statusCode = 415;
       reject(error);
@@ -78,7 +78,7 @@ function createServer() {
         const body = await readJsonBody(request);
         const result = await handler(body);
         const payload = JSON.stringify(result);
-        response.writeHead(pathname.endsWith("/challenge") ? 201 : 201, {
+        response.writeHead(201, {
           "Content-Type": "application/json; charset=utf-8",
           "Content-Length": Buffer.byteLength(payload),
           "X-Content-Type-Options": "nosniff",
