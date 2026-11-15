@@ -35,6 +35,8 @@
     "Rare crystals": { science: 2 }
   });
   const RESOURCE_SITE_TYPES = Object.freeze(Object.keys(RESOURCE_SITE_OUTPUT));
+  // Permanent island wind and solar installations contribute power each turn.
+  const RENEWABLE_POWER_OUTPUT = Object.freeze({ wind: 2, solar: 2 });
   const BUILDINGS = {
     farm: { name: "Farm", cost: { materials: 24, credits: 36 }, production: { food: 12 } },
     mine: { name: "Mine", cost: { materials: 32, credits: 52 }, production: { ore: 10 } },
@@ -1417,6 +1419,7 @@
       power: clamp(state.resources.power + Math.floor(baseOutput.power * staffing), 0, RESOURCE_LIMIT)
     }, state.buildings, state.technologies, state.nation.population);
     const output = industry.production;
+    output.power += RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar;
     for (const [resource, amount] of Object.entries(creator.production)) output[resource] += amount;
     const districts = districtEffects(state);
     for (const [resource, amount] of Object.entries(districts.production)) output[resource] += amount;
@@ -1572,7 +1575,7 @@
   }
 
   return {
-    SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
+    SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, RENEWABLE_POWER_OUTPUT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
     createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, createResourceDeposits, resourceSiteEffects, developResourceSite, productionFor, build, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
