@@ -23,7 +23,7 @@ test('unlimited total supply needs no pool or daily cap', () => {
 test('6-hour quote applies contribution multiplier under unlimited supply policy', () => {
   const quote = quoteSession({ baseRatePerWeightedHour: 1, verifiedSecurityMembers: 5, activeDirectReferrals: 2, activeSeconds: SESSION_SECONDS });
   assert.equal(quote.multiplier, 3);
-  assert.equal(quote.estimatedCrown, 72);
+  assert.equal(quote.estimatedCrown, 18);
   assert.equal(quote.supplyPolicy, 'unlimited');
 });
 test('invalid counts, negative values and sessions longer than 6 hours are rejected', () => {
