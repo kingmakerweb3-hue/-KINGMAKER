@@ -49,6 +49,10 @@ Open <http://127.0.0.1:4173>. The server only binds to loopback.
 
 All current game values are simulated and have no real-world or financial value. No cryptocurrency, token, wallet connection, real-money purchase, or on-chain ownership is currently implemented.
 
+## Release 1.0 commitment
+
+KINGMAKER now has a fixed Release 1.0 scope and evidence-based ship checklist. Work is prioritized against the playable web-game promise and release gates; new features do not take priority over failing tests, stability, browser verification, security, deployment, and playtesting. See the [KINGMAKER Release 1.0 plan](docs/RELEASE-1.0.md) for the must-ship scope, exclusions, launch gates, build order, and live-operations requirements.
+
 ## Product direction and milestones
 
 1. **Foundation and quality:** stabilize the simulation, saves, controls, responsive web experience, and automated tests.
