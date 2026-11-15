@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node src/server.js",
     "test": "node --test tests/*.test.js",
-    "check": "node --check scripts/deploy-local.js && node --check src/engine.js && node --check src/citizens.js && node --check src/app.js && node --check src/server.js && node --check src/wallet-auth.js && node --check src/chain-ownership.js && node --check src/market-store.js && node --check tests/engine.test.js && node --check tests/citizens.test.js && node --input-type=module --check < src/world3d.js && node --check src/web3.js && node --check src/web3-market.js && node --check src/web3-chain.js && node --check src/asset-economy.js && node --check tests/asset-economy.test.js && node --check tests/market-store.test.js && node --check tests/wallet-auth.test.js && node --check tests/chain-ownership.test.js",
+    "check": "node --check scripts/deploy-local.js && node --check src/engine.js && node --check src/citizens.js && node --check src/app.js && node --check src/server.js && node --check src/wallet-auth.js && node --check src/chain-ownership.js && node --check src/market-store.js && node --check tests/engine.test.js && node --check tests/citizens.test.js && node --input-type=module --check < src/world3d.js && node --check src/web3.js && node --input-type=module --check < src/web3-escrow.js && node --check src/web3-market.js && node --check src/web3-chain.js && node --check src/asset-economy.js && node --check tests/asset-economy.test.js && node --check tests/market-store.test.js && node --check tests/wallet-auth.test.js && node --check tests/chain-ownership.test.js",
     "contract:test": "hardhat test",
     "contract:compile": "hardhat compile",
     "contract:deploy:local": "hardhat run scripts/deploy-local.js"
