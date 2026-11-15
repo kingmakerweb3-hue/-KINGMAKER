@@ -180,16 +180,19 @@ function createServer() {
           maximumSecurityCircleMembers: 5,
           activeDirectReferralBonus: 0.25,
           referralLevels: 1,
-          baseRate: "approved daily CROWN budget / forecast weighted miner-hours"
+          baseRate: "owner-configured CROWN per weighted miner-hour",
+          totalSupply: "unlimited",
+          maximumSupply: null,
+          dailyEmissionCap: null
         },
         launchBlockers: [
-          "Owner-approved CROWN total pool and daily emission budget",
+          "Owner-configured and publicly disclosed CROWN base reward rate",
           "Authenticated account and session service",
           "Server-validated referrals and security-circle membership",
-          "Auditable CROWN ledger and daily emission-cap enforcement",
+          "Auditable CROWN ledger and duplicate-session prevention",
           "Abuse prevention, operational monitoring and security review"
         ],
-        notice: "No mining session or CROWN reward can currently be started or earned."
+        notice: "CROWN has an unlimited total supply policy. Mining is still pre-launch: no session or reward can currently be started or earned."
       }
     };
     if (Object.prototype.hasOwnProperty.call(agentApi, pathname)) {
