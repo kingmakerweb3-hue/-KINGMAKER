@@ -50,7 +50,8 @@
           state.textContent = "Switch your wallet to the configured KINGMAKER network to view on-chain balances.";
           return;
         }
-        const wallet = window.ethereum.selectedAddress;
+        const connectedAccounts = await window.ethereum.request({ method: "eth_accounts" });
+        const wallet = connectedAccounts?.[0];
         if (!wallet || !/^0x[0-9a-fA-F]{40}$/.test(wallet)) return;
         const balances = await Promise.all(assets.map(async asset => {
           try {
