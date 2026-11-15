@@ -1562,6 +1562,23 @@
 
   function exportSave(state) { return JSON.stringify(validateSave(state), null, 2); }
 
+  function loadWithRecovery(storage, primaryKey = "kingmaker_save_v1", backupKey = "kingmaker_save_recovery") {
+    let primaryError = false;
+    try {
+      const primary = storage.getItem(primaryKey);
+      if (primary) return { state: migrateSave(JSON.parse(primary)), recovered: false, primaryError: false };
+    } catch (_) {
+      primaryError = true;
+    }
+    try {
+      const backup = storage.getItem(backupKey);
+      if (backup) return { state: migrateSave(JSON.parse(backup)), recovered: true, primaryError };
+    } catch (_) {
+      // A damaged recovery copy must never prevent a fresh campaign.
+    }
+    return { state: null, recovered: false, primaryError };
+  }
+
   function saveWithRecovery(storage, state, primaryKey = "kingmaker_save_v1", backupKey = "kingmaker_save_recovery") {
     const serialized = JSON.stringify(validateSave(state));
     const prior = storage.getItem(primaryKey);
@@ -1584,6 +1601,6 @@
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
-    exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech, worldIntelligence
+    exportSave, saveWithRecovery, loadWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech, worldIntelligence
   };
 });
