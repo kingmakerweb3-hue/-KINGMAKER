@@ -10,6 +10,40 @@ test("new game has a complete, validated state", () => {
   assert.equal(state.rivals.ironmarch.personality, "Shield Compact");
 });
 
+test("claiming an unclaimed region spends influence and persists sovereignty", () => {
+  const state = Engine.createInitialState({ seed: 481516 });
+  state.mapWorld = require("../src/world3d.js") && globalThis.KingmakerWorld3D.generate(state.seed);
+  const region = state.mapWorld.regions.find(item => item.owner === "Unclaimed");
+  assert.ok(region, "generated world should contain unclaimed regions");
+  const credits = state.resources.credits;
+  const influence = state.resources.influence;
+  const development = region.development;
+  Engine.claimRegion(state, region.id);
+  assert.equal(region.owner, state.nation.name);
+  assert.equal(region.claimedTurn, state.turn);
+  assert.equal(state.resources.credits, credits - 100);
+  assert.equal(state.resources.influence, influence - 10);
+  assert.equal(region.development, Math.min(100, development + 8));
+  assert.equal(Engine.validateSave(Engine.exportSave(state)).mapWorld.regions.find(item => item.id === region.id).owner, state.nation.name);
+});
+
+test("territory claims reject foreign regions and insufficient national stability", () => {
+  const state = Engine.createInitialState({ seed: 481516 });
+  require("../src/world3d.js");
+  state.mapWorld = globalThis.KingmakerWorld3D.generate(state.seed);
+  const foreign = state.mapWorld.regions.find(item => item.owner !== "Unclaimed");
+  const frontier = state.mapWorld.regions.find(item => item.owner === "Unclaimed");
+  assert.throws(() => Engine.claimRegion(state, foreign.id), /Only unclaimed regions/);
+  state.nation.stability = 49;
+  assert.throws(() => Engine.claimRegion(state, frontier.id), /stability must be at least 50/);
+  state.nation.stability = 80;
+  state.resources.influence = 9;
+  const credits = state.resources.credits;
+  assert.throws(() => Engine.claimRegion(state, frontier.id), /100 credits and 10 influence/);
+  assert.equal(state.resources.credits, credits, "failed claims must not charge credits");
+  assert.equal(frontier.owner, "Unclaimed");
+});
+
 test("save validation rejects unsafe resource values and unsupported versions", () => {
   const state = Engine.createInitialState();
   state.resources.food = -1;
