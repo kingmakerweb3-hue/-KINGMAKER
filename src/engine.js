@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 8;
+  const SAVE_VERSION = 9;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -23,6 +23,20 @@
   const RESOURCE_LIMIT = 1_000_000;
   const RESOURCE_KEYS = ["food", "materials", "ore", "goods", "credits", "science", "power", "influence"];
   const MARKET_RESOURCES = ["food", "materials", "ore", "goods", "power"];
+  const RESOURCE_SITE_COST = Object.freeze({ materials: 35, credits: 55 });
+  const RESOURCE_SITE_OUTPUT = Object.freeze({
+    "Fertile soil": { food: 4 },
+    Iron: { ore: 4 },
+    Copper: { ore: 3 },
+    Coal: { power: 3 },
+    Timber: { materials: 3 },
+    Stone: { materials: 2 },
+    "Fresh water": { food: 2 },
+    "Rare crystals": { science: 2 }
+  });
+  const RESOURCE_SITE_TYPES = Object.freeze(Object.keys(RESOURCE_SITE_OUTPUT));
+  // Permanent island wind and solar installations contribute power each turn.
+  const RENEWABLE_POWER_OUTPUT = Object.freeze({ wind: 2, solar: 2 });
   const BUILDINGS = {
     farm: { name: "Farm", cost: { materials: 24, credits: 36 }, production: { food: 12 } },
     mine: { name: "Mine", cost: { materials: 32, credits: 52 }, production: { ore: 10 } },
@@ -129,6 +143,31 @@
     return clamp(Math.floor(value), 0, max);
   }
   function copy(value) { return JSON.parse(JSON.stringify(value)); }
+  function createResourceDeposits(seed) {
+    let value = (seed >>> 0) || 1;
+    const random = () => {
+      value = (value + 0x6D2B79F5) >>> 0;
+      let t = value;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    return Array.from({ length: 8 }, (_, index) => {
+      const angle = random() * Math.PI * 2;
+      const radius = 4.5 + random() * 7.2;
+      const resource = RESOURCE_SITE_TYPES[Math.floor(random() * RESOURCE_SITE_TYPES.length)];
+      return {
+        id: "deposit-" + (index + 1),
+        resource,
+        quantity: 80 + Math.floor(random() * 121),
+        x: Number((Math.cos(angle) * radius).toFixed(2)),
+        z: Number((Math.sin(angle) * radius).toFixed(2)),
+        operational: false,
+        depleted: false,
+        operatedSinceTurn: null
+      };
+    });
+  }
   function creatorIdFor(name) { return String(name || "").normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " "); }
   function normalizeCreatorRecords(state, preserveCommissions = false) {
     const seen = new Set();
@@ -269,7 +308,7 @@
       campaign: { id: campaignId, completedObjectives: [], status: "active", phaseIndex: 0, buildingStart: 6, progress: { tradeVolume: 0, agreementsSigned: 0, crisesSurvived: 0, peacefulDisputes: 0 } },
       achievements: [], creations: [], events: [{ id: "history-1-0", turn: 1, text: "Your civilization was founded. The first chapter begins.", type: "milestone", details: { summary: "A new campaign begins with a developing economy and six neighboring nations.", affectedNationIds: ["player"] } }],
       creatorEconomy: { nextAdoptionId: 1, publications: [], commissions: [], adoptions: [], totalRoyalties: 0, royaltyTurn: 1, lastTurnRoyalties: 0 },
-      world: { nextEventId: 1, activeEvents: [], processedEventIds: [], placedBuildings: [], placedRoads: [], placedDistricts: [] },
+      world: { nextEventId: 1, activeEvents: [], processedEventIds: [], placedBuildings: [], placedRoads: [], placedDistricts: [], resourceNodes: createResourceDeposits(seed) },
       status: "playing"
     };
     if (campaignId === "longwinter") {
@@ -304,6 +343,8 @@
     if (!Array.isArray(normalized.world.placedBuildings)) normalized.world.placedBuildings = [];
     if (!Array.isArray(normalized.world.placedRoads)) normalized.world.placedRoads = [];
     if (!Array.isArray(normalized.world.placedDistricts)) normalized.world.placedDistricts = [];
+    if (normalized.world.resourceNodes === undefined) normalized.world.resourceNodes = createResourceDeposits(normalized.seed);
+    if (!Array.isArray(normalized.world.resourceNodes)) throw new Error("Resource deposit data is invalid.");
     if (typeof normalized.nation.name !== "string" || normalized.nation.name.trim().length < 1 || normalized.nation.name.length > 48) throw new Error("Nation name must contain 1–48 characters.");
     if (typeof normalized.nation.government !== "string" || normalized.nation.government.length > 48) throw new Error("Government style is invalid.");
     if (!Number.isInteger(normalized.nation.population) || normalized.nation.population < 1 || normalized.nation.population > RESOURCE_LIMIT) throw new Error("Population is outside safe limits.");
@@ -337,6 +378,19 @@
     if (normalized.world.placedRoads.length > 10000 || normalized.world.placedRoads.some(r => !r || !r.from || !r.to || ![r.from.x,r.from.z,r.to.x,r.to.z].every(Number.isFinite) || [r.from.x,r.from.z,r.to.x,r.to.z].some(n => Math.abs(n)>13.2) || Math.hypot(r.to.x-r.from.x,r.to.z-r.from.z)<1)) throw new Error("Road placement data is invalid.");
     const districtTypes = ["residential", "commercial", "industrial", "agricultural"];
     if (normalized.world.placedDistricts.length > 100 || normalized.world.placedDistricts.some(d => !d || !districtTypes.includes(d.type) || !Number.isFinite(d.x) || !Number.isFinite(d.z) || Math.abs(d.x) > 10.5 || Math.abs(d.z) > 10.5 || !Number.isFinite(d.radius) || d.radius < 1.5 || d.radius > 3.5)) throw new Error("District placement data is invalid.");
+    const depositIds = new Set();
+    if (normalized.world.resourceNodes.length > 24 || normalized.world.resourceNodes.some(node => {
+      if (!node || typeof node.id !== "string" || !node.id || node.id.length > 64 || depositIds.has(node.id) ||
+          !Object.hasOwn(RESOURCE_SITE_OUTPUT, node.resource) ||
+          !Number.isInteger(node.quantity) || node.quantity < 0 || node.quantity > RESOURCE_LIMIT ||
+          !Number.isFinite(node.x) || !Number.isFinite(node.z) || Math.abs(node.x) > 12.8 || Math.abs(node.z) > 12.8 ||
+          typeof node.operational !== "boolean" || typeof node.depleted !== "boolean" ||
+          (node.depleted !== (node.quantity === 0)) ||
+          (node.operatedSinceTurn !== null && (!Number.isInteger(node.operatedSinceTurn) || node.operatedSinceTurn < 1 || node.operatedSinceTurn > normalized.turn)) ||
+          (node.operational && node.operatedSinceTurn === null)) return true;
+      depositIds.add(node.id);
+      return false;
+    })) throw new Error("Resource deposit data is invalid.");
     for (const event of normalized.world.activeEvents) {
       const definition = event && WORLD_EVENT_CATALOG[event.key];
       if (!definition || typeof event.id !== "string" || event.id.length > 64 ||
@@ -436,7 +490,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6, 7].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -740,23 +794,56 @@
     const count = connected.size;
     return { connectedDistricts: count, logistics: Math.min(5, count), production: { credits: count * 2 } };
   }
+  function resourceSiteEffects(state, consume = false) {
+    const output = { food: 0, materials: 0, ore: 0, science: 0, power: 0 };
+    for (const node of state.world && Array.isArray(state.world.resourceNodes) ? state.world.resourceNodes : []) {
+      if (!node || node.operational !== true || node.depleted === true || node.quantity <= 0) continue;
+      const yields = RESOURCE_SITE_OUTPUT[node.resource];
+      if (!yields) continue;
+      const [resource, rate] = Object.entries(yields)[0];
+      const amount = Math.min(rate, node.quantity);
+      output[resource] += amount;
+      if (consume) {
+        node.quantity -= amount;
+        if (node.quantity === 0) node.depleted = true;
+      }
+    }
+    return output;
+  }
+  function developResourceSite(state, nodeId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const node = state.world && Array.isArray(state.world.resourceNodes) ? state.world.resourceNodes.find(item => item.id === nodeId) : null;
+    if (!node || !Object.hasOwn(RESOURCE_SITE_OUTPUT, node.resource)) throw new Error("Resource deposit not found.");
+    if (node.operational) throw new Error("This resource deposit is already operational.");
+    if (node.depleted || node.quantity <= 0) throw new Error("This resource deposit is depleted.");
+    if (state.resources.materials < RESOURCE_SITE_COST.materials || state.resources.credits < RESOURCE_SITE_COST.credits) throw new Error("Establishing an extraction site requires 35 materials and 55 credits.");
+    state.resources.materials -= RESOURCE_SITE_COST.materials;
+    state.resources.credits -= RESOURCE_SITE_COST.credits;
+    node.operational = true;
+    node.operatedSinceTurn = state.turn;
+    addEvent(state, "Established a " + node.resource.toLowerCase() + " extraction site on the island.", "economy");
+    return node;
+  }
   function economicSnapshot(state) {
     const jobs = workforceFor(state.buildings);
     const employed = Math.min(jobs, state.nation.population);
     const staffing = jobs > 0 ? Math.min(1, state.nation.population / jobs) : 1;
     const creator = creatorEffects(state);
     const base = productionFor(state.buildings, state.technologies);
+    const renewablePower = worldEventActiveThisTurn(state, "energy_crisis") ? 0 : RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar;
     const industry = industrialOutput({ ...state.resources,
       materials: clamp(state.resources.materials + Math.floor(base.materials * staffing), 0, RESOURCE_LIMIT),
       ore: clamp(state.resources.ore + Math.floor(base.ore * staffing), 0, RESOURCE_LIMIT),
-      power: clamp(state.resources.power + Math.floor(base.power * staffing), 0, RESOURCE_LIMIT)
+      power: clamp(state.resources.power + Math.floor(base.power * staffing) + renewablePower, 0, RESOURCE_LIMIT)
     }, state.buildings, state.technologies, state.nation.population);
+    industry.production.power += renewablePower;
     for (const [resource, amount] of Object.entries(creator.production)) industry.production[resource] += amount;
     const districts = districtEffects(state);
     for (const [resource, amount] of Object.entries(districts.production)) industry.production[resource] += amount;
     const roads = roadEffects(state);
     industry.production.logistics += roads.logistics;
     for (const [resource, amount] of Object.entries(roads.production)) industry.production[resource] += amount;
+    for (const [resource, amount] of Object.entries(resourceSiteEffects(state))) industry.production[resource] += amount;
     return { production: industry.production, consumption: { food: Math.ceil(state.nation.population / (12 + Math.min(8, industry.production.logistics))), ...industry.inputs },
       workforce: jobs, employed, requiredJobs: Math.ceil(state.nation.population / 10), activeFactories: industry.activeFactories };
   }
@@ -1328,18 +1415,21 @@
     const baseOutput = productionFor(state.buildings, state.technologies);
     const jobs = workforceFor(state.buildings), employed = Math.min(jobs, state.nation.population);
     const staffing = jobs > 0 ? Math.min(1, state.nation.population / jobs) : 1;
+    const renewablePower = worldEventActiveThisTurn(state, "energy_crisis") ? 0 : RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar;
     const industry = industrialOutput({ ...state.resources,
       materials: clamp(state.resources.materials + Math.floor(baseOutput.materials * staffing), 0, RESOURCE_LIMIT),
       ore: clamp(state.resources.ore + Math.floor(baseOutput.ore * staffing), 0, RESOURCE_LIMIT),
-      power: clamp(state.resources.power + Math.floor(baseOutput.power * staffing), 0, RESOURCE_LIMIT)
+      power: clamp(state.resources.power + Math.floor(baseOutput.power * staffing) + renewablePower, 0, RESOURCE_LIMIT)
     }, state.buildings, state.technologies, state.nation.population);
     const output = industry.production;
+    output.power += renewablePower;
     for (const [resource, amount] of Object.entries(creator.production)) output[resource] += amount;
     const districts = districtEffects(state);
     for (const [resource, amount] of Object.entries(districts.production)) output[resource] += amount;
     const roads = roadEffects(state);
     output.logistics += roads.logistics;
     for (const [resource, amount] of Object.entries(roads.production)) output[resource] += amount;
+    for (const [resource, amount] of Object.entries(resourceSiteEffects(state, true))) output[resource] += amount;
     if (worldEventActiveThisTurn(state, "industrial_revolution")) output.goods = Math.floor(output.goods * 1.3);
     for (const resource of ["food", "materials", "ore", "goods", "science", "power"]) {
       state.resources[resource] = clamp(state.resources[resource] + output[resource], 0, RESOURCE_LIMIT);
@@ -1472,6 +1562,23 @@
 
   function exportSave(state) { return JSON.stringify(validateSave(state), null, 2); }
 
+  function loadWithRecovery(storage, primaryKey = "kingmaker_save_v1", backupKey = "kingmaker_save_recovery") {
+    let primaryError = false;
+    try {
+      const primary = storage.getItem(primaryKey);
+      if (primary) return { state: migrateSave(JSON.parse(primary)), recovered: false, primaryError: false };
+    } catch (_) {
+      primaryError = true;
+    }
+    try {
+      const backup = storage.getItem(backupKey);
+      if (backup) return { state: migrateSave(JSON.parse(backup)), recovered: true, primaryError };
+    } catch (_) {
+      // A damaged recovery copy must never prevent a fresh campaign.
+    }
+    return { state: null, recovered: false, primaryError };
+  }
+
   function saveWithRecovery(storage, state, primaryKey = "kingmaker_save_v1", backupKey = "kingmaker_save_recovery") {
     const serialized = JSON.stringify(validateSave(state));
     const prior = storage.getItem(primaryKey);
@@ -1488,12 +1595,12 @@
   }
 
   return {
-    SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
+    SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, RENEWABLE_POWER_OUTPUT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, productionFor, build, trade,
+    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, createResourceDeposits, resourceSiteEffects, developResourceSite, productionFor, build, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
-    exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech, worldIntelligence
+    exportSave, saveWithRecovery, loadWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech, worldIntelligence
   };
 });

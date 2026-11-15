@@ -43,11 +43,15 @@ Open <http://127.0.0.1:4173>. The server only binds to loopback.
 - **Campaign** offers three scenarios with objectives, achievements, victory, and defeat.
 - **World Director** provides local rule-based advice based on current game state.
 - **Creator Studio** lets you publish designs into a bounded local market. Rival nations can adopt designs when their needs match, apply their effects, and pay capped in-game royalties.
-- **3D World** opens an explorable 3D island with high-density procedural terrain, varied elevation, expanded forests, detailed building facades, animated citizens and traffic, a moving ocean surface, atmospheric clouds, a day/night lighting cycle, orbit/zoom/pan controls, and live terrain-surface construction.
+- **3D World** opens an explorable 3D island with high-density procedural terrain, varied elevation, expanded forests, detailed building facades, animated citizens and traffic, a moving ocean surface, atmospheric clouds, a day/night lighting cycle, orbit/zoom/pan controls, live terrain-surface construction, and clickable finite resource deposits whose extraction feeds the turn-based economy.
 - **3D construction and roads** let players place buildings and connect districts. Positions and roads persist in local saves; connected districts gain logistics and credits.
 - **Save export/import** moves a versioned JSON save between browsers.
 
 All current game values are simulated and have no real-world or financial value. No cryptocurrency, token, wallet connection, real-money purchase, or on-chain ownership is currently implemented.
+
+## Release 1.0 commitment
+
+KINGMAKER now has a fixed Release 1.0 scope and evidence-based ship checklist. Work is prioritized against the playable web-game promise and release gates; new features do not take priority over failing tests, stability, browser verification, security, deployment, and playtesting. See the [KINGMAKER Release 1.0 plan](docs/RELEASE-1.0.md) for the must-ship scope, exclusions, launch gates, build order, and live-operations requirements.
 
 ## Product direction and milestones
 
@@ -68,11 +72,11 @@ npm test
 
 The engine is in `src/engine.js`; the browser interface is in `src/app.js`; automated rules tests are in `tests/engine.test.js`.
 
-See [gameplay rules](docs/gameplay.md) and the [AI, 3D, and Web3 vision](docs/ai-3d-web3-vision.md).
+See [gameplay rules](docs/gameplay.md) and the [AI, 3D, and Web3 vision](docs/ai-3d-web3-vision.md). For the planned external-agent integration and current read-only discovery endpoints, see the [AI Agent Gateway](docs/AI-AGENT-GATEWAY.md).
 
 ## Save data
 
-Current saves use schema version 7. The importer validates bounded creator publications, adoption and royalty ledgers, event records, response choices, campaign phase progress, and required world data before replacing the active game. It migrates original v0.3 saves and development schemas 1 through 6. Active world effects, creator progression, processed event IDs, campaign progress, and structured history persist in saves. Automatic local saves keep a previous safe copy for recovery. Export backups regularly if you clear browser storage or change devices.
+Current saves use schema version 9. The importer validates bounded creator publications, adoption and royalty ledgers, event records, response choices, campaign phase progress, placed 3D world objects, and finite resource deposits before replacing the active game. It migrates original v0.3 saves and development schemas 1 through 8. Older campaigns receive a deterministic set of island deposits derived from their existing world seed. Active world effects, creator progression, processed event IDs, campaign progress, and structured history persist in saves. Automatic local saves keep a previous safe copy for recovery. Export backups regularly if you clear browser storage or change devices.
 
 ## Development status
 

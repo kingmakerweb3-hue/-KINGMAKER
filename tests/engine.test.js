@@ -2,6 +2,49 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const Engine = require("../src/engine.js");
 
+test("renewable power is available to factories in the same turn", () => {
+  const state = Engine.createInitialState({ seed: 72 });
+  for (const key of Object.keys(state.buildings)) state.buildings[key] = 0;
+  state.buildings.factory = 1;
+  state.resources.food = 500;
+  state.resources.materials = 5;
+  state.resources.ore = 3;
+  state.resources.power = 0;
+  assert.equal(Engine.economicSnapshot(state).activeFactories, 1);
+  Engine.advanceTurn(state);
+  assert.equal(state.economy.production.goods, 10);
+  assert.equal(state.economy.consumption.power, 2);
+  assert.equal(state.resources.power, 2);
+});
+
+test("factories scale down when renewable power cannot cover all demand", () => {
+  const state = Engine.createInitialState({ seed: 73 });
+  for (const key of Object.keys(state.buildings)) state.buildings[key] = 0;
+  state.buildings.factory = 3;
+  state.resources.food = 500;
+  state.resources.materials = 15;
+  state.resources.ore = 9;
+  state.resources.power = 0;
+
+  assert.equal(Engine.economicSnapshot(state).activeFactories, 2);
+  Engine.advanceTurn(state);
+
+  assert.equal(state.economy.production.goods, 20);
+  assert.equal(state.economy.consumption.power, 4);
+  assert.equal(state.resources.power, 0);
+});
+
+test("island wind and solar installations add renewable power to the production ledger", () => {
+  const state = Engine.createInitialState({ seed: 71 });
+  for (const key of Object.keys(state.buildings)) state.buildings[key] = 0;
+  state.technologies = [];
+  state.resources.power = 0;
+  Engine.advanceTurn(state);
+  assert.deepEqual(Engine.RENEWABLE_POWER_OUTPUT, { wind: 2, solar: 2 });
+  assert.equal(state.economy.production.power, 4);
+  assert.equal(state.resources.power, 4);
+});
+
 test("new game has a complete, validated state", () => {
   const state = Engine.createInitialState({ seed: 2 });
   assert.equal(state.schemaVersion, Engine.SAVE_VERSION);
@@ -38,6 +81,59 @@ test("save rotation backs up only a validated prior save", () => {
   Engine.saveWithRecovery(storage, state, "primary", "recovery");
   assert.equal(values.get("recovery"), prior);
   assert.equal(Engine.migrateSave(JSON.parse(values.get("primary"))).turn, 3);
+});
+
+test("save recovery restores a valid backup when the primary save is missing", () => {
+  const backupState = Engine.createInitialState({ seed: 91 });
+  backupState.turn = 12;
+  const values = new Map([["recovery", Engine.exportSave(backupState)]]);
+  const storage = { getItem: key => values.get(key) ?? null };
+  const result = Engine.loadWithRecovery(storage, "primary", "recovery");
+  assert.equal(result.state.turn, 12);
+  assert.equal(result.recovered, true);
+  assert.equal(result.primaryError, false);
+});
+
+test("save recovery restores backup after primary corruption and rejects a corrupt backup", () => {
+  const backupState = Engine.createInitialState({ seed: 92 });
+  backupState.turn = 18;
+  const values = new Map([
+    ["primary", "{broken json"],
+    ["recovery", Engine.exportSave(backupState)]
+  ]);
+  const storage = { getItem: key => values.get(key) ?? null };
+  const recovered = Engine.loadWithRecovery(storage, "primary", "recovery");
+  assert.equal(recovered.state.turn, 18);
+  assert.equal(recovered.recovered, true);
+  assert.equal(recovered.primaryError, true);
+
+  values.set("recovery", "{also broken");
+  const empty = Engine.loadWithRecovery(storage, "primary", "recovery");
+  assert.equal(empty.state, null);
+  assert.equal(empty.primaryError, true);
+});
+
+test("save recovery falls back when the primary save is structurally invalid or inaccessible", () => {
+  const backupState = Engine.createInitialState({ seed: 93 });
+  backupState.turn = 27;
+  const backup = Engine.exportSave(backupState);
+  const values = new Map([["primary", JSON.stringify({ schemaVersion: 999 })], ["recovery", backup]]);
+  const storage = { getItem: key => values.get(key) ?? null };
+  const invalid = Engine.loadWithRecovery(storage, "primary", "recovery");
+  assert.equal(invalid.state.turn, 27);
+  assert.equal(invalid.recovered, true);
+  assert.equal(invalid.primaryError, true);
+
+  const unavailablePrimary = {
+    getItem(key) {
+      if (key === "primary") throw new Error("Storage access denied");
+      return backup;
+    }
+  };
+  const inaccessible = Engine.loadWithRecovery(unavailablePrimary, "primary", "recovery");
+  assert.equal(inaccessible.state.turn, 27);
+  assert.equal(inaccessible.recovered, true);
+  assert.equal(inaccessible.primaryError, true);
 });
 
 test("version 2 saves migrate to strategic AI schema without losing the scenario baseline", () => {
@@ -899,4 +995,94 @@ test("legacy citizens receive safe relationship defaults during save migration",
   state.citizens.forEach(c => { delete c.relationships; });
   const migrated = Engine.migrateSave(state);
   assert.ok(Array.isArray(migrated.citizens[0].relationships));
+});
+
+
+test("new worlds generate stable finite resource deposits across seeded campaigns", () => {
+  const first = Engine.createInitialState({ seed: 42001 });
+  const repeat = Engine.createInitialState({ seed: 42001 });
+  const alternate = Engine.createInitialState({ seed: 42002 });
+  assert.equal(first.world.resourceNodes.length, 8);
+  assert.deepEqual(first.world.resourceNodes, repeat.world.resourceNodes);
+  assert.notDeepEqual(first.world.resourceNodes, alternate.world.resourceNodes);
+  assert.equal(new Set(first.world.resourceNodes.map(node => node.id)).size, 8);
+  for (const node of first.world.resourceNodes) {
+    assert.ok(Engine.RESOURCE_SITE_TYPES.includes(node.resource));
+    assert.ok(node.quantity >= 80 && node.quantity <= 200);
+    assert.ok(Math.hypot(node.x, node.z) >= 4.5 && Math.hypot(node.x, node.z) <= 11.7);
+    assert.equal(node.operational, false);
+    assert.equal(node.depleted, false);
+  }
+});
+
+test("resource extraction sites charge the treasury and report their real production", () => {
+  const state = Engine.createInitialState({ seed: 42003 });
+  const node = state.world.resourceNodes[0];
+  const beforeMaterials = state.resources.materials;
+  const beforeCredits = state.resources.credits;
+  const yields = Engine.RESOURCE_SITE_OUTPUT[node.resource];
+  const [resource, rate] = Object.entries(yields)[0];
+  Engine.developResourceSite(state, node.id);
+  assert.equal(node.operational, true);
+  assert.equal(node.operatedSinceTurn, state.turn);
+  assert.equal(state.resources.materials, beforeMaterials - Engine.RESOURCE_SITE_COST.materials);
+  assert.equal(state.resources.credits, beforeCredits - Engine.RESOURCE_SITE_COST.credits);
+  assert.equal(Engine.resourceSiteEffects(state)[resource], rate);
+  assert.ok(Engine.economicSnapshot(state).production[resource] >= rate);
+  assert.throws(() => Engine.developResourceSite(state, node.id), /already operational/);
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(restored.world.resourceNodes, state.world.resourceNodes);
+});
+
+test("rare-crystal extraction contributes science and finite deposits deplete", () => {
+  const state = Engine.createInitialState({ seed: 42004 });
+  const control = Engine.createInitialState({ seed: 42004 });
+  state.world.resourceNodes = [{
+    id: "rare-test", resource: "Rare crystals", quantity: 1, x: 0, z: 0,
+    operational: true, depleted: false, operatedSinceTurn: state.turn
+  }];
+  const beforeScience = state.resources.science;
+  Engine.advanceTurn(state);
+  Engine.advanceTurn(control);
+  assert.equal(state.resources.science - control.resources.science, 1);
+  assert.equal(state.world.resourceNodes[0].quantity, 0);
+  assert.equal(state.world.resourceNodes[0].depleted, true);
+  assert.equal(Engine.resourceSiteEffects(state).science, 0);
+});
+
+test("schema 8 saves migrate to version 9 with deterministic island deposits", () => {
+  const state = Engine.createInitialState({ seed: 42005 });
+  state.schemaVersion = 8;
+  delete state.world.resourceNodes;
+  const migrated = Engine.migrateSave(state);
+  assert.equal(migrated.schemaVersion, 9);
+  assert.deepEqual(migrated.world.resourceNodes, Engine.createResourceDeposits(state.seed));
+  const roundTrip = Engine.migrateSave(JSON.parse(Engine.exportSave(migrated)));
+  assert.deepEqual(roundTrip.world.resourceNodes, migrated.world.resourceNodes);
+});
+
+test("save validation rejects malformed island resource deposits", () => {
+  const state = Engine.createInitialState({ seed: 42006 });
+  state.world.resourceNodes[0].x = 99;
+  assert.throws(() => Engine.validateSave(state), /Resource deposit data is invalid/);
+  const invalidType = Engine.createInitialState({ seed: 42007 });
+  invalidType.world.resourceNodes[0].resource = "Unobtainium";
+  assert.throws(() => Engine.validateSave(invalidType), /Resource deposit data is invalid/);
+});
+
+test("depleted operational extraction sites remain valid in saves and produce no further output", () => {
+  const state = Engine.createInitialState({ seed: 17 });
+  const node = state.world.resourceNodes[0];
+  node.quantity = 1;
+  node.depleted = false;
+  node.operational = true;
+  node.operatedSinceTurn = state.turn;
+  Engine.advanceTurn(state);
+  assert.equal(node.quantity, 0);
+  assert.equal(node.depleted, true);
+  assert.equal(node.operational, true);
+  assert.doesNotThrow(() => Engine.validateSave(state));
+  const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.equal(saved.world.resourceNodes.find(item => item.id === node.id).depleted, true);
+  assert.doesNotThrow(() => Engine.validateSave(saved));
 });
