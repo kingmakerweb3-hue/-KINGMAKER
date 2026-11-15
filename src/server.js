@@ -88,7 +88,12 @@ function createServer() {
     if (request.method === "POST") {
       const enrollmentRoutes = {
         "/api/agent/v1/enrollment/challenge": async body => agentIdentity.issueChallenge(body),
-        "/api/agent/v1/enrollment/verify": async body => agentIdentity.completeEnrollment(body)
+        "/api/agent/v1/enrollment/verify": async body => agentIdentity.completeEnrollment(body),
+        "/api/mining/v1/enrollment": async () => {
+          const error = new Error("CROWN mining enrollment is not open. No live account or reward service is deployed.");
+          error.statusCode = 503;
+          throw error;
+        }
       };
       const handler = enrollmentRoutes[pathname];
       if (!handler) {
@@ -160,6 +165,34 @@ function createServer() {
         productStage: "local-single-player-prototype",
         agentConnections: 0,
         writesEnabled: false
+      },
+      "/api/mining/v1/status": {
+        product: "KINGMAKER CROWN Mining",
+        status: "pre-launch",
+        enrollmentOpen: false,
+        miningEnabled: false,
+        rewardIssuanceEnabled: false,
+        sessionDurationSeconds: 86400,
+        rewardAsset: "CROWN",
+        sponsorshipRevenueSharedWithMiners: false,
+        rewardFormula: {
+          securityCircleBonusPerVerifiedMember: 0.20,
+          maximumSecurityCircleMembers: 5,
+          activeDirectReferralBonus: 0.25,
+          referralLevels: 1,
+          baseRate: "owner-configured CROWN per weighted miner-hour",
+          totalSupply: "unlimited",
+          maximumSupply: null,
+          dailyEmissionCap: null
+        },
+        launchBlockers: [
+          "Owner-configured and publicly disclosed CROWN base reward rate",
+          "Authenticated account and session service",
+          "Server-validated referrals and security-circle membership",
+          "Auditable CROWN ledger and duplicate-session prevention",
+          "Abuse prevention, operational monitoring and security review"
+        ],
+        notice: "CROWN has an unlimited total supply policy. Mining is still pre-launch: no session or reward can currently be started or earned."
       }
     };
     if (Object.prototype.hasOwnProperty.call(agentApi, pathname)) {
