@@ -5,7 +5,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   "use strict";
   const host=document.getElementById("world3d-viewport");
   if(!host)return;
-  let scene,camera,renderer,controls,sunLight,landGroup,buildingGroup,peopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup,cloudGroup,waterMesh,waterPositions,terrainMesh;
+  let scene,camera,renderer,controls,sunLight,landGroup,buildingGroup,peopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup,resourceGroup,cloudGroup,waterMesh,waterPositions,terrainMesh;
   const trafficVehicles=[];
   let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,raycaster,groundPlane,previewMarker,placementPointer=null;
   const COLORS={farm:0xc6a35d,mine:0x78838d,workshop:0x9c7652,factory:0x697b8e,transport:0x9b9b8b,market:0xc49b52,academy:0x8b80b8,power:0x75b9c9,housing:0xd6c5a3};
@@ -19,6 +19,29 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const tone=rand(x,z),crownMat=material(tone>.66?0x315d43:tone>.33?0x426f4b:0x587d50,1);
     for(let i=0;i<3;i++){const crown=new THREE.Mesh(new THREE.IcosahedronGeometry(.58-i*.09,2),crownMat);crown.position.set((rand(x+i,z)-.5)*.18,.92+i*.34,(rand(x,z+i)-.5)*.18);crown.scale.set(1,.9,1);crown.castShadow=true;g.add(crown);}
     landGroup.add(g);
+  }
+  function makeResourceMarker(node){
+    const palette={"Fertile soil":0x82a95d,Iron:0x87929a,Copper:0xc27b4b,Coal:0x3c4650,Timber:0x6e9a59,Stone:0x9c9b91,"Fresh water":0x58a8d4,"Rare crystals":0x9a82d8};
+    const color=node.depleted?0x6d7780:(palette[node.resource]||0xc7ad72);
+    const group=new THREE.Group();
+    group.position.set(node.x,heightAt(node.x,node.z)+.12,node.z);
+    group.userData.resourceNodeId=node.id;
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(.48,.065,8,28),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:node.operational&&!node.depleted?.34:.08,roughness:.62,transparent:node.depleted,opacity:node.depleted?.5:1}));
+    ring.rotation.x=-Math.PI/2;group.add(ring);
+    const crystalGeometry=node.resource==="Rare crystals"?new THREE.OctahedronGeometry(.34,1):new THREE.DodecahedronGeometry(.32,0);
+    const count=node.resource==="Rare crystals"?3:2;
+    for(let i=0;i<count;i++){
+      const crystal=new THREE.Mesh(crystalGeometry,material(color,.72));
+      crystal.position.set((i-(count-1)/2)*.22,.28+(i%2)*.12,(i%2?-.12:.12));
+      crystal.scale.set(.72,1.1,.72);crystal.rotation.y=i*.8;crystal.userData.resourceNodeId=node.id;group.add(crystal);
+    }
+    if(node.operational&&!node.depleted){
+      const rig=new THREE.Mesh(new THREE.BoxGeometry(.48,.34,.42),material(0x596a70,.9));
+      rig.position.set(0,.18,0);group.add(rig);
+      const mast=new THREE.Mesh(new THREE.CylinderGeometry(.035,.05,.62,7),material(0xd7c08b,.7));
+      mast.position.set(.28,.42,0);group.add(mast);
+    }
+    resourceGroup.add(group);
   }
   function makeBuilding(type,index,total,position){
     const angle=index*2.399963,ring=2.7+Math.floor(index/9)*1.7;
@@ -144,7 +167,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     for(let ring=0;ring<=waterRings;ring++){const radius=42*ring/waterRings;for(let seg=0;seg<=waterSegments;seg++){const angle=seg/waterSegments*Math.PI*2;waterVerts.push(Math.cos(angle)*radius,-.5,Math.sin(angle)*radius);if(ring<waterRings&&seg<waterSegments){const a=ring*(waterSegments+1)+seg,b=a+1,c=a+waterSegments+1,d=c+1;waterIndices.push(a,c,b,b,c,d);}}}
     waterGeo.setAttribute("position",new THREE.Float32BufferAttribute(waterVerts,3));waterGeo.setIndex(waterIndices);waterGeo.computeVertexNormals();
     waterMesh=new THREE.Mesh(waterGeo,new THREE.MeshPhysicalMaterial({color:0x286b80,roughness:.23,metalness:.12,clearcoat:.8,clearcoatRoughness:.16,transparent:true,opacity:.94,side:THREE.DoubleSide}));scene.add(waterMesh);waterPositions=waterMesh.geometry.attributes.position.array.slice();
-    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();cloudGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup);
+    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();cloudGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup);
     const n=176,verts=[],indices=[],colors=[];
     for(let iz=0;iz<=n;iz++)for(let ix=0;ix<=n;ix++){
       const x=(ix/n-.5)*30,z=(iz/n-.5)*30,d=Math.hypot(x,z),y=heightAt(x,z);verts.push(x,y,z);
@@ -173,7 +196,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     previewMarker=new THREE.Mesh(new THREE.RingGeometry(.55,.78,32),new THREE.MeshBasicMaterial({color:0xffd36e,side:THREE.DoubleSide}));previewMarker.rotation.x=-Math.PI/2;previewMarker.visible=false;scene.add(previewMarker);
     renderer.domElement.addEventListener("pointermove",updatePlacementPreview);
     renderer.domElement.addEventListener("pointerdown",event=>{placementPointer={x:event.clientX,y:event.clientY};});
-    renderer.domElement.addEventListener("pointerup",event=>{if(placementPointer&&Math.hypot(event.clientX-placementPointer.x,event.clientY-placementPointer.y)<5){if(roadMode)placeRoadPoint(event);else if(districtMode)placeSelectedDistrict(event);else if(selectedBuilding)placeSelectedBuilding(event);else inspectCitizen(event);}placementPointer=null;});
+    renderer.domElement.addEventListener("pointerup",event=>{if(placementPointer&&Math.hypot(event.clientX-placementPointer.x,event.clientY-placementPointer.y)<5){if(roadMode)placeRoadPoint(event);else if(districtMode)placeSelectedDistrict(event);else if(selectedBuilding)placeSelectedBuilding(event);else if(!inspectResource(event))inspectCitizen(event);}placementPointer=null;});
     resizeObserver=new ResizeObserver(resize);resizeObserver.observe(host);resize();
     document.getElementById("world3d-home")?.addEventListener("click",()=>{camera.position.set(17,15,20);controls.target.set(0,0,0);controls.update();});
     document.getElementById("world3d-rotate")?.addEventListener("click",e=>{autoRotate=!autoRotate;controls.autoRotate=autoRotate;e.currentTarget.setAttribute("aria-pressed",String(autoRotate));e.currentTarget.textContent="Auto-rotate: "+(autoRotate?"on":"off");});
@@ -205,6 +228,20 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     panel.innerHTML='<button type="button" class="citizen-inspector-close" aria-label="Close citizen details">×</button><span class="eyebrow">CITIZEN PROFILE · '+esc(citizen.id)+'</span><h3>'+esc(citizen.name)+'</h3><p>'+esc(citizen.role)+' · '+esc(citizen.activity)+'</p><strong class="citizen-mood">'+Math.max(0,Math.min(100,Number(citizen.mood)||0))+'% mood</strong><div class="citizen-needs">'+bars+'</div><h4>Recent memories</h4><ul>'+memories+'</ul>';
     panel.querySelector("button").addEventListener("click",()=>panel.remove());
   }
+  function inspectResource(event){
+    if(!renderer||!camera||!resourceGroup||!lastState)return false;
+    const rect=renderer.domElement.getBoundingClientRect();
+    const pointer=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-((event.clientY-rect.top)/rect.height)*2+1);
+    raycaster.setFromCamera(pointer,camera);
+    const hit=raycaster.intersectObjects(resourceGroup.children,true)[0];
+    if(!hit)return false;
+    let marker=hit.object;
+    while(marker&&marker.parent!==resourceGroup)marker=marker.parent;
+    const id=marker?.userData?.resourceNodeId;
+    if(!id)return false;
+    window.dispatchEvent(new CustomEvent("kingmaker:inspect-resource",{detail:{id}}));
+    return true;
+  }
   function updatePlacementPreview(event){if(!selectedBuilding||!renderer||!terrainMesh)return;const rect=renderer.domElement.getBoundingClientRect();const pointer=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-((event.clientY-rect.top)/rect.height)*2+1);raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObject(terrainMesh,false)[0];if(hit&&Math.hypot(hit.point.x,hit.point.z)<13.2){previewMarker.position.copy(hit.point);previewMarker.position.y+=.045;previewMarker.visible=true;}else previewMarker.visible=false;}
   function getGroundPoint(event){const rect=renderer.domElement.getBoundingClientRect();const pointer=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-((event.clientY-rect.top)/rect.height)*2+1);raycaster.setFromCamera(pointer,camera);const hit=terrainMesh?raycaster.intersectObject(terrainMesh,false)[0]:null;return hit&&Math.hypot(hit.point.x,hit.point.z)<=13.2?hit.point:null;}
   function placeSelectedBuilding(event){if(!selectedBuilding||event.button!==0)return;const point=getGroundPoint(event);if(!point)return;window.dispatchEvent(new CustomEvent("kingmaker:place-building",{detail:{type:selectedBuilding,x:point.x,z:point.z}}));}
@@ -229,11 +266,12 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const stats=document.getElementById("world3d-stats");
     const residents=Array.isArray(state.citizens)?state.citizens:[];
     const averageMood=residents.length?Math.round(residents.reduce((sum,c)=>sum+(Number(c.mood)||0),0)/residents.length):0;
-    const zones=state.world?.placedDistricts||[];const zoneCount=zones.length;if(stats)stats.innerHTML=[["Citizens",state.nation.population],["3D Agents",residents.length+" · "+averageMood+"% mood"],["Infrastructure",total+" levels"],["Districts",zoneCount+" zones"],["Traffic",trafficVehicles.length+" vehicles"],["Stability",state.nation.stability+"%"],["Territory", "1 island · 6 neighbors"]].map(([label,value])=>'<div class="world3d-stat"><b>'+String(value).replace(/[&<>]/g,"")+'</b><small>'+label+'</small></div>').join("");
+    const zones=state.world?.placedDistricts||[];const zoneCount=zones.length;if(stats)stats.innerHTML=[["Citizens",state.nation.population],["3D Agents",residents.length+" · "+averageMood+"% mood"],["Infrastructure",total+" levels"],["Districts",zoneCount+" zones"],["Deposits",(state.world?.resourceNodes||[]).length+" · "+(state.world?.resourceNodes||[]).filter(n=>n.operational&&!n.depleted).length+" active"],["Traffic",trafficVehicles.length+" vehicles"],["Stability",state.nation.stability+"%"],["Territory", "1 island · 6 neighbors"]].map(([label,value])=>'<div class="world3d-stat"><b>'+String(value).replace(/[&<>]/g,"")+'</b><small>'+label+'</small></div>').join("");
     if(!buildingGroup)return;
-    clearGroup(buildingGroup);clearGroup(playerRoadGroup);clearGroup(districtGroup);clearGroup(trafficGroup);trafficVehicles.length=0;
+    clearGroup(buildingGroup);clearGroup(playerRoadGroup);clearGroup(districtGroup);clearGroup(trafficGroup);clearGroup(resourceGroup);trafficVehicles.length=0;
     const roads=state.world?.placedRoads||[];roads.forEach((road,i)=>{makePlayerRoad(road.from,road.to);if(i<30){makeTrafficVehicle(road.from,road.to,i*2);makeTrafficVehicle(road.to,road.from,i*2+1);}});
     (state.world?.placedDistricts||[]).forEach(makeDistrict);
+    (state.world?.resourceNodes||[]).forEach(makeResourceMarker);
     const capital=new THREE.Group();const base=new THREE.Mesh(boxGeo,material(0xe4dcc7));base.scale.set(1.7,2.8,1.7);base.position.y=1.4;capital.add(base);
     const roof=new THREE.Mesh(new THREE.ConeGeometry(1.25,.9,4),material(0x9d4e3f));roof.position.y=3.25;roof.rotation.y=Math.PI/4;capital.add(roof);buildingGroup.add(capital);
     let index=0;const placedByType={};for(const [type,count] of Object.entries(state.buildings||{})){for(let i=0;i<Math.min(Number(count)||0,18);i++){const n=placedByType[type]||0;const saved=(state.world?.placedBuildings||[]).filter(p=>p.type===type)[n];makeBuilding(type,index++,total,saved);placedByType[type]=n+1;}}
@@ -241,6 +279,6 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   }
   function dispose(){cancelAnimationFrame(animationId);resizeObserver?.disconnect();renderer?.dispose();controls?.dispose();}
   window.addEventListener("pagehide",dispose,{once:true});
-  try{createScene();window.KingmakerWorld3D={update,selectBuilding};if(lastState)update(lastState);}
+  try{createScene();window.KingmakerWorld3D={update,selectBuilding};window.dispatchEvent(new Event("kingmaker:world3d-ready"));if(lastState)update(lastState);}
   catch(error){host.innerHTML='<div class="world3d-loading">3D world could not initialize. Try a browser with WebGL enabled.</div>';const status=document.getElementById("world3d-status");if(status)status.textContent="3D ENGINE UNAVAILABLE";console.error("KINGMAKER 3D:",error);}
 })();
