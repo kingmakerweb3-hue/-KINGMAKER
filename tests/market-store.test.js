@@ -44,3 +44,16 @@ test("validates listing input before persistence", async t => {
   await assert.rejects(store.create({ assetId: "frontier-surveyor", seller, price: -5, durationTurns: 1 }));
   assert.equal((await store.list()).length, 0);
 });
+
+test("persists the server's ownership verification snapshot with the listing", async t => {
+  const { store, file } = await fixture(t);
+  const listing = await store.create({
+    assetId: "founder-banner", seller, price: 250, durationTurns: 10,
+    ownershipVerification: { chainId: "137", tokenId: "1", balance: "3" }
+  });
+  assert.deepEqual(listing.ownershipVerification, {
+    chainId: "137", tokenId: "1", balanceAtListing: "3", verifiedAt: listing.ownershipVerification.verifiedAt
+  });
+  const persisted = JSON.parse(await fs.readFile(file, "utf8"));
+  assert.equal(persisted.listings[0].ownershipVerification.balanceAtListing, "3");
+});
