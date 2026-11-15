@@ -163,3 +163,18 @@ The example chain ID is Hardhat's local chain (31337); replace both addresses wi
 ### Escrow listing pagination and activity feed
 
 The browser escrow panel loads active listings newest-first in pages of 50 and exposes a **Load older listings** control. It also queries the contract's `ListingCreated`, `ListingCancelled`, `AssetPurchased`, and `ProceedsWithdrawn` events over the most recent 5,000 blocks and displays up to 20 events. This is a lightweight browser-side history view, not a durable indexer: older events are not included, RPC providers may limit log ranges, and activity can be unavailable when the configured RPC does not support historical log queries. A production marketplace needs a separately operated event indexer with reorg handling, persistent storage, pagination, and transaction-status reconciliation. Optionally set `explorerUrl` in `KINGMAKER_WEB3_CONFIG` to show transaction links for the selected chain.
+
+
+### Persistent marketplace event indexer (development)
+
+The local Node server can maintain a durable event history for the escrow contract. Configure these server environment variables:
+- `KINGMAKER_MARKET_RPC_URL` — trusted read-only EVM JSON-RPC endpoint.
+- `KINGMAKER_MARKETPLACE_CONTRACT` — deployed `KingmakerMarketplace` address.
+- `KINGMAKER_MARKET_CHAIN_ID` — expected decimal chain ID.
+- `KINGMAKER_MARKET_START_BLOCK` — deployment block to begin indexing (defaults to `0`; set this to the actual deployment block to avoid scanning unrelated history).
+- `KINGMAKER_MARKET_CONFIRMATIONS` — confirmation depth before events are indexed (defaults to `12`).
+- Optional `KINGMAKER_MARKET_EVENTS_FILE` — local JSON persistence path (defaults to `data/market-events.json`).
+
+When all required settings are valid, the server performs an initial sync and polls every 15 seconds. It checks the RPC chain ID, scans bounded block ranges, decodes the four marketplace events, persists the index using an atomic file replacement, and rewinds 12 blocks on each pass to reconcile short chain reorganizations. `GET /api/market/activity?limit=20&cursor=0` serves recent indexed events with offset pagination. The escrow panel prefers this persistent API and falls back to its limited browser-side query when the server indexer is not configured.
+
+**Operational limitations:** this is a single-process JSON-file development indexer, not a production indexing service. It retains at most 10,000 events, uses a fixed 12-block rewind rather than full canonical-chain reconciliation, and does not independently verify transaction receipts or finality guarantees. It has no distributed locking, database, backfill job controls, metrics, alerting, or multi-chain support. Run it only with a trusted RPC and a verified deployment; do not treat it as an audited financial record or expose this development server publicly.
