@@ -45,7 +45,7 @@
           const asset=economy?.ASSETS.find(a=>a.id===item.assetId);
           const own=session && item.seller===session.address;
           return '<div class="web3-listing"><div><b>'+esc(asset?.name || item.assetId)+'</b><small>'+(own?'Your listing':'Seller '+esc(item.seller.slice(0,6)+'…'+item.seller.slice(-4)))+' · expires turn '+item.expiresTurn+'</small></div><strong>'+Number(item.price).toLocaleString()+'<small>GAME CREDITS</small></strong>'+(own?'<button data-cancel="'+esc(item.id)+'">Cancel</button>':'<span class="tag">VIEW ONLY</span>')+'</div>';
-        }).join(""):'<div class="empty">No active listings yet. Publish the first listing from your local inventory.</div>';
+        }).join(""):'<div class="empty">No active listings yet. Publish the first listing from your verified on-chain inventory.</div>';
       } catch(error) { list.innerHTML='<div class="empty">Marketplace server unavailable. Start the KINGMAKER server to use shared listings.</div>'; status.textContent=error.message; }
     };
     const restoreSession=async()=>{
