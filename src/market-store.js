@@ -43,7 +43,7 @@ function createMarketplaceStore(options = {}) {
         const activeDuplicate = listings.some(item => item.status === "ACTIVE" && item.seller === seller && item.assetId === input.assetId);
         if (activeDuplicate) throw Object.assign(new Error("You already have an active listing for this asset."), { statusCode: 409 });
         const validated = economy.validateListing({ ...input, seller, id: "listing-" + crypto.randomUUID() }, 0);
-        const listing = Object.freeze({ ...validated, createdAt: new Date().toISOString() });
+        const listing = Object.freeze({ ...validated, ownershipVerification: input.ownershipVerification ? { chainId: String(input.ownershipVerification.chainId), tokenId: String(input.ownershipVerification.tokenId), balanceAtListing: String(input.ownershipVerification.balance), verifiedAt: new Date().toISOString() } : null, createdAt: new Date().toISOString() });
         listings.push(listing);
         await persist(listings);
         return listing;
