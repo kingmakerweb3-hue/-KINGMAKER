@@ -12,7 +12,8 @@ test("new game has a complete, validated state", () => {
 
 test("claiming an unclaimed region spends influence and persists sovereignty", () => {
   const state = Engine.createInitialState({ seed: 481516 });
-  state.mapWorld = require("../src/world3d.js") && globalThis.KingmakerWorld3D.generate(state.seed);
+  require("../src/world3d.js");
+  state.mapWorld = globalThis.KingmakerWorld3D.generate(state.seed);
   const region = state.mapWorld.regions.find(item => item.owner === "Unclaimed");
   assert.ok(region, "generated world should contain unclaimed regions");
   const credits = state.resources.credits;
