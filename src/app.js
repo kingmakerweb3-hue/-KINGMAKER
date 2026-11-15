@@ -151,7 +151,20 @@
     $("world-seed").textContent = generatedWorld.seed;
     $("region-count").textContent = generatedWorld.regions.length;
     $("generated-nations").textContent = generatedWorld.nations.length;
-    $("generated-region-list").innerHTML = generatedWorld.regions.map(region => '<button type="button" class="generated-region region-choice'+(region.id===selectedRegionId?" selected":"")+'" data-region-id="'+esc(region.id)+'"><b>'+esc(region.name)+'</b><span>'+esc(region.biome)+' · '+num(region.population)+' people</span><small>'+esc(region.resources.join(" · "))+'</small></button>').join("");
+    const regions = generatedWorld.regions;
+    const ownedCount = regions.filter(region => region.owner === state.nation.name).length;
+    const unclaimedCount = regions.filter(region => region.owner === "Unclaimed").length;
+    const rivalCount = regions.length - ownedCount - unclaimedCount;
+    const regionalPopulation = regions.reduce((sum, region) => sum + (Number(region.population) || 0), 0);
+    const depositCount = regions.reduce((sum, region) => sum + (region.resourceNodes || []).length, 0);
+    $("territory-intelligence").innerHTML = [
+      ["Your regions", ownedCount], ["Rival regions", rivalCount], ["Unclaimed", unclaimedCount],
+      ["World population", num(regionalPopulation)], ["Resource deposits", depositCount]
+    ].map(([label, value]) => '<article class="territory-stat"><span>'+label+'</span><b>'+value+'</b></article>').join("");
+    $("generated-region-list").innerHTML = regions.map(region => {
+      const ownerClass = region.owner === state.nation.name ? " own" : region.owner === "Unclaimed" ? " open" : " foreign";
+      return '<button type="button" class="generated-region region-choice'+ownerClass+(region.id===selectedRegionId?" selected":"")+'" data-region-id="'+esc(region.id)+'"><b>'+esc(region.name)+'</b><span>'+esc(region.biome)+' · '+num(region.population)+' people</span><small>'+esc(region.owner)+' · '+esc(region.resources.join(" · "))+'</small></button>';
+    }).join("");
     const selected=generatedWorld.regions.find(region=>region.id===selectedRegionId)||generatedWorld.regions[0];
     const deposits=(selected.resourceNodes||[]).map(node=>'<span><b>'+esc(node.resource)+'</b> · '+num(node.quantity)+' units'+(node.operational?(node.quantity>0?' · Producing':' · Depleted'):node.quantity>0&&selected.owner==="Unclaimed"?' <button type="button" class="resource-site-action" data-resource-node="'+esc(node.id)+'">Establish site · 35 materials / 55 credits</button>':node.quantity<=0?' · Depleted':' · Unclaimed region required')+'</span>').join("");
     const roads=(selected.roads||[]).map(road=>{const from=selected.cities.find(city=>city.id===road.from),to=selected.cities.find(city=>city.id===road.to);return "<span>"+esc(from?from.name:road.from)+" ↔ "+esc(to?to.name:road.to)+" · +2 logistics</span>";}).join("");
