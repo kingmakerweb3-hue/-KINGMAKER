@@ -690,6 +690,34 @@
     addEvent(state, state.nation.name + " established sovereignty over " + region.name + ".", "milestone");
     return region;
   }
+  function foundSettlement(state, regionId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (!state.mapWorld || !Array.isArray(state.mapWorld.regions)) throw new Error("No generated world is available.");
+    const region = state.mapWorld.regions.find(item => item.id === regionId);
+    if (!region) throw new Error("Region not found.");
+    if (region.owner !== state.nation.name) throw new Error("You must claim this territory before founding a settlement.");
+    region.cities = Array.isArray(region.cities) ? region.cities : [];
+    if (region.cities.length >= 100) throw new Error("This region has reached its settlement limit.");
+    if (state.resources.materials < 50 || state.resources.credits < 80) throw new Error("Founding a settlement requires 50 materials and 80 credits.");
+    const n = region.cities.length + 1;
+    const offset = (n % 5) * 1.15;
+    const city = {
+      id: region.id + "-city-" + n,
+      name: "New Settlement " + n,
+      population: 10000,
+      type: "Settlement",
+      latitude: Math.max(-80, Math.min(80, region.latitude + offset)),
+      longitude: ((region.longitude + offset + 540) % 360) - 180
+    };
+    state.resources.materials -= 50;
+    state.resources.credits -= 80;
+    region.cities.push(city);
+    region.population = clamp((region.population || 0) + city.population, 0, RESOURCE_LIMIT);
+    region.cityCount = region.cities.length;
+    region.development = Math.min(100, (region.development || 0) + 3);
+    addEvent(state, "Founded " + city.name + " in " + region.name + ".", "milestone");
+    return city;
+  }
   function buildRegionalRoad(state, regionId) {
     if (state.status !== "playing") throw new Error("This campaign has ended.");
     if (!state.mapWorld || !Array.isArray(state.mapWorld.regions)) throw new Error("No generated world is available.");
@@ -1454,7 +1482,7 @@
   return {
     SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, productionFor, developResourceSite, claimRegion, buildRegionalRoad, build, trade,
+    createInitialState, validateSave, migrateSave, productionFor, developResourceSite, claimRegion, foundSettlement, buildRegionalRoad, build, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
