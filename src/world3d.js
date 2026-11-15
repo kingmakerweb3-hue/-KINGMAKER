@@ -112,6 +112,10 @@
     const borderVertex=compile(gl,gl.VERTEX_SHADER,`attribute vec3 position;uniform mat4 matrix;void main(){gl_Position=matrix*vec4(position,1.0);}`);
     const borderFragment=compile(gl,gl.FRAGMENT_SHADER,`precision mediump float;void main(){gl_FragColor=vec4(.96,.76,.39,1.0);}`);
     const borderProgram=gl.createProgram();gl.attachShader(borderProgram,borderVertex);gl.attachShader(borderProgram,borderFragment);gl.linkProgram(borderProgram);if(!gl.getProgramParameter(borderProgram,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(borderProgram));
+    const architectureVertex=compile(gl,gl.VERTEX_SHADER,`attribute vec3 position;uniform mat4 matrix;varying vec3 surface;void main(){surface=normalize(position);gl_Position=matrix*vec4(position,1.0);}`);
+    const architectureFragment=compile(gl,gl.FRAGMENT_SHADER,`precision mediump float;varying vec3 surface;void main(){vec3 light=normalize(vec3(-.5,.35,1.));float sun=max(dot(normalize(surface),light),0.0);float rim=pow(1.0-max(dot(normalize(surface),vec3(0.,0.,1.)),0.0),2.0);vec3 base=vec3(.19,.35,.48);vec3 color=base*(.28+.72*sun)+vec3(.10,.23,.32)*rim;gl_FragColor=vec4(color,1.0);}`);
+    const architectureProgram=gl.createProgram();gl.attachShader(architectureProgram,architectureVertex);gl.attachShader(architectureProgram,architectureFragment);gl.linkProgram(architectureProgram);if(!gl.getProgramParameter(architectureProgram,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(architectureProgram));
+    const architectureMatrixLoc=gl.getUniformLocation(architectureProgram,"matrix");
     const positions=[],indices=[],lat=160,lon=240;
     for(let y=0;y<=lat;y++){const theta=y*Math.PI/lat;for(let x=0;x<=lon;x++){const phi=x*2*Math.PI/lon;positions.push(Math.sin(theta)*Math.cos(phi),Math.cos(theta),Math.sin(theta)*Math.sin(phi));}}
     for(let y=0;y<lat;y++)for(let x=0;x<lon;x++){const a=y*(lon+1)+x,b=a+lon+1;indices.push(a,b,a+1,b,b+1,a+1);}
@@ -170,8 +174,17 @@
     world.regions.forEach((region,index)=>{
       const cities=region.cities||[];
       cities.forEach((city,cityIndex)=>{
-        const count=city.type==="Capital"?6:2;
+        const count=city.type==="Capital"?18:7;
         for(let k=0;k<count;k++)addBuilding(city,index,k);
+        // Warm district windows and street-level light clusters.
+        const windowCount=city.type==="Capital"?12:5;
+        for(let w=0;w<windowCount;w++){
+          const angle=w*2.399+index*.61,offset=.004+(w%3)*.002;
+          const lat=city.latitude+Math.sin(angle)*offset*34;
+          const lon=normalizeLongitude(city.longitude+Math.cos(angle)*offset*34/Math.max(.22,Math.cos(city.latitude*Math.PI/180)));
+          const theta=(90-lat)*Math.PI/180,phi=lon*Math.PI/180,rr=1.018;
+          markerData.push(Math.sin(theta)*Math.cos(phi)*rr,Math.cos(theta)*rr,Math.sin(theta)*Math.sin(phi)*rr,.98,.58,.24,city.type==="Capital"?5:3.5);
+        }
         if(cityIndex>0)addRoute(cities[0],city);
       });
     });
@@ -204,7 +217,9 @@
       gl.useProgram(borderProgram);gl.uniformMatrix4fv(borderMatrixLoc,false,matrix);const borderLoc=gl.getAttribLocation(borderProgram,"position");
       gl.bindBuffer(gl.ARRAY_BUFFER,borderBuffer);gl.enableVertexAttribArray(borderLoc);gl.vertexAttribPointer(borderLoc,3,gl.FLOAT,false,0,0);gl.lineWidth(1);gl.drawArrays(gl.LINES,0,borderData.length/3);
       gl.bindBuffer(gl.ARRAY_BUFFER,roadBuffer);gl.vertexAttribPointer(borderLoc,3,gl.FLOAT,false,0,0);transportRoutes.forEach(route=>gl.drawArrays(gl.LINE_STRIP,route.start,route.count));
-      gl.bindBuffer(gl.ARRAY_BUFFER,buildingBuffer);gl.vertexAttribPointer(borderLoc,3,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,buildingData.length/3);
+      gl.useProgram(architectureProgram);gl.uniformMatrix4fv(architectureMatrixLoc,false,matrix);
+      const architectureLoc=gl.getAttribLocation(architectureProgram,"position");
+      gl.bindBuffer(gl.ARRAY_BUFFER,buildingBuffer);gl.enableVertexAttribArray(architectureLoc);gl.vertexAttribPointer(architectureLoc,3,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,buildingData.length/3);
       const now=performance.now()*.001,vehicles=[];
       transportRoutes.forEach(route=>{const t=(now*.12+route.phase)%1,idx=Math.min(route.count-2,Math.floor(t*(route.count-1))),mix=t*(route.count-1)-idx,offset=(route.start+idx)*3;
         const x=roadData[offset]*(1-mix)+roadData[offset+3]*mix,y=roadData[offset+1]*(1-mix)+roadData[offset+4]*mix,z=roadData[offset+2]*(1-mix)+roadData[offset+5]*mix;
