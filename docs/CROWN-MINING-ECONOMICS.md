@@ -4,7 +4,7 @@
 
 CROWN is designed with an **unlimited total supply**: no fixed maximum supply, finite launch pool or daily emission cap. Miners can continue participating without a hard supply ceiling.
 
-Unlimited supply does not mean guaranteed market value, guaranteed income or uncontrolled browser-side minting. The owner must configure the base reward rate. Actual rewards require authenticated server sessions, validated activity and an auditable ledger. The rate can be reviewed and adjusted transparently as the network grows. The 24-hour session limit remains.
+Unlimited supply does not mean guaranteed market value, guaranteed income or uncontrolled browser-side minting. The owner must configure the base reward rate. Actual rewards require authenticated server sessions, validated activity and an auditable ledger. The rate can be reviewed and adjusted transparently as the network grows. The mining session limit is six hours.
 
 Sponsorship and advertising receipts are KINGMAKER company revenue. They are not automatically shared with miners and are not an input to the CROWN reward formula.
 
@@ -12,7 +12,7 @@ Sponsorship and advertising receipts are KINGMAKER company revenue. They are not
 
 KINGMAKER independently implements these publicly described participation mechanics:
 
-- Daily, time-limited participation sessions (maximum 24 hours).
+- Time-limited participation sessions (maximum six hours).
 - Validated security-circle bonus: +20% per verified member, capped at five (+100% maximum).
 - One-level direct-referral bonus: +25% per concurrently active eligible direct referral.
 - Owner-configured base reward rate per weighted miner-hour.
@@ -37,7 +37,7 @@ This is a reward calculation, not a promise of earnings or token price. Until a 
 
 ## Session and ledger implementation
 
-`src/mining-ledger.js` now contains a tested reference service for starting a single 24-hour session per account, settling only server-measured elapsed time, applying server-supplied validated contribution counts, preventing cross-account settlement and duplicate settlement, and deriving balances from reward ledger entries. It is intentionally in-memory and is not connected to public endpoints. Restarting the process loses its data; it is not a production database, wallet, token contract or payout system. It must be replaced with durable transactional storage and connected only behind real authenticated identity before launch.
+`src/mining-ledger.js` now contains a tested reference service for starting a single six-hour session per account, settling only server-measured elapsed time, applying server-supplied validated contribution counts, preventing cross-account settlement and duplicate settlement, and deriving balances from reward ledger entries. It is intentionally in-memory and is not connected to public endpoints. Restarting the process loses its data; it is not a production database, wallet, token contract or payout system. It must be replaced with durable transactional storage and connected only behind real authenticated identity before launch.
 
 ## Production launch requirements
 
