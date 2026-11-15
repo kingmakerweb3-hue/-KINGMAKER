@@ -10,33 +10,18 @@
     clearTimeout(toast.timer); toast.timer=setTimeout(()=>{el.hidden=true;},3800);
   }
   function load() {
-    let primaryError = false;
-    try {
-      const saved = localStorage.getItem(KEY);
-      if (saved) return E.migrateSave(JSON.parse(saved));
-    } catch (_) {
-      primaryError = true;
-    }
-
-    // The recovery copy is useful both when the primary is corrupt and when
-    // browser storage has lost the primary key entirely.
-    try {
-      const backup = localStorage.getItem(BACKUP);
-      if (backup) {
-        const recovered = E.migrateSave(JSON.parse(backup));
-        toast(primaryError
+    const result = E.loadWithRecovery(localStorage, KEY, BACKUP);
+    if (result.state) {
+      if (result.recovered) {
+        toast(result.primaryError
           ? "Recovered your previous safe save. Export it to keep a copy."
           : "Restored your recovery save. Export it to keep a copy.", "warning");
-        return recovered;
       }
-    } catch (_) {
-      // Continue to legacy migration or a fresh campaign if both copies fail.
+      return result.state;
     }
-
-    if (primaryError) {
+    if (result.primaryError) {
       toast("Latest and recovery saves were unreadable. A new game is ready; use Import Save to recover a file.", "warning");
     }
-
     try {
       const legacy = localStorage.getItem(OLD);
       if (legacy) {
