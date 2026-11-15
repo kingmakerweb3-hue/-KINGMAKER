@@ -64,3 +64,15 @@ test("server fails closed when contract is not deployed or configuration is miss
   const unconfigured = createChainOwnership({ fetch: mock.fetch });
   await assert.rejects(unconfigured.verifyOwnership(wallet, "founder-banner", "137"), /KINGMAKER_RPC_URL/);
 });
+
+test("server returns a verified balance for each configured catalog asset", async () => {
+  const mock = mockFetch({ balance: "0x2" });
+  const ownership = createChainOwnership({
+    rpcUrl: "https://rpc.example", contractAddress: contract, chainId: "137",
+    assetTokenIds: { "founder-banner": "1", "royal-blueprint": "3" }, fetch: mock.fetch
+  });
+  const inventory = await ownership.readInventory(wallet, "137");
+  assert.deepEqual(inventory.map(item => [item.assetId, item.tokenId, item.balance]), [
+    ["founder-banner", "1", "2"], ["royal-blueprint", "3", "2"]
+  ]);
+});
