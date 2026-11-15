@@ -48,8 +48,29 @@ function readJsonBody(request, maxBytes = 16 * 1024) {
   });
 }
 
+function createRateLimiter({ limit = 10, windowMs = 60 * 1000, now = Date.now } = {}) {
+  const buckets = new Map();
+  return key => {
+    const time = now();
+    let bucket = buckets.get(key);
+    if (!bucket || time - bucket.startedAt >= windowMs) {
+      bucket = { startedAt: time, count: 0 };
+      buckets.set(key, bucket);
+    }
+    if (bucket.count >= limit) {
+      return {
+        allowed: false,
+        retryAfterSeconds: Math.max(1, Math.ceil((bucket.startedAt + windowMs - time) / 1000))
+      };
+    }
+    bucket.count += 1;
+    return { allowed: true };
+  };
+}
+
 function createServer() {
   const agentIdentity = createAgentIdentityService();
+  const enrollmentLimiter = createRateLimiter();
   return http.createServer(async (request, response) => {
     if (!["GET", "HEAD", "POST"].includes(request.method)) {
       response.writeHead(405, { Allow: "GET, HEAD", "X-Content-Type-Options": "nosniff" }).end("Method not allowed");
@@ -73,6 +94,21 @@ function createServer() {
       if (!handler) {
         response.writeHead(405, { Allow: "GET, HEAD", "X-Content-Type-Options": "nosniff" }).end("Method not allowed");
         return;
+      }
+      if (pathname.endsWith("/challenge")) {
+        const rate = enrollmentLimiter(request.socket.remoteAddress || "unknown");
+        if (!rate.allowed) {
+          const payload = JSON.stringify({ error: "Too many enrollment challenges; retry later" });
+          response.writeHead(429, {
+            "Content-Type": "application/json; charset=utf-8",
+            "Content-Length": Buffer.byteLength(payload),
+            "Retry-After": String(rate.retryAfterSeconds),
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff"
+          });
+          response.end(payload);
+          return;
+        }
       }
       try {
         const body = await readJsonBody(request);
