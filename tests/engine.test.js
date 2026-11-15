@@ -113,6 +113,29 @@ test("save recovery restores backup after primary corruption and rejects a corru
   assert.equal(empty.primaryError, true);
 });
 
+test("save recovery falls back when the primary save is structurally invalid or inaccessible", () => {
+  const backupState = Engine.createInitialState({ seed: 93 });
+  backupState.turn = 27;
+  const backup = Engine.exportSave(backupState);
+  const values = new Map([["primary", JSON.stringify({ schemaVersion: 999 })], ["recovery", backup]]);
+  const storage = { getItem: key => values.get(key) ?? null };
+  const invalid = Engine.loadWithRecovery(storage, "primary", "recovery");
+  assert.equal(invalid.state.turn, 27);
+  assert.equal(invalid.recovered, true);
+  assert.equal(invalid.primaryError, true);
+
+  const unavailablePrimary = {
+    getItem(key) {
+      if (key === "primary") throw new Error("Storage access denied");
+      return backup;
+    }
+  };
+  const inaccessible = Engine.loadWithRecovery(unavailablePrimary, "primary", "recovery");
+  assert.equal(inaccessible.state.turn, 27);
+  assert.equal(inaccessible.recovered, true);
+  assert.equal(inaccessible.primaryError, true);
+});
+
 test("version 2 saves migrate to strategic AI schema without losing the scenario baseline", () => {
   const old = Engine.createInitialState({ seed: 6 });
   old.schemaVersion = 2;
