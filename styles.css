@@ -104,3 +104,7 @@ button{min-height:38px}
 .world3d-resource-heading p{margin:0;color:var(--muted);font-size:.8rem;overflow-wrap:anywhere}
 .world3d-resource-inspector button{justify-self:start;max-width:100%}
 @media(max-width:640px){.world3d-resource-inspector{padding:12px}.world3d-resource-heading{gap:8px}}
+.resource-site-cost{display:grid;gap:4px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.025)}
+.resource-site-cost span{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.resource-site-cost b{font-size:.9rem;color:var(--gold)}
+.resource-site-cost small,.world3d-resource-inspector>small{font-size:.76rem;color:var(--muted)}
