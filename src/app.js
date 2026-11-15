@@ -35,8 +35,10 @@
     return E.createInitialState();
   }
   function persist() {
-    try { E.saveWithRecovery(localStorage,state,KEY,BACKUP); render(); }
-    catch(e) { toast("Could not save safely: "+e.message+". Export before leaving.","error"); }
+    try { E.saveWithRecovery(localStorage,state,KEY,BACKUP); }
+    catch(e) { toast("Could not save safely: "+e.message+". Export before leaving.","error"); return false; }
+    render();
+    return true;
   }
   function act(fn) { try { fn(); persist(); beep(); } catch(e) { toast(e.message,"error"); } }
   function beep() {
@@ -190,11 +192,17 @@
     $("turn-label").textContent="TURN "+state.turn;$("game-banner").textContent=state.status==="playing"?state.nation.name+" · "+state.nation.government:"Campaign "+state.status;
     $("game-banner").className="game-banner "+state.status;$("advance-turn").disabled=state.status!=="playing";tab(activeTab);
   }
-  function exportSave() {const blob=new Blob([E.exportSave(state)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="kingmaker-save-turn-"+state.turn+".json";a.click();URL.revokeObjectURL(a.href);toast("Save exported.","success");}
+  function exportSave() {const blob=new Blob([E.exportSave(state)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="kingmaker-save-turn-"+state.turn+".json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast("Save exported.","success");}
   async function importSave(file) {
     if(!file)return;
-    try {const text=await file.text();if(text.length>2_000_000)throw new Error("Save file exceeds the 2 MB limit.");state=E.migrateSave(JSON.parse(text));persist();toast("Save imported and validated.","success");}
-    catch(e){toast("Save not imported: "+e.message,"error");}
+    try {
+      const text=await file.text();
+      if(text.length>2_000_000)throw new Error("Save file exceeds the 2 MB limit.");
+      const candidate=E.migrateSave(JSON.parse(text)),previous=state;
+      state=candidate;
+      if(!persist()){state=previous;render();return;}
+      toast("Save imported and validated.","success");
+    } catch(e){toast("Save not imported: "+e.message,"error");}
     $("import-file").value="";
   }
   const worldBuildPalette=document.getElementById("world3d-build-palette");
