@@ -81,6 +81,28 @@ import { BrowserProvider, Contract, formatEther, parseEther } from "https://cdn.
     async function loadActivity() {
       const feed = $(" #escrow-activity".trim());
       try {
+        const response = await fetch("/api/market/activity?limit=20", { credentials: "same-origin", cache: "no-store" });
+        if (response.ok) {
+          const indexed = await response.json();
+          if (indexed.configured) {
+            if (!indexed.events.length) {
+              feed.innerHTML = '<div class="empty">The persistent index is ready; no confirmed marketplace events have been indexed yet.</div>';
+              return;
+            }
+            feed.innerHTML = indexed.events.map(item => {
+              const a = item.args || {};
+              let detail = "";
+              if (item.name === "ListingCreated") detail = "Listing #"+a.listingId+" created · "+a.amount+" units · "+formatEther(BigInt(a.price))+" native";
+              if (item.name === "ListingCancelled") detail = "Listing #"+a.listingId+" cancelled";
+              if (item.name === "AssetPurchased") detail = "Listing #"+a.listingId+" purchased · "+formatEther(BigInt(a.price))+" native";
+              if (item.name === "ProceedsWithdrawn") detail = "Seller withdrew "+formatEther(BigInt(a.amount))+" native";
+              const txUrl = config.explorerUrl ? config.explorerUrl.replace(/\\/$/, "")+"/tx/"+item.transactionHash : "";
+              return '<div class="web3-listing"><div><b>'+esc(item.name.replace(/([A-Z])/g, " $1").trim())+'</b><small>'+esc(detail)+' · block '+item.blockNumber+'</small></div><a href="'+esc(txUrl || "#")+'" '+(txUrl?'target="_blank" rel="noopener noreferrer"':'hidden')+'>View tx</a></div>';
+            }).join("");
+            return;
+          }
+        }
+        // Local browser query remains a fallback for an unconfigured server-side indexer.
         const latest = await provider.getBlockNumber();
         const fromBlock = Math.max(0, latest - 4999);
         const eventSpecs = [
@@ -104,7 +126,8 @@ import { BrowserProvider, Contract, formatEther, parseEther } from "https://cdn.
           if (name === "ListingCancelled") detail = "Listing #"+a.listingId+" cancelled";
           if (name === "AssetPurchased") detail = "Listing #"+a.listingId+" purchased · "+formatEther(a.price)+" native";
           if (name === "ProceedsWithdrawn") detail = "Seller withdrew "+formatEther(a.amount)+" native";
-          return '<div class="web3-listing"><div><b>'+esc(name.replace(/([A-Z])/g, " $1").trim())+'</b><small>'+esc(detail)+' · block '+event.blockNumber+'</small></div><a href="'+esc(config.explorerUrl ? config.explorerUrl.replace(/\\/$/, "")+"/tx/"+event.transactionHash : "#")+'" '+(config.explorerUrl?'target="_blank" rel="noopener noreferrer"':'hidden')+'>View tx</a></div>';
+          const txUrl = config.explorerUrl ? config.explorerUrl.replace(/\\/$/, "")+"/tx/"+event.transactionHash : "";
+          return '<div class="web3-listing"><div><b>'+esc(name.replace(/([A-Z])/g, " $1").trim())+'</b><small>'+esc(detail)+' · block '+event.blockNumber+'</small></div><a href="'+esc(txUrl || "#")+'" '+(txUrl?'target="_blank" rel="noopener noreferrer"':'hidden')+'>View tx</a></div>';
         }).join("");
       } catch (error) {
         feed.innerHTML = '<div class="empty">Activity unavailable: '+esc(error.shortMessage || error.message || "RPC log query failed")+'</div>';
