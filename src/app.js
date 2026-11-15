@@ -2,7 +2,7 @@
   "use strict";
   const E = window.KingmakerEngine, KEY = "kingmaker_save_v1", BACKUP = "kingmaker_save_recovery", OLD = "kingmaker_save";
   const $ = id => document.getElementById(id);
-  let state, soundOn = false, activeTab = "overview";
+  let state, soundOn = false, activeTab = "overview", selectedResourceId = null;
   const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const num = v => Math.floor(Number(v) || 0).toLocaleString();
   function toast(message, kind="info") {
@@ -148,8 +148,25 @@
   function renderHistory() {
     $("history-list").innerHTML=state.events.slice(0,120).map(e=>'<article class="history-entry"><span class="event-type '+esc(e.type)+'">'+esc(e.type)+'</span><time>Turn '+num(e.turn)+'</time><div><span>'+esc(e.text)+'</span>'+(e.details?'<details class="history-details"><summary>Impact and context</summary><p>'+esc(e.details.summary)+'</p><small>Affected: '+esc(e.details.affectedNationIds.map(id=>id==="player"?state.nation.name:state.rivals[id]?.name||id).join(", "))+'</small></details>':"")+'</div></article>').join("");
   }
+  function renderResourceInspector() {
+    const panel = $("world3d-resource-inspector");
+    if (!panel || !state) return;
+    const node = (state.world?.resourceNodes || []).find(item => item.id === selectedResourceId);
+    if (!node) {
+      panel.innerHTML = '<p class="muted">Select a glowing deposit on the 3D island to inspect its reserve and establish an extraction site.</p>';
+      return;
+    }
+    const yields = E.RESOURCE_SITE_OUTPUT[node.resource] || {};
+    const rate = Object.entries(yields).map(([resource, amount]) => "+" + amount + " " + resource + "/turn").join(" · ");
+    const status = node.depleted ? "DEPLETED" : node.operational ? "EXTRACTING" : "UNDEVELOPED";
+    const affordable = state.status === "playing" && state.resources.materials >= E.RESOURCE_SITE_COST.materials && state.resources.credits >= E.RESOURCE_SITE_COST.credits;
+    const action = node.depleted ? '<p class="muted">This deposit has no recoverable reserve remaining.</p>' :
+      node.operational ? '<p class="muted">Extraction is active. The finite reserve is reduced each turn.</p>' :
+      '<button type="button" data-action="develop-resource" data-id="' + esc(node.id) + '" ' + (affordable ? "" : "disabled") + '>Establish extraction site · 35 materials / 55 credits</button>';
+    panel.innerHTML = '<div class="world3d-resource-heading"><div><span class="eyebrow">SELECTED DEPOSIT</span><h3>' + esc(node.resource) + '</h3><p>' + num(node.quantity) + ' units remaining · ' + esc(rate) + '</p></div><span class="tag">' + status + '</span></div>' + action;
+  }
   function render() {
-    renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderWorldEvents();renderResearch();renderCampaign();renderCreator();renderAdvice();renderDirectorIntelligence();renderDirectorCitizens();renderHistory();document.querySelectorAll("[data-world-build]").forEach(button=>{const id=button.dataset.worldBuild;const label=E.BUILDINGS[id]?.name||id;button.innerHTML=esc(label)+' <small>Lv '+(state.buildings[id]||0)+'</small>';});if(window.KingmakerWorld3D)window.KingmakerWorld3D.update(state);
+    renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderWorldEvents();renderResearch();renderCampaign();renderCreator();renderAdvice();renderDirectorIntelligence();renderDirectorCitizens();renderHistory();renderResourceInspector();document.querySelectorAll("[data-world-build]").forEach(button=>{const id=button.dataset.worldBuild;const label=E.BUILDINGS[id]?.name||id;button.innerHTML=esc(label)+' <small>Lv '+(state.buildings[id]||0)+'</small>';});if(window.KingmakerWorld3D)window.KingmakerWorld3D.update(state);
     $("turn-label").textContent="TURN "+state.turn;$("game-banner").textContent=state.status==="playing"?state.nation.name+" · "+state.nation.government:"Campaign "+state.status;
     $("game-banner").className="game-banner "+state.status;$("advance-turn").disabled=state.status!=="playing";tab(activeTab);
   }
@@ -163,6 +180,8 @@
   const worldBuildPalette=document.getElementById("world3d-build-palette");
   if(worldBuildPalette)worldBuildPalette.innerHTML=Object.entries(E.BUILDINGS).map(([id,b])=>'<button type="button" data-world-build="'+id+'" title="'+esc(b.name)+' · '+Object.entries(b.cost).map(([r,n])=>n+" "+r).join(" + ")+'">'+esc(b.name)+' <small>Lv '+((state&&state.buildings[id])||0)+'</small></button>').join("");
   worldBuildPalette?.addEventListener("click",event=>{const button=event.target.closest("[data-world-build]");if(!button)return;window.KingmakerWorld3D?.selectBuilding(button.dataset.worldBuild);});
+  window.addEventListener("kingmaker:inspect-resource",event=>{selectedResourceId=String(event.detail?.id||"");renderResourceInspector();});
+  window.addEventListener("kingmaker:world3d-ready",()=>{if(state){renderResourceInspector();window.KingmakerWorld3D?.update(state);}});
   window.addEventListener("kingmaker:place-building",event=>{const type=event.detail?.type;if(!E.BUILDINGS[type])return;let built=false;act(()=>{E.build(state,type);state.world.placedBuildings=state.world.placedBuildings||[];state.world.placedBuildings.push({type,x:Number(event.detail.x),z:Number(event.detail.z)});if(totalBuildings()>=10&&!state.achievements.includes("builder"))state.achievements.push("builder");built=true;});if(built)toast(E.BUILDINGS[type].name+" constructed in your nation.","success");});
   window.addEventListener("kingmaker:place-road",event=>{const {from,to}=event.detail||{};if(!from||!to)return;act(()=>{state.world.placedRoads=state.world.placedRoads||[];if(state.world.placedRoads.length>=10000)throw Error("Your road network has reached its construction limit.");state.world.placedRoads.push({from:{x:Number(from.x),z:Number(from.z)},to:{x:Number(to.x),z:Number(to.z)}});});toast("Road segment added to your nation.","success");});
   window.addEventListener("kingmaker:place-district",event=>{const {type,x,z,radius}=event.detail||{};if(!["residential","commercial","industrial","agricultural"].includes(type)||![x,z,radius].every(Number.isFinite)||Math.abs(x)>10.5||Math.abs(z)>10.5||radius<1.5||radius>3.5)return;let placed=false;act(()=>{state.world.placedDistricts=state.world.placedDistricts||[];if(state.world.placedDistricts.length>=100)throw Error("Your nation has reached its district limit.");state.world.placedDistricts.push({type,x,z,radius});placed=true;});if(placed)toast(type[0].toUpperCase()+type.slice(1)+" district zoned.","success");});
@@ -173,6 +192,7 @@
     const {action,id,resource,amount,kind,eventId,choice}=b.dataset;
     act(()=>{
       if(action==="build")E.build(state,id);
+      if(action==="develop-resource"){E.developResourceSite(state,id);toast("Extraction site established. Production begins next turn.","success");}
       if(action==="trade")E.trade(state,resource,Number(amount));
       if(action==="research"){E.research(state,id);if(!state.achievements.includes("first-research"))state.achievements.push("first-research");}
       if(action==="gift"){E.sendGift(state,id,20);if(state.rivals[id].relation>=50&&!state.achievements.includes("good-neighbor"))state.achievements.push("good-neighbor");}
