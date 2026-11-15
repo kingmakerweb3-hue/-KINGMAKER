@@ -973,3 +973,13 @@ test("save validation rejects malformed island resource deposits", () => {
   invalidType.world.resourceNodes[0].resource = "Unobtainium";
   assert.throws(() => Engine.validateSave(invalidType), /Resource deposit data is invalid/);
 });
+
+test("save validation rejects an extraction site marked operational after its reserve is depleted", () => {
+  const state = Engine.createInitialState({ seed: 17 });
+  const node = state.world.resourceNodes[0];
+  node.quantity = 0;
+  node.depleted = true;
+  node.operational = true;
+  node.operatedSinceTurn = state.turn;
+  assert.throws(() => Engine.validateSave(state), /Resource deposit data is invalid/);
+});
