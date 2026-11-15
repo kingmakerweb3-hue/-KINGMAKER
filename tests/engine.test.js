@@ -538,6 +538,27 @@ test("trade and research agreements pay benefits while an alliance strengthens i
   assert.equal(state.resources.influence, before.influence + 1);
 });
 
+test("military strength can win wars and victory captures rival territory", () => {
+  const s=Engine.createInitialState({seed:119});
+  s.mapWorld={version:2,seed:s.seed,regions:[{id:"rival-core",name:"Rival Core",owner:s.rivals.aurelia.name,development:20}]};
+  s.rivals.aurelia.relation=-20; s.military.troops=5000; s.military.readiness=100;
+  Engine.declareConflict(s,"aurelia");
+  for(let i=0;i<3;i++) Engine.advanceTurn(s);
+  assert.equal(s.diplomacy.conflicts[0].status,"resolved");
+  assert.equal(s.mapWorld.regions[0].owner,s.nation.name);
+  assert.equal(s.mapWorld.regions[0].development,25);
+  assert.ok(s.military.troops<5000);
+});
+test("military losses are higher when the player loses a conflict", () => {
+  const s=Engine.createInitialState({seed:120});
+  s.rivals.aurelia.relation=-20; s.military.troops=100; s.military.readiness=0;
+  s.resources.power=0; s.buildings.power=0; s.technologies=[];
+  s.rivals.aurelia.resources.power=500; s.rivals.aurelia.buildings.power=20; s.rivals.aurelia.technologies=Array(20).fill("warfare");
+  Engine.declareConflict(s,"aurelia");
+  for(let i=0;i<3;i++) Engine.advanceTurn(s);
+  assert.equal(s.diplomacy.conflicts[0].status,"resolved");
+  assert.ok(s.military.troops<100);
+});
 test("envoy actions, conflict, peace, and treaty expiry have gameplay effects", () => {
   const state = Engine.createInitialState({ seed: 7 });
   assert.throws(() => Engine.declareConflict(state, "aurelia"), /Relations must fall/);
