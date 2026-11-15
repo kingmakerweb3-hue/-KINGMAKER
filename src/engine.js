@@ -830,12 +830,13 @@
     const staffing = jobs > 0 ? Math.min(1, state.nation.population / jobs) : 1;
     const creator = creatorEffects(state);
     const base = productionFor(state.buildings, state.technologies);
+    const renewablePower = worldEventActiveThisTurn(state, "energy_crisis") ? 0 : RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar;
     const industry = industrialOutput({ ...state.resources,
       materials: clamp(state.resources.materials + Math.floor(base.materials * staffing), 0, RESOURCE_LIMIT),
       ore: clamp(state.resources.ore + Math.floor(base.ore * staffing), 0, RESOURCE_LIMIT),
-      power: clamp(state.resources.power + Math.floor(base.power * staffing) + RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar, 0, RESOURCE_LIMIT)
+      power: clamp(state.resources.power + Math.floor(base.power * staffing) + renewablePower, 0, RESOURCE_LIMIT)
     }, state.buildings, state.technologies, state.nation.population);
-    industry.production.power += RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar;
+    industry.production.power += renewablePower;
     for (const [resource, amount] of Object.entries(creator.production)) industry.production[resource] += amount;
     const districts = districtEffects(state);
     for (const [resource, amount] of Object.entries(districts.production)) industry.production[resource] += amount;
@@ -1414,12 +1415,14 @@
     const baseOutput = productionFor(state.buildings, state.technologies);
     const jobs = workforceFor(state.buildings), employed = Math.min(jobs, state.nation.population);
     const staffing = jobs > 0 ? Math.min(1, state.nation.population / jobs) : 1;
+    const renewablePower = worldEventActiveThisTurn(state, "energy_crisis") ? 0 : RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar;
     const industry = industrialOutput({ ...state.resources,
       materials: clamp(state.resources.materials + Math.floor(baseOutput.materials * staffing), 0, RESOURCE_LIMIT),
       ore: clamp(state.resources.ore + Math.floor(baseOutput.ore * staffing), 0, RESOURCE_LIMIT),
-      power: clamp(state.resources.power + Math.floor(baseOutput.power * staffing) + RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar, 0, RESOURCE_LIMIT)
+      power: clamp(state.resources.power + Math.floor(baseOutput.power * staffing) + renewablePower, 0, RESOURCE_LIMIT)
     }, state.buildings, state.technologies, state.nation.population);
     const output = industry.production;
+    output.power += renewablePower;
     for (const [resource, amount] of Object.entries(creator.production)) output[resource] += amount;
     const districts = districtEffects(state);
     for (const [resource, amount] of Object.entries(districts.production)) output[resource] += amount;
