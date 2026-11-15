@@ -5,10 +5,12 @@
 ## Product rules (owner-approved direction)
 - Players use the KINGMAKER mining application.
 - Eligible mining activity earns **$CROWN**.
-- Eligible miners may also qualify for **$KGM** distributions under separate, published rules.
+- Eligible miners may separately qualify for **$KGM** distributions only after the KINGMAKER game has launched and the ecosystem has been established, under separate, published rules.
 - **$CROWN is the mining reward currency. $KGM is the governance and utility token.**
 - There is no loan, lending, borrowing or credit mechanic.
 - There is no automatic fixed CROWN-to-KGM conversion rate.
+- Mining credits CROWN only; it does not trigger immediate KGM distribution.
+- KGM launch and distribution are later milestones, gated on game launch, ecosystem establishment, final published eligibility rules, legal review and security approval.
 - Never use hidden CPU/GPU mining or battery-draining background computation.
 
 ## Required service architecture before real rewards
@@ -16,7 +18,7 @@
 2. **Eligibility engine:** versioned rules for allowed activity, regions, account age, abuse signals and exclusion/appeal handling.
 3. **Activity ingestion:** signed, time-bounded activity events with idempotency keys, replay protection, rate limits and server-side validation. Browser timers and client-supplied totals are never authoritative.
 4. **CROWN ledger:** append-only double-entry or equivalent auditable ledger; pending, approved, reversed and settled states; immutable event references; reconciliation and export.
-5. **KGM allocation service:** a separate pool and ruleset, with snapshots, eligibility calculations, review, approval and claim records. It must never infer KGM from a CROWN balance.
+5. **KGM allocation service:** a separate pool and ruleset, with snapshots, eligibility calculations, review, approval and claim records. It must never infer KGM from a CROWN balance. Keep distribution disabled until the KINGMAKER game is launched, the ecosystem is established and the separate KGM launch gates are approved.
 6. **Wallet/claim service:** chain and contract selection only after legal and security approval; signed claims, nonce/replay protection, rate limits, sanctions/jurisdiction gates where applicable, and no custody of seed phrases/private keys.
 7. **Operations:** monitoring, abuse review, audit trails, incident response, backups, restore tests, admin access controls and transparent public status.
 
@@ -35,6 +37,7 @@ All endpoints require authentication, authorization, input schema validation, CS
 - Owner approves exact activity types and eligibility rules.
 - Owner approves CROWN emission/budget, ledger units, expiry/reversal policy and in-game use (if any).
 - Owner approves KGM allocation cadence, eligibility, claim process and jurisdiction exclusions.
+- KINGMAKER game launch and ecosystem establishment are completed before any KGM distribution is enabled.
 - Legal review, privacy notice, threat model, independent code/contract audit and operational runbook complete.
 - Automated tests cover duplicate/replayed events, tampered client payloads, multi-account abuse, reversals, ledger reconciliation, concurrent claims and service outages.
 - Closed beta proves end-to-end activity validation and ledger integrity before any real reward is enabled.
