@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 7;
+  const SAVE_VERSION = 9;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -168,6 +168,8 @@
       market: { stock: { food: 400, materials: 300, ore: 240, goods: 180, power: 260 }, basePrices: { food: 2, materials: 4, ore: 5, goods: 8, power: 4 }, prices: { food: 2, materials: 4, ore: 5, goods: 8, power: 4 }, lastFlow: { food: 0, materials: 0, ore: 0, goods: 0, power: 0 } },
       rivals: Object.fromEntries(RIVAL_TEMPLATES.map((r, i) => [r.id, createRival(r, i)])),
       diplomacy: { treaties: [], conflicts: [] },
+      military: { troops: 24, training: 1, fortification: 1, battlesWon: 0, battlesLost: 0 },
+      territories: [{"id":"highlands","name":"Northern Highlands","terrain":"Mountain","owner":"northreach","bonus":"ore","value":2,"cost":{"credits":90,"materials":55},"troops":35},{"id":"greenvale","name":"Greenvale Basin","terrain":"Fertile plains","owner":"solenne","bonus":"food","value":4,"cost":{"credits":85,"materials":35},"troops":25},{"id":"suncoast","name":"Suncoast","terrain":"Coast","owner":"aurelia","bonus":"credits","value":5,"cost":{"credits":120,"materials":40},"troops":30},{"id":"scholarwood","name":"Scholarwood","terrain":"Forest","owner":"meridian","bonus":"science","value":3,"cost":{"credits":100,"materials":45},"troops":25},{"id":"ironridge","name":"Ironridge","terrain":"Industrial belt","owner":"ironmarch","bonus":"materials","value":3,"cost":{"credits":130,"materials":65},"troops":45},{"id":"redwaste","name":"Red Waste","terrain":"Desert","owner":"duneward","bonus":"ore","value":3,"cost":{"credits":95,"materials":50},"troops":35},{"id":"heartland","name":"Royal Heartland","terrain":"Central plains","owner":"player","bonus":"influence","value":1,"cost":{"credits":0,"materials":0},"troops":0}],
       economy: { lastIncome: 0, lastExpenses: 0, lastBalance: 0, workforce: 0, employed: 0, production: { food: 0, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, capacity: 0, logistics: 0 }, consumption: { food: 0, materials: 0, ore: 0, power: 0 }, phase: "stable", deficitTurns: 0, recoveryTurns: 0 },
       campaign: { id: campaignId, completedObjectives: [], status: "active", phaseIndex: 0, buildingStart: 6, progress: { tradeVolume: 0, agreementsSigned: 0, crisesSurvived: 0, peacefulDisputes: 0 } },
       achievements: [], creations: [], events: [{ id: "history-1-0", turn: 1, text: "Your civilization was founded. The first chapter begins.", type: "milestone", details: { summary: "A new campaign begins with a developing economy and six neighboring nations.", affectedNationIds: ["player"] } }],
@@ -214,6 +216,8 @@
       if (!Number.isInteger(level) || level < 0 || level > 10_000) throw new Error("Building level is invalid: " + id);
     }
     if (!Array.isArray(normalized.technologies) || normalized.technologies.some(id => !TECHNOLOGIES[id])) throw new Error("Technology list is invalid.");
+    if (!normalized.military || !Number.isInteger(normalized.military.troops) || normalized.military.troops < 0 || normalized.military.troops > 10000 || !Number.isInteger(normalized.military.training) || normalized.military.training < 1 || normalized.military.training > 5 || !Number.isInteger(normalized.military.fortification) || normalized.military.fortification < 0 || normalized.military.fortification > 5 || !Number.isInteger(normalized.military.battlesWon) || normalized.military.battlesWon < 0 || !Number.isInteger(normalized.military.battlesLost) || normalized.military.battlesLost < 0) throw new Error("Military forces are invalid.");
+    if (!Array.isArray(normalized.territories) || normalized.territories.length !== 7 || normalized.territories.some(r => !r || typeof r.id !== "string" || !["player","aurelia","northreach","meridian","solenne","ironmarch","duneward"].includes(r.owner) || !Number.isInteger(r.value) || r.value < 1 || r.value > 10 || !Number.isInteger(r.troops) || r.troops < 0)) throw new Error("Territory data is invalid.");
     if (!normalized.market || !normalized.market.stock || !normalized.market.prices || !normalized.market.basePrices || !normalized.market.lastFlow || !normalized.rivals ||
         !normalized.diplomacy || !Array.isArray(normalized.diplomacy.treaties) || !Array.isArray(normalized.diplomacy.conflicts) ||
         !normalized.campaign || !Array.isArray(normalized.campaign.completedObjectives) ||
@@ -330,7 +334,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -341,6 +345,8 @@
       normalizeCreatorRecords(state, input.schemaVersion === 6);
       migrateCreatorEconomy(state);
       state.achievements = Array.isArray(state.achievements) ? state.achievements : [];
+      state.military = state.military || { troops: 24, training: 1, fortification: 1, battlesWon: 0, battlesLost: 0 };
+      state.territories = state.territories || [{"id":"highlands","name":"Northern Highlands","terrain":"Mountain","owner":"northreach","bonus":"ore","value":2,"cost":{"credits":90,"materials":55},"troops":35},{"id":"greenvale","name":"Greenvale Basin","terrain":"Fertile plains","owner":"solenne","bonus":"food","value":4,"cost":{"credits":85,"materials":35},"troops":25},{"id":"suncoast","name":"Suncoast","terrain":"Coast","owner":"aurelia","bonus":"credits","value":5,"cost":{"credits":120,"materials":40},"troops":30},{"id":"scholarwood","name":"Scholarwood","terrain":"Forest","owner":"meridian","bonus":"science","value":3,"cost":{"credits":100,"materials":45},"troops":25},{"id":"ironridge","name":"Ironridge","terrain":"Industrial belt","owner":"ironmarch","bonus":"materials","value":3,"cost":{"credits":130,"materials":65},"troops":45},{"id":"redwaste","name":"Red Waste","terrain":"Desert","owner":"duneward","bonus":"ore","value":3,"cost":{"credits":95,"materials":50},"troops":35},{"id":"heartland","name":"Royal Heartland","terrain":"Central plains","owner":"player","bonus":"influence","value":1,"cost":{"credits":0,"materials":0},"troops":0}];
       state.schemaVersion = SAVE_VERSION;
       addIndustryDefaults(state);
       return validateSave(state);
@@ -737,6 +743,93 @@
     addEvent(state, "A peace accord ended the conflict with " + state.rivals[rivalId].name + ".", "diplomacy");
     rememberRival(state.rivals[rivalId], state.turn, "peace", "The player negotiated an end to conflict");
     return state;
+  }
+  function recruitTroops(state, count = 10) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const amount = safeInt(count, 0, 1000);
+    if (amount < 1 || amount > 1000) throw new Error("Recruit between 1 and 1,000 troops.");
+    const credits = amount * 3, materials = Math.ceil(amount / 5);
+    if (state.military.troops + amount > 10000) throw new Error("Army size limit reached.");
+    if (state.resources.credits < credits || state.resources.materials < materials) throw new Error("Recruitment requires " + credits + " credits and " + materials + " materials.");
+    state.resources.credits -= credits; state.resources.materials -= materials; state.military.troops += amount;
+    addEvent(state, amount + " troops joined the national army.", "military");
+    return state.military;
+  }
+  function trainArmy(state) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (state.military.training >= 5) throw new Error("Army training is already at maximum.");
+    const cost = 45 * state.military.training;
+    if (state.resources.credits < cost || state.resources.goods < 5) throw new Error("Training requires " + cost + " credits and 5 goods.");
+    state.resources.credits -= cost; state.resources.goods -= 5; state.military.training++;
+    addEvent(state, "Army training improved to level " + state.military.training + ".", "military");
+    return state.military;
+  }
+  function fortifyNation(state) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (state.military.fortification >= 5) throw new Error("National defenses are already at maximum.");
+    const level = state.military.fortification + 1, credits = 55 * level, materials = 20 * level;
+    if (state.resources.credits < credits || state.resources.materials < materials) throw new Error("Fortification requires " + credits + " credits and " + materials + " materials.");
+    state.resources.credits -= credits; state.resources.materials -= materials; state.military.fortification = level;
+    addEvent(state, "National defenses upgraded to level " + level + ".", "military");
+    return state.military;
+  }
+  function resolveBattle(state, rivalId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const rival = state.rivals[rivalId], conflict = state.diplomacy.conflicts.find(item => item.rivalId === rivalId && item.status === "active");
+    if (!rival || !conflict) throw new Error("Declare an active conflict before ordering a battle.");
+    if (state.military.troops < 5) throw new Error("At least 5 troops are required to fight.");
+    if (state.resources.power < 3) throw new Error("A battle requires 3 power.");
+    const attack = state.military.troops * (1 + (state.military.training - 1) * 0.22) + state.military.fortification * 2;
+    const defense = Math.max(8, Math.floor(rival.population * 0.22 + (rival.buildings.workshop || 0) * 4 + (rival.buildings.power || 0) * 3));
+    const won = attack >= defense;
+    state.resources.power -= 3;
+    if (won) {
+      const losses = Math.max(1, Math.ceil(state.military.troops * 0.12));
+      state.military.troops -= losses; state.military.battlesWon++; conflict.playerScore++;
+      rival.stability = Math.max(0, rival.stability - 8); rival.resources.credits = Math.max(0, rival.resources.credits - 12);
+      rival.relation = Math.max(-100, rival.relation - 5); state.resources.influence = clamp(state.resources.influence + 4, 0, RESOURCE_LIMIT);
+      addEvent(state, "Victory against " + rival.name + ". " + losses + " troops lost; 4 influence gained.", "victory");
+    } else {
+      const losses = Math.min(state.military.troops, Math.max(2, Math.ceil(state.military.troops * 0.3)));
+      state.military.troops -= losses; state.military.battlesLost++; conflict.rivalScore++;
+      state.nation.stability = Math.max(0, state.nation.stability - 7);
+      addEvent(state, "Defeat against " + rival.name + ". " + losses + " troops lost; stability fell.", "conflict");
+    }
+    return { won, attack: Math.floor(attack), defense, troops: state.military.troops };
+  }
+  function claimTerritory(state, regionId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const region = state.territories.find(item => item.id === regionId);
+    if (!region) throw new Error("Unknown territory.");
+    if (region.owner === "player") throw new Error("Your nation already controls this territory.");
+    if (region.owner !== "neutral") throw new Error("This territory belongs to " + (state.rivals[region.owner] ? state.rivals[region.owner].name : "another nation") + ". Resolve the conflict or negotiate before claiming it.");
+    if (state.military.troops < region.troops) throw new Error("You need at least " + region.troops + " troops to secure this territory.");
+    if (state.resources.credits < region.cost.credits || state.resources.materials < region.cost.materials) throw new Error("Insufficient resources to secure this territory.");
+    state.resources.credits -= region.cost.credits; state.resources.materials -= region.cost.materials;
+    state.military.troops -= region.troops; region.owner = "player";
+    addEvent(state, "Your nation secured " + region.name + ".", "territory");
+    return region;
+  }
+  function resolveTerritoryBattle(state, regionId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const region = state.territories.find(item => item.id === regionId);
+    if (!region || region.owner === "player" || region.owner === "neutral") throw new Error("This territory is not held by a rival.");
+    if (state.military.troops < 10) throw new Error("At least 10 troops are required for a territorial campaign.");
+    if (state.resources.power < 5) throw new Error("A territorial campaign requires 5 power.");
+    const attack = state.military.troops * (1 + (state.military.training - 1) * 0.22) + state.military.fortification;
+    const defense = region.troops * 1.7;
+    state.resources.power -= 5;
+    if (attack < defense) {
+      const losses = Math.min(state.military.troops, Math.ceil(state.military.troops * 0.28));
+      state.military.troops -= losses; state.nation.stability = Math.max(0, state.nation.stability - 5);
+      addEvent(state, "The campaign for " + region.name + " failed. " + losses + " troops were lost.", "conflict");
+      return {won:false,attack:Math.floor(attack),defense,troops:state.military.troops};
+    }
+    const losses = Math.max(3, Math.ceil(state.military.troops * 0.18));
+    state.military.troops -= losses; region.owner = "player";
+    state.resources.influence = clamp(state.resources.influence + 5,0,RESOURCE_LIMIT);
+    addEvent(state, "Victory! " + region.name + " joined your nation. " + losses + " troops were lost.", "victory");
+    return {won:true,attack:Math.floor(attack),defense,troops:state.military.troops};
   }
   function registerCreation(state, creation) {
     if (!creation || typeof creation !== "object") throw new Error("Creation details are required.");
@@ -1194,6 +1287,9 @@
     }, state.buildings, state.technologies, state.nation.population);
     const output = industry.production;
     for (const [resource, amount] of Object.entries(creator.production)) output[resource] += amount;
+    const regionalOutput = { food: 0, materials: 0, ore: 0, goods: 0, science: 0, power: 0, credits: 0, influence: 0 };
+    for (const region of state.territories) if (region.owner === "player" && Object.prototype.hasOwnProperty.call(regionalOutput, region.bonus)) regionalOutput[region.bonus] += region.value;
+    for (const resource of ["food", "materials", "ore", "goods", "science", "power"]) output[resource] += regionalOutput[resource];
     if (worldEventActiveThisTurn(state, "industrial_revolution")) output.goods = Math.floor(output.goods * 1.3);
     for (const resource of ["food", "materials", "ore", "goods", "science", "power"]) {
       state.resources[resource] = clamp(state.resources[resource] + output[resource], 0, RESOURCE_LIMIT);
@@ -1204,10 +1300,10 @@
     const activeTreaties = state.diplomacy.treaties.filter(t => t.status === "active");
     const taxIncome = Math.floor(state.nation.population / 20);
     const tradeIncome = activeTreaties.filter(t => t.kind === "trade").length * 5;
-    let income = clamp(output.credits + taxIncome + tradeIncome, 0, RESOURCE_LIMIT);
+    let income = clamp(output.credits + regionalOutput.credits + taxIncome + tradeIncome, 0, RESOURCE_LIMIT);
     if (worldEventActiveThisTurn(state, "financial_crisis")) income = Math.floor(income * 0.75);
     state.resources.science = clamp(state.resources.science + activeTreaties.filter(t => t.kind === "research").length * 2, 0, RESOURCE_LIMIT);
-    state.resources.influence = clamp(state.resources.influence + activeTreaties.filter(t => t.kind === "alliance").length + creator.influence, 0, RESOURCE_LIMIT);
+    state.resources.influence = clamp(state.resources.influence + activeTreaties.filter(t => t.kind === "alliance").length + creator.influence + regionalOutput.influence, 0, RESOURCE_LIMIT);
     const wageExpense = Math.ceil(employed / 10 * (worldEventActiveThisTurn(state, "financial_crisis") ? 1.15 : 1) * (hasTech(state, "urbanism") ? 0.9 : 1));
     state.resources.credits = clamp(state.resources.credits + income - wageExpense, 0, RESOURCE_LIMIT);
     const previousPhase = state.economy.phase;
@@ -1320,7 +1416,7 @@
     SAVE_VERSION, RESOURCE_LIMIT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
     createInitialState, validateSave, migrateSave, productionFor, build, trade,
-    research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
+    research, sendGift, offerTreaty, declareConflict, makePeace, recruitTroops, trainArmy, fortifyNation, resolveBattle, claimTerritory, resolveTerritoryBattle, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
     exportSave, saveWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech
