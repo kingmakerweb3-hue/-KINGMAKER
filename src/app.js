@@ -159,10 +159,16 @@
     const yields = E.RESOURCE_SITE_OUTPUT[node.resource] || {};
     const rate = Object.entries(yields).map(([resource, amount]) => "+" + amount + " " + resource + "/turn").join(" · ");
     const status = node.depleted ? "DEPLETED" : node.operational ? "EXTRACTING" : "UNDEVELOPED";
-    const affordable = state.status === "playing" && state.resources.materials >= E.RESOURCE_SITE_COST.materials && state.resources.credits >= E.RESOURCE_SITE_COST.credits;
-    const action = node.depleted ? '<p class="muted">This deposit has no recoverable reserve remaining.</p>' :
-      node.operational ? '<p class="muted">Extraction is active. The finite reserve is reduced each turn.</p>' :
-      '<button type="button" data-action="develop-resource" data-id="' + esc(node.id) + '" ' + (affordable ? "" : "disabled") + '>Establish extraction site · 35 materials / 55 credits</button>';
+    const materials = Number(state.resources.materials) || 0;
+    const credits = Number(state.resources.credits) || 0;
+    const missing = [];
+    if (materials < E.RESOURCE_SITE_COST.materials) missing.push((E.RESOURCE_SITE_COST.materials - materials) + " more materials");
+    if (credits < E.RESOURCE_SITE_COST.credits) missing.push((E.RESOURCE_SITE_COST.credits - credits) + " more credits");
+    const affordable = state.status === "playing" && missing.length === 0;
+    const cost = '<div class="resource-site-cost"><span>Site establishment cost</span><b>35 materials · 55 credits</b><small>Your reserves: ' + num(materials) + ' materials · ' + num(credits) + ' credits</small></div>';
+    const action = node.depleted ? '<p class="muted">Reserve exhausted. This built site remains on the map, but it produces nothing further.</p>' :
+      node.operational ? '<p class="muted">Extraction is active. The finite reserve is reduced each turn; production stops automatically when it reaches zero.</p>' :
+      cost + '<button type="button" data-action="develop-resource" data-id="' + esc(node.id) + '" ' + (affordable ? "" : "disabled") + '>Establish extraction site</button>' + (missing.length ? '<small class="muted">Requires ' + esc(missing.join(" and ")) + '.</small>' : '<small class="muted">Ready to develop. Production starts on the next world turn.</small>');
     panel.innerHTML = '<div class="world3d-resource-heading"><div><span class="eyebrow">SELECTED DEPOSIT</span><h3>' + esc(node.resource) + '</h3><p>' + num(node.quantity) + ' units remaining · ' + esc(rate) + '</p></div><span class="tag">' + status + '</span></div>' + action;
   }
   function render() {
