@@ -974,12 +974,19 @@ test("save validation rejects malformed island resource deposits", () => {
   assert.throws(() => Engine.validateSave(invalidType), /Resource deposit data is invalid/);
 });
 
-test("save validation rejects an extraction site marked operational after its reserve is depleted", () => {
+test("depleted operational extraction sites remain valid in saves and produce no further output", () => {
   const state = Engine.createInitialState({ seed: 17 });
   const node = state.world.resourceNodes[0];
-  node.quantity = 0;
-  node.depleted = true;
+  node.quantity = 1;
+  node.depleted = false;
   node.operational = true;
   node.operatedSinceTurn = state.turn;
-  assert.throws(() => Engine.validateSave(state), /Resource deposit data is invalid/);
+  Engine.advanceTurn(state);
+  assert.equal(node.quantity, 0);
+  assert.equal(node.depleted, true);
+  assert.equal(node.operational, true);
+  assert.doesNotThrow(() => Engine.validateSave(state));
+  const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.equal(saved.world.resourceNodes.find(item => item.id === node.id).depleted, true);
+  assert.doesNotThrow(() => Engine.validateSave(saved));
 });
