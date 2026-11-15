@@ -22,6 +22,8 @@ function createWalletAuth(options = {}) {
     let parsedOrigin;
     try { parsedOrigin = new URL(origin); } catch { throw Object.assign(new Error("A valid application origin is required."), { statusCode: 400 }); }
     if (!["http:", "https:"].includes(parsedOrigin.protocol) || parsedOrigin.origin !== origin) throw Object.assign(new Error("Invalid application origin."), { statusCode: 400 });
+    for (const [key, value] of challenges) if (value.expiresAt <= now()) challenges.delete(key);
+    if (challenges.size >= 5000) throw Object.assign(new Error("Too many pending wallet sign-ins. Try again shortly."), { statusCode: 429 });
     const nonce = crypto.randomBytes(16).toString("hex");
     const issuedAt = new Date(now()).toISOString();
     const expiresAt = now() + challengeTtlMs;
@@ -52,6 +54,8 @@ function createWalletAuth(options = {}) {
     try { recovered = verifyMessage(challenge.message, String(input?.signature || "")).toLowerCase(); }
     catch { throw Object.assign(new Error("Wallet signature is invalid."), { statusCode: 401 }); }
     if (recovered !== challenge.account) throw Object.assign(new Error("Wallet signature does not match the address."), { statusCode: 401 });
+    for (const [key, value] of sessions) if (value.expiresAt <= now()) sessions.delete(key);
+    if (sessions.size >= 10000) throw Object.assign(new Error("Session capacity reached. Try again later."), { statusCode: 503 });
     const token = crypto.randomBytes(32).toString("hex");
     const session = { address: challenge.account, chainId: challenge.chainId, expiresAt: now() + sessionTtlMs };
     sessions.set(token, session);
