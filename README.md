@@ -43,7 +43,7 @@ Open <http://127.0.0.1:4173>. The server only binds to loopback.
 - **Campaign** offers three scenarios with objectives, achievements, victory, and defeat.
 - **World Director** provides local rule-based advice based on current game state.
 - **Creator Studio** lets you publish designs into a bounded local market. Rival nations can adopt designs when their needs match, apply their effects, and pay capped in-game royalties.
-- **3D World** opens an explorable 3D island with high-density procedural terrain, varied elevation, expanded forests, detailed building facades, animated citizens and traffic, a moving ocean surface, atmospheric clouds, a day/night lighting cycle, orbit/zoom/pan controls, and live terrain-surface construction.
+- **3D World** opens an explorable 3D island with high-density procedural terrain, varied elevation, expanded forests, detailed building facades, animated citizens and traffic, clickable finite resource deposits, and extraction sites that feed the turn-based economy, a moving ocean surface, atmospheric clouds, a day/night lighting cycle, orbit/zoom/pan controls, and live terrain-surface construction.
 - **3D construction and roads** let players place buildings and connect districts. Positions and roads persist in local saves; connected districts gain logistics and credits.
 - **Save export/import** moves a versioned JSON save between browsers.
 
@@ -72,7 +72,7 @@ See [gameplay rules](docs/gameplay.md) and the [AI, 3D, and Web3 vision](docs/ai
 
 ## Save data
 
-Current saves use schema version 7. The importer validates bounded creator publications, adoption and royalty ledgers, event records, response choices, campaign phase progress, and required world data before replacing the active game. It migrates original v0.3 saves and development schemas 1 through 6. Active world effects, creator progression, processed event IDs, campaign progress, and structured history persist in saves. Automatic local saves keep a previous safe copy for recovery. Export backups regularly if you clear browser storage or change devices.
+Current saves use schema version 9. The importer validates bounded creator publications, adoption and royalty ledgers, event records, response choices, campaign phase progress, placed 3D world objects, and finite resource deposits before replacing the active game. It migrates original v0.3 saves and development schemas 1 through 8. Older campaigns receive a deterministic set of island deposits derived from their existing world seed. Active world effects, creator progression, processed event IDs, campaign progress, and structured history persist in saves. Automatic local saves keep a previous safe copy for recovery. Export backups regularly if you clear browser storage or change devices.
 
 ## Development status
 
