@@ -21,7 +21,7 @@ The visual target is a serious, high-fidelity next-generation world—not a cart
 
 ## Current prototype
 
-The current playable prototype is a local browser game built with JavaScript and a small Node.js development server. The nation simulation remains local single-player; a small shared marketplace listing API is now available in development mode. It does not currently require an account, database, wallet, external AI service, or paid service.
+The current playable prototype is a browser game built with JavaScript and a small Node.js development server. The nation simulation remains local single-player. The development marketplace now supports signed EVM-wallet sessions for listing management; this does not make the nation simulation multiplayer or enable real asset trading.
 
 ### Run locally
 
@@ -47,7 +47,7 @@ Open <http://127.0.0.1:4173>. The server only binds to loopback.
 - **3D construction and roads** let players place buildings and connect districts. Positions and roads persist in local saves; connected districts gain logistics and credits.
 - **Save export/import** moves a versioned JSON save between browsers.
 
-All current game values are simulated and have no real-world or financial value. No cryptocurrency, token, wallet connection, real-money purchase, or on-chain ownership is currently implemented.
+All current game values are simulated and have no real-world or financial value. Wallet signature sign-in is implemented for development marketplace identity only. No cryptocurrency payment, real-money purchase, token transfer, or production on-chain ownership flow is enabled.
 
 ## Product direction and milestones
 
@@ -62,23 +62,7 @@ All current game values are simulated and have no real-world or financial value.
 
 ### Shared marketplace development API
 
-Run `npm run dev` and open the game through the local server. The Web3 & Assets tab can publish and view marketplace listings stored in `data/marketplace.json`; separate browser sessions using the same server see the same listing feed. Wallet inventory is still local to each browser. This is only a listing-feed prototype: there is no authenticated multiplayer identity, wallet-signature verification, real purchase, payment, asset transfer, or blockchain settlement. The server binds to loopback by default and must not be exposed publicly in its current unauthenticated state.
+Run `npm install` and `npm run dev`, then open the game through the local server. The Web3 & Assets tab uses a one-time EVM wallet signature to establish a server-side session before publishing or cancelling listings. The server verifies the signature, consumes the challenge nonce, stores the session in an HttpOnly SameSite=Strict cookie, and derives the listing seller from that verified session. Listing records are persisted in `data/marketplace.json`, so browser sessions using the same server see the same feed.
 
-## Run quality checks
+This remains a development prototype: wallet sign-in proves control of an address, not ownership of the locally recorded asset. Inventory is still browser-local. Prices are simulated game credits; there are no purchases, payments, escrow, asset transfers, or blockchain settlement. Sessions are in-memory and reset when the server restarts. The server binds to loopback by default and must not be exposed publicly.
 
-```sh
-npm run check
-npm test
-```
-
-The engine is in `src/engine.js`; the browser interface is in `src/app.js`; automated rules tests are in `tests/engine.test.js`.
-
-See [gameplay rules](docs/gameplay.md) and the [AI, 3D, and Web3 vision](docs/ai-3d-web3-vision.md).
-
-## Save data
-
-Current saves use schema version 14. The importer validates bounded creator publications, adoption and royalty ledgers, event records, response choices, campaign phase progress, and required world data before replacing the active game. It migrates original v0.3 saves and development schemas 1 through 13. Active world effects, creator progression, election schedules and results, political unrest, protest history, cabinet decisions and policy spending, processed event IDs, campaign progress, and structured history persist in saves. Automatic local saves keep a previous safe copy for recovery. Export backups regularly if you clear browser storage or change devices.
-
-## Development status
-
-The current development branch includes three playable local campaigns, six rival nations, a demand-driven Creator Studio economy, ten research technologies with prerequisites, versioned save migration, and automated engine tests. The existing 3D island and AI-like decision systems are prototypes, not the final world. Desktop and mobile browser acceptance, extended balance review, visual-performance validation, Web3 architecture, and release verification remain outstanding. KINGMAKER is in active development and is not declared a finished release.
