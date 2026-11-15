@@ -28,8 +28,14 @@
     panel.dataset.chainReaderAttached = "true";
     const facts = panel.querySelector(".web3-facts");
     const inventory = panel.querySelector("#web3-inventory");
-    const notice = panel.querySelector(".notice");
     if (!facts || !inventory) return;
+
+    // Keep chain-verified holdings separate from browser-local prototype records.
+    const chainInventory = document.createElement("div");
+    chainInventory.id = "web3-chain-inventory";
+    chainInventory.className = "web3-inventory";
+    chainInventory.innerHTML = '<div class="empty">Connect a wallet to check on-chain balances.</div>';
+    inventory.insertAdjacentElement("afterend", chainInventory);
 
     const state = document.createElement("div");
     state.className = "notice";
@@ -55,6 +61,7 @@
         if (!wallet || !/^0x[0-9a-fA-F]{40}$/.test(wallet)) return;
         const balances = await Promise.all(assets.map(async asset => {
           try {
+            if (!/^[0-9]+$/.test(String(asset.tokenId))) throw new Error("Invalid token ID");
             const raw = await window.ethereum.request({
               method: "eth_call",
               params: [{ to: address, data: encodeBalanceOf(wallet, asset.tokenId) }, "latest"]
@@ -67,7 +74,7 @@
         const rows = balances.length
           ? balances.map(item => '<div class="web3-item"><div><b>' + escapeHtml(item.name) + '</b><small>Verified ERC-1155 contract balance</small></div><span>' + escapeHtml(item.balance) + '</span></div>').join("")
           : '<div class="empty">No asset IDs configured for this contract.</div>';
-        inventory.innerHTML = '<div class="eyebrow">ON-CHAIN OWNERSHIP · READ ONLY</div>' + rows;
+        chainInventory.innerHTML = '<div class="eyebrow">ON-CHAIN OWNERSHIP · READ ONLY</div>' + rows;
         state.textContent = "Balances read directly from the configured ERC-1155 contract.";
       } catch (error) {
         state.textContent = "Could not read contract balances: " + (error?.message || "wallet RPC error");
@@ -81,7 +88,6 @@
     window.ethereum?.on?.("chainChanged", () => setTimeout(refresh, 50));
     const observer = new MutationObserver(refresh);
     observer.observe(panel.querySelector("#web3-account"), { attributes: true, attributeFilter: ["hidden"] });
-    void notice;
   }
 
   const observer = new MutationObserver(() => {
