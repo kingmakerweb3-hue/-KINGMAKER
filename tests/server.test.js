@@ -29,6 +29,23 @@ test("web server serves the game shell and static assets", async t => {
   assert.equal(manifest.connection.writesEnabled, false);
   assert.deepEqual(manifest.actions, []);
   assert.equal(manifest.safety.directSaveAccess, false);
+  assert.equal(manifestResponse.headers.get("cache-control"), "no-store");
+  assert.equal(manifestResponse.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(manifestResponse.headers.get("referrer-policy"), "no-referrer");
+  assert.match(manifestResponse.headers.get("content-security-policy"), /default-src 'none'/);
+
+  const manifestHead = await fetch(base + "/api/agent/v1/manifest", { method: "HEAD" });
+  assert.equal(manifestHead.status, 200);
+  assert.equal(manifestHead.headers.get("content-length"), String(Buffer.byteLength(JSON.stringify(manifest))));
+  assert.equal(await manifestHead.text(), "");
+
+  const agentWriteAttempt = await fetch(base + "/api/agent/v1/manifest", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "submit_turn_plan" })
+  });
+  assert.equal(agentWriteAttempt.status, 405);
+  assert.equal(agentWriteAttempt.headers.get("allow"), "GET, HEAD");
 
   const agentStatus = await fetch(base + "/api/agent/v1/status");
   assert.equal(agentStatus.status, 200);
