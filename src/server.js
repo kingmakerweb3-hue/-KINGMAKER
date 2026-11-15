@@ -88,7 +88,7 @@ async function handleApi(request, response, url) {
     const listing = await marketplace.create({ ...body, seller: session.address });
     return sendJson(response, 201, { listing, mode: "SIGNED_WALLET_SESSION_DEVELOPMENT" });
   }
-  const cancelMatch = url.pathname.match(/^\\/api\\/market\\/listings\\/([a-zA-Z0-9-]+)$/);
+  const cancelMatch = url.pathname.match(/^\/api\/market\/listings\/([a-zA-Z0-9-]+)$/);
   if (cancelMatch && request.method === "DELETE") {
     requireSameOrigin(request);
     const session = requireSession(request);
@@ -126,4 +126,4 @@ const server = http.createServer(async (request, response) => {
   });
 });
 const port = Number(process.env.PORT || 4173);
-server.listen(port, "127.0.0.1", () => process.stdout.write("KINGMAKER local server at http://127.0.0.1:" + port + "\\n"));
+server.listen(port, "127.0.0.1", () => process.stdout.write("KINGMAKER local server at http://127.0.0.1:" + port + "\n"));
