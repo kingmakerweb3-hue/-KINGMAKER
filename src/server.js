@@ -3,6 +3,7 @@
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
+const { createAgentIdentityService } = require("./agent-identity.js");
 
 const root = path.resolve(__dirname, "..");
 const mime = {
@@ -12,9 +13,45 @@ const mime = {
   ".json": "application/json; charset=utf-8"
 };
 
+function readJsonBody(request, maxBytes = 16 * 1024) {
+  return new Promise((resolve, reject) => {
+    if (!/^application\\/json(?:;|$)/i.test(request.headers["content-type"] || "")) {
+      const error = new Error("Content-Type must be application/json");
+      error.statusCode = 415;
+      reject(error);
+      request.resume();
+      return;
+    }
+    let size = 0;
+    const chunks = [];
+    request.on("data", chunk => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        const error = new Error("Request body too large");
+        error.statusCode = 413;
+        reject(error);
+        request.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    request.on("end", () => {
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+      } catch (_) {
+        const error = new Error("Request body must be valid JSON");
+        error.statusCode = 400;
+        reject(error);
+      }
+    });
+    request.on("error", reject);
+  });
+}
+
 function createServer() {
-  return http.createServer((request, response) => {
-    if (!["GET", "HEAD"].includes(request.method)) {
+  const agentIdentity = createAgentIdentityService();
+  return http.createServer(async (request, response) => {
+    if (!["GET", "HEAD", "POST"].includes(request.method)) {
       response.writeHead(405, { Allow: "GET, HEAD", "X-Content-Type-Options": "nosniff" }).end("Method not allowed");
       return;
     }
@@ -24,6 +61,43 @@ function createServer() {
       pathname = decodeURIComponent(new URL(request.url, "http://localhost").pathname);
     } catch (_) {
       response.writeHead(400, { "X-Content-Type-Options": "nosniff" }).end("Bad request");
+      return;
+    }
+
+    if (request.method === "POST") {
+      const enrollmentRoutes = {
+        "/api/agent/v1/enrollment/challenge": async body => agentIdentity.issueChallenge(body),
+        "/api/agent/v1/enrollment/verify": async body => agentIdentity.completeEnrollment(body)
+      };
+      const handler = enrollmentRoutes[pathname];
+      if (!handler) {
+        response.writeHead(405, { Allow: "GET, HEAD", "X-Content-Type-Options": "nosniff" }).end("Method not allowed");
+        return;
+      }
+      try {
+        const body = await readJsonBody(request);
+        const result = await handler(body);
+        const payload = JSON.stringify(result);
+        response.writeHead(pathname.endsWith("/challenge") ? 201 : 201, {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Length": Buffer.byteLength(payload),
+          "X-Content-Type-Options": "nosniff",
+          "Referrer-Policy": "no-referrer",
+          "Cache-Control": "no-store"
+        });
+        response.end(payload);
+      } catch (error) {
+        if (response.headersSent || response.destroyed) return;
+        const statusCode = Number.isInteger(error.statusCode) ? error.statusCode : 400;
+        const payload = JSON.stringify({ error: error.message || "Enrollment request failed" });
+        response.writeHead(statusCode, {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Length": Buffer.byteLength(payload),
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": "no-store"
+        });
+        response.end(payload);
+      }
       return;
     }
 
