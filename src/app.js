@@ -149,7 +149,7 @@
     const selected=generatedWorld.regions.find(region=>region.id===selectedRegionId)||generatedWorld.regions[0];
     const deposits=(selected.resourceNodes||[]).map(node=>'<span><b>'+esc(node.resource)+'</b> · '+num(node.quantity)+' units'+(node.operational?(node.quantity>0?' · Producing':' · Depleted'):node.quantity>0&&selected.owner==="Unclaimed"?' <button type="button" class="resource-site-action" data-resource-node="'+esc(node.id)+'">Establish site · 35 materials / 55 credits</button>':node.quantity<=0?' · Depleted':' · Unclaimed region required')+'</span>').join("");
     const roads=(selected.roads||[]).map(road=>{const from=selected.cities.find(city=>city.id===road.from),to=selected.cities.find(city=>city.id===road.to);return "<span>"+esc(from?from.name:road.from)+" ↔ "+esc(to?to.name:road.to)+" · +2 logistics</span>";}).join("");
-    $("generated-region-detail").innerHTML='<b>'+esc(selected.name)+'</b><p>'+esc(selected.owner)+' · '+esc(selected.biome)+' · Development '+selected.development+'/100</p><p>'+num(selected.population)+' residents · '+selected.cities.length+' settlements</p><div class="settlement-list">'+selected.cities.map(city=>'<span><b>'+esc(city.name)+'</b> — '+esc(city.type)+' · '+num(city.population)+'</span>').join("")+'</div><h3>Road network · '+(selected.roads||[]).length+'</h3><div class="resource-node-list">'+(roads||"No roads built yet")+'</div><button type="button" id="build-regional-road">Build road · 25 materials / 40 credits</button><h3>Resource deposits</h3><div class="resource-node-list">'+deposits+'</div><small>Coordinates: '+selected.latitude.toFixed(1)+'°, '+selected.longitude.toFixed(1)+'°</small><button type="button" id="found-settlement">Found settlement · 50 materials / 80 credits</button>';
+    $("generated-region-detail").innerHTML='<b>'+esc(selected.name)+'</b><p>'+esc(selected.owner)+' · '+esc(selected.biome)+' · Development '+selected.development+'/100</p><p>'+num(selected.population)+' residents · '+selected.cities.length+' settlements</p>'+(selected.owner==="Unclaimed"?'<button type="button" id="claim-region">Claim territory · 100 credits / 10 influence</button>':selected.owner===state.nation.name?'<span class="tag">YOUR TERRITORY</span>':'<span class="tag">FOREIGN TERRITORY</span>')+'<div class="settlement-list">'+selected.cities.map(city=>'<span><b>'+esc(city.name)+'</b> — '+esc(city.type)+' · '+num(city.population)+'</span>').join("")+'</div><h3>Road network · '+(selected.roads||[]).length+'</h3><div class="resource-node-list">'+(roads||"No roads built yet")+'</div><button type="button" id="build-regional-road">Build road · 25 materials / 40 credits</button><h3>Resource deposits</h3><div class="resource-node-list">'+deposits+'</div><small>Coordinates: '+selected.latitude.toFixed(1)+'°, '+selected.longitude.toFixed(1)+'°</small><button type="button" id="found-settlement">Found settlement · 50 materials / 80 credits</button>';
     if (!planetRenderer) {
       try { planetRenderer = window.KingmakerWorld3D.start($("planet-canvas"),{world:generatedWorld,onRegionSelect(regionId){selectedRegionId=regionId;renderGeneratedWorld();}}); }
       catch (error) { $("planet-canvas").replaceWith(Object.assign(document.createElement("p"),{className:"notice",textContent:"3D renderer could not start: "+error.message})); }
@@ -197,6 +197,11 @@
     const resourceButton=event.target.closest("[data-resource-node]");
     if(resourceButton){
       try{E.developResourceSite(state,selectedRegionId,resourceButton.dataset.resourceNode);state.mapWorld=generatedWorld;persist();renderGeneratedWorld();toast("Resource extraction site established.","success");}
+      catch(error){toast(error.message,"error");}
+      return;
+    }
+    if(event.target.id==="claim-region"){
+      try{E.claimRegion(state,selectedRegionId);state.mapWorld=generatedWorld;persist();renderGeneratedWorld();toast("Territory claimed. The region is now part of your nation.","success");}
       catch(error){toast(error.message,"error");}
       return;
     }
