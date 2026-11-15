@@ -21,7 +21,7 @@ The visual target is a serious, high-fidelity next-generation world—not a cart
 
 ## Current prototype
 
-The current playable prototype is a browser game built with JavaScript and a small Node.js development server. The nation simulation remains local single-player. The development marketplace now supports signed EVM-wallet sessions for listing management; this does not make the nation simulation multiplayer or enable real asset trading.
+The current playable prototype is a browser game built with JavaScript and a small Node.js development server. The nation simulation remains local single-player. The development marketplace supports signed EVM-wallet sessions, a server-verified on-chain inventory view, and an ownership check before listing; this does not make the nation simulation multiplayer or enable real asset trading.
 
 ### Run locally
 
@@ -64,7 +64,7 @@ All current game values are simulated and have no real-world or financial value.
 
 Run `npm install` and `npm run dev`, then open the game through the local server. The Web3 & Assets tab uses a one-time EVM wallet signature to establish a server-side session before publishing or cancelling listings. The server verifies the signature, consumes the challenge nonce, stores the session in an HttpOnly SameSite=Strict cookie, and derives the listing seller from that verified session. Before accepting a listing, it also checks the wallet's live ERC-1155 balance through a configured server-side RPC endpoint and contract address. Listing records are persisted in `data/marketplace.json`, so browser sessions using the same server see the same feed.
 
-This remains a development prototype: wallet sign-in proves control of an address, not ownership of the locally recorded asset. Inventory is still browser-local. Prices are simulated game credits; there are no purchases, payments, escrow, asset transfers, or blockchain settlement. Sessions are in-memory and reset when the server restarts. The server binds to loopback by default and accepts only `http://127.0.0.1:4173` and `http://localhost:4173` origins by default; configure `KINGMAKER_APP_ORIGINS` explicitly if the local port changes. It must not be exposed publicly.
+This remains a development prototype: wallet sign-in proves control of an address, not ownership of the locally recorded asset. The marketplace selector now uses live server-verified ERC-1155 balances for configured token IDs; the separate prototype collection remains browser-local. Prices are simulated game credits; there are no purchases, payments, escrow, asset transfers, or blockchain settlement. Sessions are in-memory and reset when the server restarts. The server binds to loopback by default and accepts only `http://127.0.0.1:4173` and `http://localhost:4173` origins by default; configure `KINGMAKER_APP_ORIGINS` explicitly if the local port changes. It must not be exposed publicly.
 
 
 
