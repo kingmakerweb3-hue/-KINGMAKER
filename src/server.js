@@ -83,7 +83,12 @@ async function handleApi(request, response, url) {
     const assets = await chainOwnership.readInventory(session.address, session.chainId);
     return sendJson(response, 200, { account: session.address, chainId: session.chainId, assets });
   }
-  if (url.pathname === "/api/market/activity" && request.method === "GET") {\n    const limit = Number(url.searchParams.get("limit") || 20);\n    const cursor = url.searchParams.get("cursor") || "";\n    return sendJson(response, 200, await marketplaceIndexer.list(limit, cursor));\n  }\n  if (url.pathname === "/api/market/listings" && request.method === "GET") {
+  if (url.pathname === "/api/market/activity" && request.method === "GET") {
+    const limit = Number(url.searchParams.get("limit") || 20);
+    const cursor = url.searchParams.get("cursor") || "";
+    return sendJson(response, 200, await marketplaceIndexer.list(limit, cursor));
+  }
+  if (url.pathname === "/api/market/listings" && request.method === "GET") {
     const session = walletAuth.getSession(cookieValue(request, SESSION_COOKIE));
     return sendJson(response, 200, { listings: await marketplace.list(), authenticated: Boolean(session), account: session?.address || null, mode: "SIGNED_WALLET_SESSION_DEVELOPMENT" });
   }
@@ -133,13 +138,10 @@ const server = http.createServer(async (request, response) => {
   });
 });
 server.listen(port, "127.0.0.1", () => {
-  process.stdout.write("KINGMAKER local server at http://127.0.0.1:" + port + "
-");
+  process.stdout.write("KINGMAKER local server at http://127.0.0.1:" + port + "\n");
   if (marketplaceIndexer.configured()) {
-    marketplaceIndexer.sync().catch(error => process.stderr.write("KINGMAKER event indexer: " + error.message + "
-"));
-    const timer = setInterval(() => marketplaceIndexer.sync().catch(error => process.stderr.write("KINGMAKER event indexer: " + error.message + "
-")), 15_000);
+    marketplaceIndexer.sync().catch(error => process.stderr.write("KINGMAKER event indexer: " + error.message + "\n"));
+    const timer = setInterval(() => marketplaceIndexer.sync().catch(error => process.stderr.write("KINGMAKER event indexer: " + error.message + "\n")), 15_000);
     timer.unref();
   }
 });
