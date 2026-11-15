@@ -120,6 +120,12 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const cabin=new THREE.Mesh(new THREE.BoxGeometry(.34,.2,.34),material(0xb9d0d5));cabin.position.set(0,.39,-.04);car.add(cabin);
     const wheelMat=material(0x263039);
     for(const x of [-.25,.25])for(const z of [-.24,.24]){const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.075,.075,.055,8),wheelMat);wheel.rotation.z=Math.PI/2;wheel.position.set(x,.105,z);car.add(wheel);}
+    const headlight=new THREE.MeshStandardMaterial({color:0xfff1c7,emissive:0xffd98a,emissiveIntensity:1.1,roughness:.3});
+    const taillight=new THREE.MeshStandardMaterial({color:0x9f2828,emissive:0xff2020,emissiveIntensity:.65,roughness:.35});
+    for(const x of [-.16,.16]){
+      const front=new THREE.Mesh(new THREE.BoxGeometry(.09,.065,.025),headlight);front.position.set(x,.25,.397);car.add(front);
+      const rear=new THREE.Mesh(new THREE.BoxGeometry(.09,.065,.025),taillight);rear.position.set(x,.25,-.397);car.add(rear);
+    }
     trafficGroup.add(car);trafficVehicles.push({mesh:car,a,b,phase:index*.47,speed:.055+(index%3)*.012});
   }
   function makeRoad(points){
