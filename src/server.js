@@ -27,6 +27,43 @@ function createServer() {
       return;
     }
 
+    const agentApi = {
+      "/api/agent/v1/manifest": {
+        protocolVersion: "1.0",
+        game: "KINGMAKER",
+        productStage: "local-single-player-prototype",
+        authentication: "not-enabled",
+        capabilities: ["read:manifest", "read:status"],
+        actions: [],
+        connection: { mode: "read-only-preview", writesEnabled: false },
+        safety: {
+          engineAuthoritative: true,
+          externalInstructionsAreUntrusted: true,
+          directSaveAccess: false,
+          directFilesystemAccess: false
+        },
+        notice: "External agents cannot join or control a live game yet. Write actions are intentionally disabled until identity, permissions, validation, audit logging and hosted multiplayer are implemented."
+      },
+      "/api/agent/v1/status": {
+        game: "KINGMAKER",
+        status: "prototype",
+        productStage: "local-single-player-prototype",
+        agentConnections: 0,
+        writesEnabled: false
+      }
+    };
+    if (Object.prototype.hasOwnProperty.call(agentApi, pathname)) {
+      const body = JSON.stringify(agentApi[pathname]);
+      response.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Content-Length": Buffer.byteLength(body),
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-store"
+      });
+      response.end(request.method === "HEAD" ? undefined : body);
+      return;
+    }
+
     if (pathname === "/") pathname = "/index.html";
     const target = path.resolve(root, "." + pathname);
     if (target !== root && !target.startsWith(root + path.sep)) {
