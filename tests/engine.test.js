@@ -538,6 +538,31 @@ test("trade and research agreements pay benefits while an alliance strengthens i
   assert.equal(state.resources.influence, before.influence + 1);
 });
 
+test("ambitious rival nations periodically claim unoccupied world regions", () => {
+  const state = Engine.createInitialState({ seed: 7123 });
+  require("../src/world3d.js");
+  state.mapWorld = globalThis.KingmakerWorld3D.generate(state.seed);
+  state.turn = 2;
+  const unclaimed = state.mapWorld.regions.filter(region => region.owner === "Unclaimed");
+  assert.ok(unclaimed.length > 0);
+  for (const rival of Object.values(state.rivals)) {
+    rival.resources.credits = 500;
+    rival.resources.influence = 100;
+    rival.stability = 90;
+  }
+  const beforeCredits = Object.fromEntries(Object.entries(state.rivals).map(([id, rival]) => [id, rival.resources.credits]));
+  const beforeInfluence = Object.fromEntries(Object.entries(state.rivals).map(([id, rival]) => [id, rival.resources.influence]));
+  Engine.advanceTurn(state);
+  const claimed = state.mapWorld.regions.filter(region => unclaimed.some(old => old.id === region.id) && region.owner !== "Unclaimed");
+  assert.equal(claimed.length, 1, "one rival expansion is resolved per eligible turn");
+  const rival = Object.values(state.rivals).find(item => item.name === claimed[0].owner);
+  assert.ok(rival);
+  assert.equal(rival.resources.credits, beforeCredits[rival.id] - 100);
+  assert.equal(rival.resources.influence, beforeInfluence[rival.id] - 10);
+  assert.equal(claimed[0].claimedTurn, 3);
+  assert.ok(rival.memory.some(item => item.kind === "expansion"));
+});
+
 test("military strength can win wars and victory captures rival territory", () => {
   const s=Engine.createInitialState({seed:119});
   s.mapWorld={version:2,seed:s.seed,regions:[{id:"rival-core",name:"Rival Core",owner:s.rivals.aurelia.name,development:20}]};
