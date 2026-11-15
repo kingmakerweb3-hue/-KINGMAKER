@@ -73,3 +73,10 @@ The example chain ID is Sepolia; the contract address and token IDs above are pl
 The browser prototype now includes a deterministic asset-economy domain module in `src/asset-economy.js`. It defines a stable asset catalog, validates wallet identities and listing bounds, models listing expiry and cancellation, prevents self-purchases, and creates simulated trade records using the explicitly non-financial `GAME_CREDITS` unit.
 
 The module is deliberately separate from the ERC-1155 balance reader. Its listing and trade records are local simulation data, not proof of ownership, escrow, payment, or blockchain settlement. A production marketplace still requires authenticated server-side state, authoritative inventory ownership checks, atomic settlement, anti-fraud controls, contract integration, and independent security review.
+
+
+## Local marketplace prototype
+
+The browser prototype includes a local player-to-player listing interface. A connected wallet can list a locally recorded catalog item, browse active listings, cancel its own listing, or simulate an exchange with another wallet address available in the same browser profile. Inventory records and listing records are stored in browser local storage.
+
+This is strictly a UI and game-flow simulation. Asking prices are display-only game credits: the prototype does not debit or credit a balance, collect payment, prove ownership, escrow assets, or submit a blockchain transaction. Listings are not shared between browsers or players. Production trading requires authenticated server-side listings, authoritative inventory and ownership checks, atomic settlement, payment/credit accounting, replay protection, anti-fraud controls, and audited contract integration.
