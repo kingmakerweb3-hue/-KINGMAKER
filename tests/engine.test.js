@@ -10,11 +10,11 @@ test("renewable power is available to factories in the same turn", () => {
   state.resources.materials = 5;
   state.resources.ore = 3;
   state.resources.power = 0;
+  assert.equal(Engine.economicSnapshot(state).activeFactories, 1);
   Engine.advanceTurn(state);
   assert.equal(state.economy.production.goods, 10);
   assert.equal(state.economy.consumption.power, 2);
   assert.equal(state.resources.power, 2);
-  assert.equal(Engine.economicSnapshot(state).activeFactories, 1);
 });
 
 test("factories scale down when renewable power cannot cover all demand", () => {
@@ -26,12 +26,12 @@ test("factories scale down when renewable power cannot cover all demand", () => 
   state.resources.ore = 9;
   state.resources.power = 0;
 
+  assert.equal(Engine.economicSnapshot(state).activeFactories, 2);
   Engine.advanceTurn(state);
 
   assert.equal(state.economy.production.goods, 20);
   assert.equal(state.economy.consumption.power, 4);
   assert.equal(state.resources.power, 0);
-  assert.equal(Engine.economicSnapshot(state).activeFactories, 2);
 });
 
 test("island wind and solar installations add renewable power to the production ledger", () => {
