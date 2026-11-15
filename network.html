@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07101d">
+  <meta name="description" content="Join the KINGMAKER Network. Check in daily, build your activity streak, and follow the future of the KINGMAKER Web3 world.">
+  <title>KINGMAKER Network — Daily Check-in</title>
+  <link rel="manifest" href="network-manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="network.css">
+  <script defer src="network.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="network.html"><span class="crown">♛</span><span><b>KINGMAKER</b><small>NETWORK · EARLY ACCESS</small></span></a>
+    <div class="head-actions"><span class="status"><i></i> TEST NETWORK</span><button id="install" class="quiet" hidden>Install app</button><a class="quiet game-link" href="index.html">Enter the World ↗</a></div>
+  </header>
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">YOUR JOURNEY STARTS HERE</p>
+        <h1>One world.<br><em>One community.</em><br>Your legacy.</h1>
+        <p class="lead">Join the KINGMAKER Network. Check in daily, grow your streak, and be part of the community building a new civilization experience.</p>
+        <div class="hero-actions"><button id="checkin" class="primary">⚡ Activate daily check-in</button><span id="checkin-state" class="muted" role="status">Ready when you are</span></div>
+        <p class="micro">No phone battery mining. No background processing. Daily participation is a simple check-in.</p>
+      </div>
+      <aside class="balance-card">
+        <div class="card-top"><span class="eyebrow">YOUR DEMO BALANCE</span><span class="pill">OFF-CHAIN DEMO</span></div>
+        <div class="balance"><strong id="points">0</strong><span>KMP</span></div>
+        <p class="muted">KINGMAKER Participation Points</p>
+        <div class="divider"></div>
+        <div class="stats"><div><small>Current streak</small><b><span id="streak">0</span> days</b></div><div><small>Total check-ins</small><b id="checkins">0</b></div></div>
+        <div class="progress"><span id="progress"></span></div>
+        <small class="muted" id="next-checkin">Check in today to start your streak.</small>
+      </aside>
+    </section>
+    <section class="grid">
+      <article class="panel daily">
+        <div class="panel-icon">⚡</div><div><p class="eyebrow">DAILY PARTICIPATION</p><h2>Show up. Build your streak.</h2><p class="muted">Earn 10 demo points for a daily check-in. Every seventh consecutive day adds a 5-point streak bonus.</p><div class="reward"><b>+10 KMP</b><span>daily check-in</span><b>+5 KMP</b><span>7-day streak bonus</span></div></div>
+      </article>
+      <article class="panel">
+        <p class="eyebrow">PLAYER IDENTITY</p><h2>Your network identity</h2>
+        <div class="wallet-row"><span id="wallet-label">Wallet not connected</span><button id="wallet" class="secondary">Connect wallet</button></div>
+        <p class="micro">Optional. Connect only to display your public wallet address. This demo does not request signatures or send transactions.</p>
+      </article>
+      <article class="panel">
+        <p class="eyebrow">INVITE THE COMMUNITY</p><h2>Bring your people</h2>
+        <p class="muted">Share the public KINGMAKER Network page. Referral attribution and referral rewards are not active yet.</p>
+        <div class="invite-row"><input id="invite-link" readonly aria-label="KINGMAKER Network link"><button id="copy" class="secondary">Copy link</button></div><span id="copy-state" class="micro" role="status"></span>
+      </article>
+      <article class="panel roadmap">
+        <p class="eyebrow">THE NETWORK ROADMAP</p><h2>Built in stages. No fake promises.</h2>
+        <div class="roadmap-list"><div><i class="done">✓</i><span><b>Daily participation demo</b><small>Browser-based check-in and streak</small></span><label>DEMO</label></div><div><i>2</i><span><b>Accounts and secure sync</b><small>Persistent identity across devices</small></span><label>PLANNED</label></div><div><i>3</i><span><b>Audited token design</b><small>Supply, utility, eligibility and legal review</small></span><label>PLANNED</label></div><div><i>4</i><span><b>On-chain network</b><small>Wallet transactions and verified rewards</small></span><label>PLANNED</label></div></div>
+      </article>
+    </section>
+    <footer><b>KINGMAKER</b><span>Build Your Nation. Shape Its Future.</span><p>Prototype notice: KMP is a local demo counter, not a cryptocurrency, token, investment, or promise of future value. Points are stored in this browser only and are not transferable, redeemable, or synchronized. Do not pay anyone to participate.</p></footer>
+  </main>
+</body>
+</html>
