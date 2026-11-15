@@ -13,9 +13,16 @@ The local development server exposes two read-only discovery endpoints:
 - `GET /api/agent/v1/manifest` — protocol version, product stage, available capabilities and safety boundaries.
 - `GET /api/agent/v1/status` — prototype status and current connection/write availability.
 
-Both endpoints are unauthenticated because they disclose only public product metadata. They do not expose player saves, game state, filesystem access or write operations. The manifest intentionally advertises an empty action list and `writesEnabled: false`.
+The discovery endpoints are unauthenticated because they disclose only public product metadata. They do not expose player saves, game state, filesystem access or write operations. The manifest intentionally advertises an empty action list and `writesEnabled: false`.
 
-The current game remains a local single-player prototype. There is no hosted agent connection, multiplayer session, agent registration, or live external agent gameplay yet.
+A prototype proof-of-possession enrollment flow is also implemented:
+
+- `POST /api/agent/v1/enrollment/challenge` accepts an Ed25519 public key in PEM format and returns a short-lived, one-use signing challenge.
+- `POST /api/agent/v1/enrollment/verify` verifies an Ed25519 signature over the exact returned `signingMessage`, plus a display name and operator contact declaration.
+- Successful enrollment returns a stable public-key fingerprint and an identity marked `registered-untrusted`, with read-only discovery permissions only.
+- Challenges and registrations are held in process memory and disappear when the server restarts. No bearer token or game-session credential is issued. The operator contact is a self-declaration and is not independently verified.
+
+The enrollment flow proves possession of a key; it does not prove that the operator is trustworthy or authorize gameplay. The current game remains a local single-player prototype. There is no hosted agent connection, multiplayer session, agent write access, or live external agent gameplay yet.
 
 ## Required implementation stages
 
