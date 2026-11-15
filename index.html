@@ -28,6 +28,7 @@
       <button id="tab-overview" class="active" role="tab" aria-controls="panel-overview" aria-selected="true" data-tab="overview">World</button>
       <button id="tab-nation" role="tab" aria-controls="panel-nation" aria-selected="false" data-tab="nation">Nation</button>
       <button id="tab-market" role="tab" aria-controls="panel-market" aria-selected="false" data-tab="market">Economy</button>
+      <button id="tab-military" role="tab" aria-controls="panel-military" aria-selected="false" data-tab="military">Defence</button>
       <button id="tab-diplomacy" role="tab" aria-controls="panel-diplomacy" aria-selected="false" data-tab="diplomacy">Diplomacy</button>
       <button id="tab-research" role="tab" aria-controls="panel-research" aria-selected="false" data-tab="research">Research</button>
       <button id="tab-campaign" role="tab" aria-controls="panel-campaign" aria-selected="false" data-tab="campaign">Campaign</button>
@@ -45,6 +46,10 @@
     <section id="panel-nation" class="tab-panel grid" role="tabpanel" aria-labelledby="tab-nation" tabindex="0" hidden>
       <article class="panel span-5"><p class="eyebrow">NATIONAL CHARTER</p><h2>My nation</h2><label for="nation-name">Nation name</label><input id="nation-name" maxlength="48"><label for="government">Government</label><select id="government"><option>Republic</option><option>Federation</option><option>Merchant Council</option><option>Constitutional Monarchy</option></select><button id="save-profile" class="primary top-gap">Save charter</button><div class="notice">All resources are simulated game values. Nothing here represents real money or a political service.</div></article>
       <article class="panel span-7"><p class="eyebrow">BUILD THE FUTURE</p><h2>Infrastructure</h2><div id="building-list" class="list-stack"></div></article>
+    </section>
+    <section id="panel-military" class="tab-panel grid" role="tabpanel" aria-labelledby="tab-military" tabindex="0" hidden>
+      <article class="panel span-5"><p class="eyebrow">NATIONAL SECURITY</p><h2>Defence forces</h2><div id="military-summary" class="notice"></div><button id="recruit-troops" class="primary top-gap">Train 10 personnel · 20 materials / 40 credits</button><p class="muted">Training raises national readiness.</p></article>
+      <article class="panel span-7"><p class="eyebrow">TERRITORIAL DEFENCE</p><h2>Regional fortifications</h2><div id="military-regions" class="list-stack"></div></article>
     </section>
     <section id="panel-market" class="tab-panel grid" role="tabpanel" aria-labelledby="tab-market" tabindex="0" hidden>
       <article class="panel span-7"><p class="eyebrow">SUPPLY · DEMAND · PRICE</p><h2>World market</h2><p class="muted">Turn production, population needs, rival economies, and your trades move available supply and prices.</p><div id="market-list" class="market-list"></div><div id="market-trends" class="trend-line"></div></article>
