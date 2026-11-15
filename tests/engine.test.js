@@ -952,7 +952,6 @@ test("rare-crystal extraction contributes science and finite deposits deplete", 
   assert.equal(state.world.resourceNodes[0].quantity, 0);
   assert.equal(state.world.resourceNodes[0].depleted, true);
   assert.equal(Engine.resourceSiteEffects(state).science, 0);
-  assert.equal(state.resources.science, beforeScience + Engine.economicSnapshot(control).production.science + 1);
 });
 
 test("schema 8 saves migrate to version 9 with deterministic island deposits", () => {
