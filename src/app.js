@@ -94,6 +94,12 @@
   function renderResearch() {
     $("technology-list").innerHTML=Object.entries(E.TECHNOLOGIES).map(([id,t])=>{const done=state.technologies.includes(id),missing=(t.requires||[]).filter(required=>!state.technologies.includes(required)),effect=t.effect==="stability"?"Raises stability and improves recovery.":t.effect==="growth"?"Improves population growth with food surplus.":t.effect==="mine"?"Increases ore extraction by 50%.":t.effect==="transport"?"Increases food logistics capacity by 50%.":t.effect==="housing"?"Increases housing capacity by 50% and reduces national wage upkeep by 10%.":"Increases "+t.effect+" output by "+Math.round((t.factor-1)*100)+"%.";return '<article class="list-card"><div><h3>'+esc(t.name)+(done?' <span class="level">Researched</span>':"")+'</h3><p>'+effect+'</p><small>Cost: '+t.cost+' science'+(t.requires&&t.requires.length?' · Requires: '+t.requires.map(required=>esc(E.TECHNOLOGIES[required].name)).join(", "):"")+'</small></div><button data-action="research" data-id="'+id+'" '+(done||missing.length>0||state.resources.science<t.cost?"disabled":"")+'>'+(done?"Complete":missing.length?"Locked":"Research")+'</button></article>';}).join("");
   }
+  function renderMilitary() {
+    const owned=(generatedWorld.regions||[]).filter(r=>r.owner===state.nation.name);
+    $("military-summary").innerHTML="<b>"+num(state.military.troops)+" personnel</b> · Readiness "+state.military.readiness+"%";
+    $("military-regions").innerHTML=owned.length?owned.map(r=>'<article class="list-card"><div><h3>'+esc(r.name)+'</h3><p>Fortification '+(r.fortification||0)+' / 5</p></div><button data-action="fortify" data-id="'+esc(r.id)+'" '+((r.fortification||0)>=5||state.resources.materials<50||state.resources.credits<80?"disabled":"")+ '>Fortify · 50 materials / 80 credits</button></article>').join(""):'<p class="empty">Claim a region on the 3D map before building defenses.</p>';
+    $("recruit-troops").disabled=state.status!=="playing"||state.resources.materials<20||state.resources.credits<40||state.military.troops>=100000;
+  }
   function renderCampaign() {
     const c=E.CAMPAIGNS[state.campaign.id]; $("campaign-name").textContent=c.name;$("campaign-description").textContent=c.description;
     $("campaign-status").textContent=state.status==="playing"?"Turn "+state.turn+" · Phase "+(c.phases[state.campaign.phaseIndex]||"Complete"):state.status.toUpperCase();
@@ -157,7 +163,7 @@
     }
   }
   function render() {
-    renderGeneratedWorld();renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderWorldEvents();renderResearch();renderCampaign();renderCreator();renderAdvice();renderHistory();
+    renderGeneratedWorld();renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderWorldEvents();renderResearch();renderMilitary();renderCampaign();renderCreator();renderAdvice();renderHistory();
     $("turn-label").textContent="TURN "+state.turn;$("game-banner").textContent=state.status==="playing"?state.nation.name+" · "+state.nation.government:"Campaign "+state.status;
     $("game-banner").className="game-banner "+state.status;$("advance-turn").disabled=state.status!=="playing";tab(activeTab);
   }
@@ -181,6 +187,7 @@
       if(action==="strain"){if(state.resources.influence<5)throw Error("Recalling an envoy costs 5 influence.");state.resources.influence-=5;state.rivals[id].relation=Math.max(-100,state.rivals[id].relation-15);E.addEvent(state,"Your envoy was recalled from "+state.rivals[id].name+".","diplomacy");}
       if(action==="treaty")E.offerTreaty(state,id,kind);
       if(action==="conflict")E.declareConflict(state,id);
+       if(action==="fortify")E.fortifyRegion(state,id);
       if(action==="peace")E.makePeace(state,id);
       if(action==="event-choice")E.resolveWorldEvent(state,eventId,choice);
       if(action==="delete-creation")E.deleteCreation(state,id);
@@ -189,6 +196,7 @@
       if(totalBuildings()>=10&&!state.achievements.includes("builder"))state.achievements.push("builder");
     });
   });
+  $("recruit-troops").addEventListener("click",()=>act(()=>E.recruitTroops(state,1)));
   $("world-map").addEventListener("keydown",event=>{
     if(event.key==="Enter"||event.key===" "){const node=event.target.closest("[data-focus]");if(node){event.preventDefault();node.click();}}
   });
