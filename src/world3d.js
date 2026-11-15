@@ -292,6 +292,43 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     scene.add(solarFarmGroup);
   }
 
+  function createPowerNetwork(){
+    const cableMat=new THREE.MeshStandardMaterial({color:0x263943,metalness:.42,roughness:.48});
+    const insulatorMat=material(0x8eb8c1,.42);
+    const pole={x:9.4,z:-6.3,y:heightAt(9.4,-6.3)+2.18};
+    const station={x:10.2,z:-4.7,y:heightAt(10.2,-4.7)+1.28};
+    const cable=(points,radius=.025)=>{
+      const curve=new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(p.x,p.y,p.z)));
+      const mesh=new THREE.Mesh(new THREE.TubeGeometry(curve,32,radius,7,false),cableMat);
+      mesh.castShadow=true;scene.add(mesh);
+    };
+    const sites=[[-5.2,-9.1],[-1.4,-10.2],[2.5,-9.5]];
+    sites.forEach(([x,z],index)=>{
+      const y=heightAt(x,z)+3.7;
+      const dx=pole.x-x,dz=pole.z-z,length=Math.hypot(dx,dz)||1;
+      const ox=-dz/length*.13,oz=dx/length*.13;
+      for(let phase=-1;phase<=1;phase++){
+        const offset=phase*.13;
+        cable([
+          {x:x+ox*phase,y:y+offset,z:z+oz*phase},
+          {x:x+dx*.48+ox*phase,y:y-.58+offset,z:z+dz*.48+oz*phase},
+          {x:pole.x+offset,y:pole.y+.12,z:pole.z}
+        ],.018);
+      }
+      const insulator=new THREE.Mesh(new THREE.SphereGeometry(.095,8,8),insulatorMat);
+      insulator.position.set(x,y,z);scene.add(insulator);
+    });
+    for(let phase=-1;phase<=1;phase++){
+      cable([
+        {x:pole.x,y:pole.y+phase*.13,z:pole.z},
+        {x:9.85,y:pole.y-.28+phase*.13,z:-5.55},
+        {x:station.x,y:station.y,z:station.z}
+      ],.02);
+    }
+    const junction=new THREE.Mesh(new THREE.BoxGeometry(.36,.18,.3),material(0x667c80,.52));
+    junction.position.set(9.82,heightAt(9.82,-5.45)+.22,-5.45);junction.castShadow=true;scene.add(junction);
+  }
+
   function createScene(){
     scene=new THREE.Scene();scene.background=new THREE.Color(0x9bb8c7);scene.fog=new THREE.FogExp2(0x9bb8c7,.012);
     camera=new THREE.PerspectiveCamera(42,1,.1,150);camera.position.set(17,15,20);
@@ -304,7 +341,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     for(let ring=0;ring<=waterRings;ring++){const radius=42*ring/waterRings;for(let seg=0;seg<=waterSegments;seg++){const angle=seg/waterSegments*Math.PI*2;waterVerts.push(Math.cos(angle)*radius,-.5,Math.sin(angle)*radius);if(ring<waterRings&&seg<waterSegments){const a=ring*(waterSegments+1)+seg,b=a+1,c=a+waterSegments+1,d=c+1;waterIndices.push(a,c,b,b,c,d);}}}
     waterGeo.setAttribute("position",new THREE.Float32BufferAttribute(waterVerts,3));waterGeo.setIndex(waterIndices);waterGeo.computeVertexNormals();
     waterMesh=new THREE.Mesh(waterGeo,new THREE.MeshPhysicalMaterial({color:0x286b80,roughness:.23,metalness:.12,clearcoat:.8,clearcoatRoughness:.16,transparent:true,opacity:.94,side:THREE.DoubleSide}));scene.add(waterMesh);waterPositions=waterMesh.geometry.attributes.position.array.slice();
-    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();cloudGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup);createHarbor();createCoastalLighthouse();createWindFarm();createSolarFarm();
+    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();cloudGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup);createHarbor();createCoastalLighthouse();createWindFarm();createSolarFarm();createPowerNetwork();
     const n=176,verts=[],indices=[],colors=[];
     for(let iz=0;iz<=n;iz++)for(let ix=0;ix<=n;ix++){
       const x=(ix/n-.5)*30,z=(iz/n-.5)*30,d=Math.hypot(x,z),y=heightAt(x,z);verts.push(x,y,z);
