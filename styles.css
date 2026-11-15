@@ -142,3 +142,13 @@ button{min-height:38px}
 .manifesto-card { margin-top: .8rem; padding: .85rem; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.025); }
 .manifesto-card strong { display: block; margin: .35rem 0; }
 .manifesto-card p, .manifesto-card small { color: var(--muted); line-height: 1.5; }
+
+/* Local simulated player marketplace */
+.web3-market-layout{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(0,1.5fr);gap:20px;margin-top:16px}
+.web3-listing-form{display:grid;gap:8px;padding:14px;border:1px solid var(--line);border-radius:12px;background:#0d1727}
+.web3-listing-form h3,.web3-market-heading h3{margin:0 0 6px}.web3-listing-form label{font-size:11px;color:var(--muted)}
+.web3-listing-form input,.web3-listing-form select{width:100%;min-width:0;padding:10px;border:1px solid var(--line);border-radius:8px;background:#101d30;color:var(--text)}
+.web3-market-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.web3-market-list{display:grid;gap:8px}.web3-listing{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#0d1727}
+.web3-listing b,.web3-listing small{display:block}.web3-listing small{color:var(--muted);font-size:10px;margin-top:4px}.web3-listing strong{color:var(--gold);font-size:12px;white-space:nowrap}.web3-listing strong small{font-size:8px}.web3-listing button{font-size:10px;padding:7px 9px}
+@media(max-width:760px){.web3-market-layout{grid-template-columns:1fr}.web3-listing{grid-template-columns:minmax(0,1fr) auto}.web3-listing button{grid-column:1/-1;width:100%;min-height:42px}}
