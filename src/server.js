@@ -59,7 +59,7 @@ if (require.main === module) {
   const port = Number(process.env.PORT || 4173);
   server.listen(port, "127.0.0.1", () => {
     const address = server.address();
-    process.stdout.write("KINGMAKER local server at http://127.0.0.1:" + address.port + "\\n");
+    process.stdout.write("KINGMAKER local server at http://127.0.0.1:" + address.port + "\n");
   });
 }
 
