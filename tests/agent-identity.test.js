@@ -131,3 +131,34 @@ test("HTTP agent enrollment returns read-only untrusted registration and rejects
   assert.equal(manifest.connection.writesEnabled, false);
   assert.deepEqual(manifest.actions, []);
 });
+
+test("HTTP agent enrollment rate-limits repeated challenge requests", async t => {
+  const server = createServer();
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  t.after(() => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())));
+  const base = "http://127.0.0.1:" + server.address().port;
+  const { publicKey } = makeKeyPair();
+  const body = JSON.stringify({
+    publicKeyPem: publicKey.export({ type: "spki", format: "pem" })
+  });
+
+  for (let index = 0; index < 10; index += 1) {
+    const response = await fetch(base + "/api/agent/v1/enrollment/challenge", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body
+    });
+    assert.equal(response.status, 201);
+  }
+
+  const limited = await fetch(base + "/api/agent/v1/enrollment/challenge", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body
+  });
+  assert.equal(limited.status, 429);
+  assert.ok(Number(limited.headers.get("retry-after")) > 0);
+});
