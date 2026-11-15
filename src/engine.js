@@ -1453,7 +1453,7 @@
     for (const conflict of state.diplomacy.conflicts) {
       if (conflict.status !== "active") continue;
       const rival = state.rivals[conflict.rivalId];
-      const playerStrength = Math.max(1, state.resources.power + (state.buildings.power || 0) * 12 + state.technologies.length * 5);
+      const playerStrength = Math.max(1, state.resources.power + (state.buildings.power || 0) * 12 + state.technologies.length * 5 + Math.floor(state.military.troops * state.military.readiness / 100));
       const rivalStrength = Math.max(1, rival.resources.power + (rival.buildings.power || 0) * 12 + rival.technologies.length * 5);
       conflict.playerScore += playerStrength;
       conflict.rivalScore += rivalStrength;
@@ -1467,10 +1467,20 @@
         if (won) {
           state.resources.credits = Math.min(RESOURCE_LIMIT, state.resources.credits + 30);
           rival.relation = -10;
-          addEvent(state, "Your forces prevailed over " + rival.name + "; a settlement brings 30 credits.", "conflict");
+          const captured = state.mapWorld && Array.isArray(state.mapWorld.regions) ? state.mapWorld.regions.find(region => region.owner === rival.name) : null;
+          if (captured) {
+            captured.owner = state.nation.name;
+            captured.claimedTurn = state.turn;
+            captured.development = Math.min(100, (captured.development || 0) + 5);
+            addEvent(state, "Victory secured " + captured.name + " from " + rival.name + ". The region is now under your administration.", "conflict", { summary: "Military victory transferred territorial control and increased regional development.", affectedNationIds: ["player", rival.id] });
+          } else {
+            addEvent(state, "Your forces prevailed over " + rival.name + "; a settlement brings 30 credits.", "conflict");
+          }
+          state.military.troops = Math.max(0, state.military.troops - Math.ceil(state.military.troops * 0.02));
         } else {
           state.resources.credits = Math.max(0, state.resources.credits - 30);
           state.nation.stability = Math.max(0, state.nation.stability - 12);
+          state.military.troops = Math.max(0, state.military.troops - Math.ceil(state.military.troops * 0.15));
           rival.relation = -15;
           addEvent(state, rival.name + " prevailed. Your treasury and stability suffered.", "conflict");
         }
