@@ -120,16 +120,65 @@
     const world=options.world||generate(481516),markerData=[];
     const cityPalette=[[.95,.76,.32],[.36,.78,.96],[.45,.86,.62],[.92,.53,.43],[.75,.61,.96],[.94,.83,.53],[.44,.82,.78],[.88,.62,.78]];
     const resourcePalette={"Fertile soil":[.55,.82,.38],"Iron":[.72,.74,.79],"Copper":[.94,.49,.25],"Coal":[.42,.48,.55],"Timber":[.39,.67,.32],"Stone":[.68,.66,.59],"Fresh water":[.28,.65,.96],"Rare crystals":[.77,.52,.96]};
-    function addMarker(latitude,longitude,color) {
+    function addMarker(latitude,longitude,color,size=9) {
       const theta=(90-latitude)*Math.PI/180,phi=longitude*Math.PI/180,r=1.014;
-      markerData.push(Math.sin(theta)*Math.cos(phi)*r,Math.cos(theta)*r,Math.sin(theta)*Math.sin(phi)*r,...color);
+      markerData.push(Math.sin(theta)*Math.cos(phi)*r,Math.cos(theta)*r,Math.sin(theta)*Math.sin(phi)*r,...color,size);
     }
     world.regions.forEach((region,index)=>{
       region.cities.forEach((city,cityIndex)=>addMarker(city.latitude,city.longitude,cityPalette[index%cityPalette.length],city.type==="Capital"?17:cityIndex===0?13:9));
       (region.resourceNodes||[]).forEach(node=>addMarker(node.latitude,node.longitude,resourcePalette[node.resource]||[.75,.55,.95],6));
     });
     const markerBuffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,markerBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(markerData),gl.STATIC_DRAW);
-    const borderData=buildBorders(world),borderBuffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,borderBuffer);gl.bufferData(gl.ARRAY_BUFFER,borderData,gl.STATIC_DRAW);
+    const borderData=buildBorders(world),borderBuffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,borderBuffer);gl.bufferData(gl.ARRAY_BUFFER,borderData,gl.STATIC_DRAW); 
+    // Procedural settlement architecture and inter-city transport routes.
+    const buildingData=[],roadData=[],transportRoutes=[];
+    function surfacePoint(latitude,longitude,radius){
+      const theta=(90-latitude)*Math.PI/180,phi=longitude*Math.PI/180;
+      return [Math.sin(theta)*Math.cos(phi)*radius,Math.cos(theta)*radius,Math.sin(theta)*Math.sin(phi)*radius];
+    }
+    function addBuilding(city,regionIndex,buildingIndex){
+      const base=surfacePoint(city.latitude,city.longitude,1.009);
+      const normal=[base[0],base[1],base[2]],nlen=Math.hypot(...normal);
+      for(let k=0;k<3;k++)normal[k]/=nlen;
+      const reference=Math.abs(normal[1])<.92?[0,1,0]:[1,0,0];
+      let east=[normal[1]*reference[2]-normal[2]*reference[1],normal[2]*reference[0]-normal[0]*reference[2],normal[0]*reference[1]-normal[1]*reference[0]];
+      const el=Math.hypot(...east);east=east.map(v=>v/el);
+      const north=[normal[1]*east[2]-normal[2]*east[1],normal[2]*east[0]-normal[0]*east[2],normal[0]*east[1]-normal[1]*east[0]];
+      const angle=buildingIndex*2.399+regionIndex*.7,offset=.003+(buildingIndex%3)*.003;
+      const center=base.map((v,i)=>v+east[i]*Math.cos(angle)*offset+north[i]*Math.sin(angle)*offset);
+      const height=(city.type==="Capital"?.018:.009)+((buildingIndex*7+regionIndex*3)%5)*.003;
+      const width=city.type==="Capital"?.0048:.0032;
+      const top=center.map((v,i)=>v+normal[i]*height);
+      const right=center.map((v,i)=>v+east[i]*width),left=center.map((v,i)=>v-east[i]*width);
+      const back=center.map((v,i)=>v+north[i]*width),front=center.map((v,i)=>v-north[i]*width);
+      const roof=top.map((v,i)=>v+normal[i]*height*.18);
+      function tri(a,b,c){buildingData.push(...a,...b,...c);}
+      tri(right,back,top);tri(back,left,top);tri(left,front,top);tri(front,right,top);
+      tri(right,roof,back);tri(back,roof,left);tri(left,roof,front);tri(front,roof,right);
+    }
+    function addRoute(a,b){
+      const A=surfacePoint(a.latitude,a.longitude,1.011),B=surfacePoint(b.latitude,b.longitude,1.011);
+      const dot=Math.max(-1,Math.min(1,A[0]*B[0]+A[1]*B[1]+A[2]*B[2]));
+      const angle=Math.acos(dot),segments=Math.max(8,Math.ceil(angle*90)),start=roadData.length/3;
+      for(let i=0;i<=segments;i++){
+        const t=i/segments,wa=angle<1e-5?1-t:Math.sin((1-t)*angle)/Math.sin(angle),wb=angle<1e-5?t:Math.sin(t*angle)/Math.sin(angle);
+        const p=[A[0]*wa+B[0]*wb,A[1]*wa+B[1]*wb,A[2]*wa+B[2]*wb],len=Math.hypot(...p);
+        roadData.push(p[0]/len*1.011,p[1]/len*1.011,p[2]/len*1.011);
+      }
+      transportRoutes.push({start,count:segments+1,phase:transportRoutes.length*.73});
+    }
+    world.regions.forEach((region,index)=>{
+      const cities=region.cities||[];
+      cities.forEach((city,cityIndex)=>{
+        const count=city.type==="Capital"?6:2;
+        for(let k=0;k<count;k++)addBuilding(city,index,k);
+        if(cityIndex>0)addRoute(cities[0],city);
+      });
+    });
+    const buildingBuffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buildingBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(buildingData),gl.STATIC_DRAW);
+    const roadBuffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,roadBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(roadData),gl.STATIC_DRAW);
+    const transportBuffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,transportBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(transportRoutes.length*7),gl.DYNAMIC_DRAW);
+
     const matrixLoc=gl.getUniformLocation(program,"matrix"),markerMatrixLoc=gl.getUniformLocation(markerProgram,"matrix"),borderMatrixLoc=gl.getUniformLocation(borderProgram,"matrix");
     let yaw=.5,pitch=.15,zoom=2.8,drag=null,frame=0,alive=true;
     const resize=()=>{const dpr=Math.min(Math.max(root.devicePixelRatio||1,1.5),3.5),w=Math.max(1,Math.min(3840,Math.floor(canvas.clientWidth*dpr))),h=Math.max(1,Math.min(2160,Math.floor(canvas.clientHeight*dpr)));if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}};
@@ -152,8 +201,20 @@
       for(let r=0;r<4;r++)for(let col=0;col<4;col++)out[col*4+r]=proj[r]*m[col*4]+proj[4+r]*m[col*4+1]+proj[8+r]*m[col*4+2]+proj[12+r]*m[col*4+3];
       const matrix=new Float32Array(out);
       gl.useProgram(program);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);const loc=gl.getAttribLocation(program,"position");gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib);gl.uniformMatrix4fv(matrixLoc,false,matrix);gl.drawElements(gl.TRIANGLES,indices.length,gl.UNSIGNED_SHORT,0);
-      gl.useProgram(borderProgram);gl.bindBuffer(gl.ARRAY_BUFFER,borderBuffer);const borderLoc=gl.getAttribLocation(borderProgram,"position");gl.enableVertexAttribArray(borderLoc);gl.vertexAttribPointer(borderLoc,3,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(borderMatrixLoc,false,matrix);gl.lineWidth(1);gl.drawArrays(gl.LINES,0,borderData.length/3);
-      gl.useProgram(markerProgram);gl.bindBuffer(gl.ARRAY_BUFFER,markerBuffer);const pLoc=gl.getAttribLocation(markerProgram,"position"),cLoc=gl.getAttribLocation(markerProgram,"tint"),sLoc=gl.getAttribLocation(markerProgram,"pointSize");gl.enableVertexAttribArray(pLoc);gl.vertexAttribPointer(pLoc,3,gl.FLOAT,false,28,0);gl.enableVertexAttribArray(cLoc);gl.vertexAttribPointer(cLoc,3,gl.FLOAT,false,28,12);gl.enableVertexAttribArray(sLoc);gl.vertexAttribPointer(sLoc,1,gl.FLOAT,false,28,24);gl.uniformMatrix4fv(markerMatrixLoc,false,matrix);gl.uniform1f(gl.getUniformLocation(markerProgram,"clock"),performance.now()*.001);gl.drawArrays(gl.POINTS,0,markerData.length/7);
+      gl.useProgram(borderProgram);gl.uniformMatrix4fv(borderMatrixLoc,false,matrix);const borderLoc=gl.getAttribLocation(borderProgram,"position");
+      gl.bindBuffer(gl.ARRAY_BUFFER,borderBuffer);gl.enableVertexAttribArray(borderLoc);gl.vertexAttribPointer(borderLoc,3,gl.FLOAT,false,0,0);gl.lineWidth(1);gl.drawArrays(gl.LINES,0,borderData.length/3);
+      gl.bindBuffer(gl.ARRAY_BUFFER,roadBuffer);gl.vertexAttribPointer(borderLoc,3,gl.FLOAT,false,0,0);transportRoutes.forEach(route=>gl.drawArrays(gl.LINE_STRIP,route.start,route.count));
+      gl.bindBuffer(gl.ARRAY_BUFFER,buildingBuffer);gl.vertexAttribPointer(borderLoc,3,gl.FLOAT,false,0,0);gl.drawArrays(gl.TRIANGLES,0,buildingData.length/3);
+      const now=performance.now()*.001,vehicles=[];
+      transportRoutes.forEach(route=>{const t=(now*.12+route.phase)%1,idx=Math.min(route.count-2,Math.floor(t*(route.count-1))),mix=t*(route.count-1)-idx,offset=(route.start+idx)*3;
+        const x=roadData[offset]*(1-mix)+roadData[offset+3]*mix,y=roadData[offset+1]*(1-mix)+roadData[offset+4]*mix,z=roadData[offset+2]*(1-mix)+roadData[offset+5]*mix;
+        vehicles.push(x*1.006,y*1.006,z*1.006,.98,.83,.48,7);
+      });
+      gl.bindBuffer(gl.ARRAY_BUFFER,transportBuffer);gl.bufferSubData(gl.ARRAY_BUFFER,0,new Float32Array(vehicles));
+      gl.useProgram(markerProgram);gl.bindBuffer(gl.ARRAY_BUFFER,transportBuffer);
+      const pLoc=gl.getAttribLocation(markerProgram,"position"),cLoc=gl.getAttribLocation(markerProgram,"tint"),sLoc=gl.getAttribLocation(markerProgram,"pointSize");
+      gl.enableVertexAttribArray(pLoc);gl.vertexAttribPointer(pLoc,3,gl.FLOAT,false,28,0);gl.enableVertexAttribArray(cLoc);gl.vertexAttribPointer(cLoc,3,gl.FLOAT,false,28,12);gl.enableVertexAttribArray(sLoc);gl.vertexAttribPointer(sLoc,1,gl.FLOAT,false,28,24);gl.uniformMatrix4fv(markerMatrixLoc,false,matrix);gl.uniform1f(gl.getUniformLocation(markerProgram,"clock"),now);gl.drawArrays(gl.POINTS,0,vehicles.length/7);
+      gl.bindBuffer(gl.ARRAY_BUFFER,markerBuffer);gl.vertexAttribPointer(pLoc,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(cLoc,3,gl.FLOAT,false,28,12);gl.vertexAttribPointer(sLoc,1,gl.FLOAT,false,28,24);gl.bindBuffer(gl.ARRAY_BUFFER,markerBuffer);const pLoc=gl.getAttribLocation(markerProgram,"position"),cLoc=gl.getAttribLocation(markerProgram,"tint"),sLoc=gl.getAttribLocation(markerProgram,"pointSize");gl.enableVertexAttribArray(pLoc);gl.vertexAttribPointer(pLoc,3,gl.FLOAT,false,28,0);gl.enableVertexAttribArray(cLoc);gl.vertexAttribPointer(cLoc,3,gl.FLOAT,false,28,12);gl.enableVertexAttribArray(sLoc);gl.vertexAttribPointer(sLoc,1,gl.FLOAT,false,28,24);gl.uniform1f(gl.getUniformLocation(markerProgram,"clock"),now);gl.drawArrays(gl.POINTS,0,markerData.length/7);
       frame=root.requestAnimationFrame(draw);
     }
     canvas.addEventListener("pointerdown",e=>{drag={x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,moved:false};canvas.setPointerCapture(e.pointerId);});
