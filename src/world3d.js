@@ -74,6 +74,26 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
       const canopy=new THREE.Mesh(new THREE.BoxGeometry(1.2,.1,1.05),material(0x4d6675));canopy.position.y=height+.25;g.add(canopy);
       for(let k=0;k<3;k++){const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.5,8),material(0xc0c5c2));pillar.position.set((k-1)*.42,height,0);g.add(pillar);}
     }
+    if(type!=="farm"&&type!=="transport"){
+      const door=new THREE.Mesh(new THREE.BoxGeometry(.22,.34,.045),material(type==="market"?0x725039:0x394b57));
+      door.position.set(0,.17,depth/2+.025);g.add(door);
+      const canopy=new THREE.Mesh(new THREE.BoxGeometry(.42,.055,.18),material(type==="market"?0xd3a65f:0x536b79));
+      canopy.position.set(0,.39,depth/2+.06);g.add(canopy);
+    }
+    if(["factory","academy","market","housing"].includes(type)){
+      const panelMat=new THREE.MeshStandardMaterial({color:0x294d68,metalness:.62,roughness:.28,emissive:0x102c42,emissiveIntensity:.24});
+      const panelFrame=material(0x9ba9ad,.7);
+      for(let k=0;k<2;k++){
+        const panel=new THREE.Mesh(new THREE.BoxGeometry(w*.34,.045,depth*.32),panelMat);
+        panel.position.set((k-.5)*w*.42,height+.18,0);panel.rotation.x=-.12;g.add(panel);
+        const frame=new THREE.Mesh(new THREE.BoxGeometry(w*.36,.035,depth*.34),panelFrame);
+        frame.position.set((k-.5)*w*.42,height+.145,0);frame.rotation.x=-.12;g.add(frame);
+      }
+    }
+    if(type==="market"){
+      const sign=new THREE.Mesh(new THREE.BoxGeometry(.62,.18,.055),material(0xe1bd72));
+      sign.position.set(0,height*.72,depth/2+.055);g.add(sign);
+    }
     buildingGroup.add(g);
   }
   function clearGroup(group){while(group.children.length){const obj=group.children.pop();obj.traverse?.(o=>{o.geometry?.dispose();if(Array.isArray(o.material))o.material.forEach(m=>m.dispose());else o.material?.dispose();});}}
