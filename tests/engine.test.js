@@ -17,6 +17,23 @@ test("renewable power is available to factories in the same turn", () => {
   assert.equal(Engine.economicSnapshot(state).activeFactories, 1);
 });
 
+test("factories scale down when renewable power cannot cover all demand", () => {
+  const state = Engine.createInitialState({ seed: 73 });
+  for (const key of Object.keys(state.buildings)) state.buildings[key] = 0;
+  state.buildings.factory = 3;
+  state.resources.food = 500;
+  state.resources.materials = 15;
+  state.resources.ore = 9;
+  state.resources.power = 0;
+
+  Engine.advanceTurn(state);
+
+  assert.equal(state.economy.production.goods, 20);
+  assert.equal(state.economy.consumption.power, 4);
+  assert.equal(state.resources.power, 0);
+  assert.equal(Engine.economicSnapshot(state).activeFactories, 2);
+});
+
 test("island wind and solar installations add renewable power to the production ledger", () => {
   const state = Engine.createInitialState({ seed: 71 });
   for (const key of Object.keys(state.buildings)) state.buildings[key] = 0;
