@@ -5,8 +5,9 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   "use strict";
   const host=document.getElementById("world3d-viewport");
   if(!host)return;
-  let scene,camera,renderer,controls,sunLight,landGroup,buildingGroup,peopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup,resourceGroup,cloudGroup,harborGroup,cargoShip,lighthouseBeacon,waterMesh,waterPositions,terrainMesh;
+  let scene,camera,renderer,controls,sunLight,landGroup,buildingGroup,peopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup,resourceGroup,cloudGroup,harborGroup,cargoShip,lighthouseBeacon,windFarmGroup,waterMesh,waterPositions,terrainMesh;
   const trafficVehicles=[];
+  const windTurbineRotors=[];
   let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,raycaster,groundPlane,previewMarker,placementPointer=null;
   const COLORS={farm:0xc6a35d,mine:0x78838d,workshop:0x9c7652,factory:0x697b8e,transport:0x9b9b8b,market:0xc49b52,academy:0x8b80b8,power:0x75b9c9,housing:0xd6c5a3};
   const material=(color,roughness=.86)=>new THREE.MeshStandardMaterial({color,roughness});
@@ -246,6 +247,26 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     tower.add(beacon);lighthouseBeacon=beacon;tower.position.set(x,base,z);tower.traverse(o=>{if(o.isMesh)o.castShadow=true;});scene.add(tower);
   }
 
+  function createWindFarm(){
+    windFarmGroup=new THREE.Group();
+    const concrete=material(0x8a918f),steel=material(0xd9dedb,.48),dark=material(0x53636a,.58),bladeMat=material(0xf0f1e9,.5);
+    const sites=[[-5.2,-9.1],[-1.4,-10.2],[2.5,-9.5]];
+    sites.forEach(([x,z],index)=>{
+      const turbine=new THREE.Group(),base=heightAt(x,z);
+      const pad=new THREE.Mesh(new THREE.CylinderGeometry(.72,.8,.16,20),concrete);pad.position.y=.08;turbine.add(pad);
+      const tower=new THREE.Mesh(new THREE.CylinderGeometry(.13,.25,3.55,12),steel);tower.position.y=1.86;tower.castShadow=true;turbine.add(tower);
+      const nacelle=new THREE.Mesh(new THREE.BoxGeometry(.42,.34,.78),dark);nacelle.position.set(0,3.7,.08);nacelle.castShadow=true;turbine.add(nacelle);
+      const rotor=new THREE.Group();rotor.position.set(0,3.7,.49);
+      rotor.add(new THREE.Mesh(new THREE.SphereGeometry(.19,12,10),steel));
+      for(let blade=0;blade<3;blade++){const arm=new THREE.Group();arm.rotation.z=blade*Math.PI*2/3;const vane=new THREE.Mesh(new THREE.BoxGeometry(.105,1.62,.07),bladeMat);vane.position.y=.91;vane.castShadow=true;arm.add(vane);const tip=new THREE.Mesh(new THREE.SphereGeometry(.075,8,6),bladeMat);tip.position.y=1.72;arm.add(tip);rotor.add(arm);}
+      turbine.add(rotor);turbine.position.set(x,base,z);windFarmGroup.add(turbine);windTurbineRotors.push({rotor,phase:index*.65,speed:.62+index*.08});
+    });
+    const sign=new THREE.Group(),post=new THREE.Mesh(new THREE.BoxGeometry(.09,.85,.09),dark);post.position.y=.42;sign.add(post);
+    const panel=new THREE.Mesh(new THREE.BoxGeometry(1.15,.42,.08),material(0x28566a));panel.position.y=.88;sign.add(panel);
+    const label=new THREE.Mesh(new THREE.BoxGeometry(.82,.07,.02),material(0x9de1d1));label.position.set(0,.91,.052);sign.add(label);
+    sign.position.set(4.7,heightAt(4.7,-8.7),-8.7);windFarmGroup.add(sign);scene.add(windFarmGroup);
+  }
+
   function createScene(){
     scene=new THREE.Scene();scene.background=new THREE.Color(0x9bb8c7);scene.fog=new THREE.FogExp2(0x9bb8c7,.012);
     camera=new THREE.PerspectiveCamera(42,1,.1,150);camera.position.set(17,15,20);
@@ -258,7 +279,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     for(let ring=0;ring<=waterRings;ring++){const radius=42*ring/waterRings;for(let seg=0;seg<=waterSegments;seg++){const angle=seg/waterSegments*Math.PI*2;waterVerts.push(Math.cos(angle)*radius,-.5,Math.sin(angle)*radius);if(ring<waterRings&&seg<waterSegments){const a=ring*(waterSegments+1)+seg,b=a+1,c=a+waterSegments+1,d=c+1;waterIndices.push(a,c,b,b,c,d);}}}
     waterGeo.setAttribute("position",new THREE.Float32BufferAttribute(waterVerts,3));waterGeo.setIndex(waterIndices);waterGeo.computeVertexNormals();
     waterMesh=new THREE.Mesh(waterGeo,new THREE.MeshPhysicalMaterial({color:0x286b80,roughness:.23,metalness:.12,clearcoat:.8,clearcoatRoughness:.16,transparent:true,opacity:.94,side:THREE.DoubleSide}));scene.add(waterMesh);waterPositions=waterMesh.geometry.attributes.position.array.slice();
-    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();cloudGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup);createHarbor();createCoastalLighthouse();
+    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();cloudGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup);createHarbor();createCoastalLighthouse();createWindFarm();
     const n=176,verts=[],indices=[],colors=[];
     for(let iz=0;iz<=n;iz++)for(let ix=0;ix<=n;ix++){
       const x=(ix/n-.5)*30,z=(iz/n-.5)*30,d=Math.hypot(x,z),y=heightAt(x,z);verts.push(x,y,z);
@@ -372,6 +393,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     trafficVehicles.forEach(v=>{const p=(t*v.speed+v.phase)%1;const x=v.a.x+(v.b.x-v.a.x)*p,z=v.a.z+(v.b.z-v.a.z)*p;v.mesh.position.set(x,heightAt(x,z)+.055,z);v.mesh.rotation.y=Math.atan2(v.b.x-v.a.x,v.b.z-v.a.z);});
     if(cargoShip){cargoShip.position.x=12.1+Math.sin(t*.12)*.42;cargoShip.position.z=12.4+Math.cos(t*.12)*.32;cargoShip.position.y=-.13+Math.sin(t*1.35)*.045;cargoShip.rotation.y=.75+Math.sin(t*.12)*.035;}
     if(lighthouseBeacon)lighthouseBeacon.rotation.y=-t*.42;
+    windTurbineRotors.forEach(({rotor,phase,speed})=>{rotor.rotation.z=t*speed+phase;});
     renderer.render(scene,camera);
   }
   function update(state){
