@@ -34,7 +34,13 @@ function createServer() {
       return;
     }
 
-    fs.stat(target, (statError, stat) => {
+    fs.realpath(target, (realpathError, realTarget) => {
+      if (realpathError || (realTarget !== root && !realTarget.startsWith(root + path.sep))) {
+        response.writeHead(realpathError ? 404 : 403, { "X-Content-Type-Options": "nosniff" }).end(realpathError ? "Not found" : "Forbidden");
+        return;
+      }
+
+      fs.stat(realTarget, (statError, stat) => {
       if (statError || !stat.isFile()) {
         response.writeHead(404, { "X-Content-Type-Options": "nosniff" }).end("Not found");
         return;
@@ -49,7 +55,8 @@ function createServer() {
       };
       response.writeHead(200, headers);
       if (request.method === "HEAD") response.end();
-      else fs.createReadStream(target).pipe(response);
+      else fs.createReadStream(realTarget).pipe(response);
+      });
     });
   });
 }
