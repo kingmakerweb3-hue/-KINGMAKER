@@ -5,3 +5,4 @@ test-results/
 data/marketplace.json
 data/marketplace.json.*.tmp
 .env
+data/market-events.json\ndata/market-events.json.*.tmp\n
