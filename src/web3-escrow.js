@@ -96,7 +96,7 @@ import { BrowserProvider, Contract, formatEther, parseEther } from "https://cdn.
               if (item.name === "ListingCancelled") detail = "Listing #"+a.listingId+" cancelled";
               if (item.name === "AssetPurchased") detail = "Listing #"+a.listingId+" purchased · "+formatEther(BigInt(a.price))+" native";
               if (item.name === "ProceedsWithdrawn") detail = "Seller withdrew "+formatEther(BigInt(a.amount))+" native";
-              const txUrl = config.explorerUrl ? config.explorerUrl.replace(/\\/$/, "")+"/tx/"+item.transactionHash : "";
+              const txUrl = config.explorerUrl ? config.explorerUrl.replace(/\/$/, "")+"/tx/"+item.transactionHash : "";
               return '<div class="web3-listing"><div><b>'+esc(item.name.replace(/([A-Z])/g, " $1").trim())+'</b><small>'+esc(detail)+' · block '+item.blockNumber+'</small></div><a href="'+esc(txUrl || "#")+'" '+(txUrl?'target="_blank" rel="noopener noreferrer"':'hidden')+'>View tx</a></div>';
             }).join("");
             return;
@@ -126,7 +126,7 @@ import { BrowserProvider, Contract, formatEther, parseEther } from "https://cdn.
           if (name === "ListingCancelled") detail = "Listing #"+a.listingId+" cancelled";
           if (name === "AssetPurchased") detail = "Listing #"+a.listingId+" purchased · "+formatEther(a.price)+" native";
           if (name === "ProceedsWithdrawn") detail = "Seller withdrew "+formatEther(a.amount)+" native";
-          const txUrl = config.explorerUrl ? config.explorerUrl.replace(/\\/$/, "")+"/tx/"+event.transactionHash : "";
+          const txUrl = config.explorerUrl ? config.explorerUrl.replace(/\/$/, "")+"/tx/"+event.transactionHash : "";
           return '<div class="web3-listing"><div><b>'+esc(name.replace(/([A-Z])/g, " $1").trim())+'</b><small>'+esc(detail)+' · block '+event.blockNumber+'</small></div><a href="'+esc(txUrl || "#")+'" '+(txUrl?'target="_blank" rel="noopener noreferrer"':'hidden')+'>View tx</a></div>';
         }).join("");
       } catch (error) {
