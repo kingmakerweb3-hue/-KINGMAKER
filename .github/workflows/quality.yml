@@ -34,5 +34,7 @@ jobs:
         run: npm run contract:compile
       - name: Run smart contract security behavior tests
         run: npm run contract:test
+      - name: Check JavaScript syntax
+        run: npm run check
       - name: Run automated game engine tests
         run: npm test
