@@ -1177,6 +1177,8 @@ test("territory save validation rejects unknown owners and invalid coordinates",
   const invalidOwner = JSON.parse(JSON.stringify(state));
   invalidOwner.world.territories[1].owner = "unknown-empire";
   assert.throws(() => Engine.validateSave(invalidOwner), /Territory data is invalid/);
+  invalidOwner.world.territories[1].owner = "__proto__";
+  assert.throws(() => Engine.validateSave(invalidOwner), /Territory data is invalid/);
   const invalidDeposit = JSON.parse(JSON.stringify(state));
   invalidDeposit.world.resourceNodes[8].x = 90;
   assert.throws(() => Engine.validateSave(invalidDeposit), /Resource deposit data is invalid/);
