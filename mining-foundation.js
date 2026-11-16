@@ -34,7 +34,7 @@
   const crownBalance = $("crown-balance"), ledgerStatus = $("ledger-status");
   if (signIn) signIn.addEventListener("click", async () => {
     const email = (emailInput?.value || "").trim();
-    if (!/^[^\s@]+@[^\s@]+\\.[^\s@]+$/.test(email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       memberStatus.textContent = "Enter a valid email address."; return;
     }
     signIn.disabled = true;
@@ -61,7 +61,7 @@
       return;
     }
     const total = (data || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
-    crownBalance.textContent = total.toFixed(8).replace(/\\.?0+$/, "") + " CROWN";
+    crownBalance.textContent = total.toFixed(8).replace(/\.?0+$/, "") + " CROWN";
     ledgerStatus.textContent = (data || []).length + " verified ledger entr" + ((data || []).length === 1 ? "y" : "ies") + ". This is an off-chain participation ledger, not a withdrawable token balance.";
   }
 
