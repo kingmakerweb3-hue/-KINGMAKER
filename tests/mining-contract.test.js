@@ -86,8 +86,8 @@ test("magic-link sign-in handles network errors and throttles resend requests", 
 });
 
 test("Supabase auth state changes defer refresh work until after the callback returns", () => {
-  assert.match(client, /onAuthStateChange\\(\\(_event, _session\\) => \\{/);
-  assert.match(client, /authRefreshTimer = setTimeout\\(\\(\\) =>/);
-  assert.match(client, /refresh\\(\\)\\.catch\\(\\(\\) =>/);
+  assert.ok(client.includes("onAuthStateChange((_event, _session) => {"));
+  assert.ok(client.includes("authRefreshTimer = setTimeout(() =>"));
+  assert.ok(client.includes("refresh().catch(() =>"));
   assert.match(client, /after the callback returns to avoid auth-lock deadlocks/);
 });
