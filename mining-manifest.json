@@ -1,13 +1,18 @@
 {
-  "name": "KINGMAKER — The Next Civilization",
-  "short_name": "KINGMAKER",
-  "description": "The KINGMAKER civilization network and mining gateway.",
+  "name": "KINGMAKER Mining — CROWN Sessions",
+  "short_name": "KINGMAKER Mining",
+  "description": "KINGMAKER CROWN mining dashboard and six-hour session app.",
   "start_url": "./mining.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#050912",
   "theme_color": "#050912",
   "icons": [
-    { "src": "./assets/kingmaker-app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    {
+      "src": "./assets/kingmaker-app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
   ]
 }
