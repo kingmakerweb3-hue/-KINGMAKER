@@ -9,7 +9,7 @@
   document.documentElement.dataset.nativePlatform =
     typeof cap.getPlatform === "function" ? cap.getPlatform() : "native";
 
-  // Keep the game immersive and prevent accidental browser-style zoom gestures.
+  // Keep the mining app immersive and prevent accidental browser-style zoom gestures.
   document.addEventListener("gesturestart", event => event.preventDefault(), { passive: false });
   let lastTouchEnd = 0;
   document.addEventListener("touchend", event => {
