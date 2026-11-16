@@ -1052,13 +1052,13 @@ test("rare-crystal extraction contributes science and finite deposits deplete", 
   assert.equal(Engine.resourceSiteEffects(state).science, 0);
 });
 
-test("schema 8 saves migrate to version 9 with deterministic island deposits", () => {
+test("schema 8 saves migrate to version 10 with deterministic archipelago deposits", () => {
   const state = Engine.createInitialState({ seed: 42005 });
   state.schemaVersion = 8;
   delete state.world.resourceNodes;
   const migrated = Engine.migrateSave(state);
-  assert.equal(migrated.schemaVersion, 9);
-  assert.deepEqual(migrated.world.resourceNodes, Engine.createResourceDeposits(state.seed));
+  assert.equal(migrated.schemaVersion, 10);
+  assert.deepEqual(migrated.world.resourceNodes, Engine.createResourceDeposits(state.seed, state.world.territories));
   const roundTrip = Engine.migrateSave(JSON.parse(Engine.exportSave(migrated)));
   assert.deepEqual(roundTrip.world.resourceNodes, migrated.world.resourceNodes);
 });
