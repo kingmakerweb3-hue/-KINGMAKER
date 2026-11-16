@@ -110,6 +110,45 @@
     status.textContent = "Private server-verified totals for your account. Referral links do not create automatic bonuses.";
   }
 
+  async function loadActivity() {
+    const list = $("member-activity"), status = $("activity-status");
+    if (!list || !status) return;
+    list.replaceChildren();
+    status.textContent = "Loading your latest server-recorded sessions…";
+    const { data, error } = await db.rpc("get_kingmaker_member_activity");
+    if (error) {
+      status.textContent = "Session history is temporarily unavailable. No estimated rewards are shown.";
+      return;
+    }
+    if (!data || data.length === 0) {
+      const empty = document.createElement("p");
+      empty.textContent = "No mining sessions recorded yet.";
+      list.append(empty);
+      status.textContent = "Your session history will appear here after a session is recorded.";
+      return;
+    }
+    for (const row of data) {
+      const card = document.createElement("div");
+      card.style.cssText = "display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:12px;border:1px solid #26364a;background:#07111e";
+      const details = document.createElement("div");
+      const title = document.createElement("strong");
+      title.style.color = "var(--gold)";
+      title.textContent = row.session_status === "claimed" ? "SESSION CLAIMED" : "SIX-HOUR SESSION";
+      const dates = document.createElement("div");
+      dates.style.cssText = "font-size:14px;color:#9aaec2;margin-top:5px";
+      dates.textContent = "Started: " + new Date(row.started_at).toLocaleString() +
+        " · Ended: " + new Date(row.ends_at).toLocaleString();
+      details.append(title, dates);
+      const reward = document.createElement("strong");
+      reward.style.cssText = "font:600 14px var(--mono);color:var(--cyan);align-self:center";
+      reward.textContent = row.credited_crown == null
+        ? "Not credited" : Number(row.credited_crown).toFixed(8).replace(/\\.?0+$/, "") + " CROWN";
+      card.append(details, reward);
+      list.append(card);
+    }
+    status.textContent = "Showing your latest " + data.length + " server-recorded sessions. CROWN appears only when a matching ledger credit exists.";
+  }
+
   async function refreshBalance(userId) {
     if (!crownBalance || !ledgerStatus) return;
     ledgerStatus.textContent = "Loading server-recorded CROWN ledger…";
@@ -136,6 +175,8 @@
       for (const id of ["dashboard-referrals","dashboard-claimed","dashboard-total","dashboard-active"]) { const el = $(id); if (el) el.textContent = "—"; }
       if ($("dashboard-status")) $("dashboard-status").textContent = "Sign in to load your private member activity.";
       if (ledgerStatus) ledgerStatus.textContent = "Sign in to view your recorded balance. No preview balance is displayed.";
+      if ($("member-activity")) $("member-activity").textContent = "Sign in to view your session history.";
+      if ($("activity-status")) $("activity-status").textContent = "Only server-recorded sessions and credited CROWN are shown.";
       if (signOut) signOut.hidden = true;
       return;
     }
@@ -143,6 +184,7 @@
     await loadReferral();
     await refreshBalance(auth.user.id);
     await loadDashboard();
+    await loadActivity();
     if (signOut) signOut.hidden = false;
     const { data: configRow, error: configError } = await db.from("mining_config")
       .select("enabled,crown_per_hour,session_seconds").eq("id", true).maybeSingle();
