@@ -167,3 +167,25 @@ test("new Supabase Auth accounts receive a private profile through a hardened tr
   assert.match(provisioning, /execute function public\.handle_kingmaker_new_auth_user\(\)/);
   assert.match(provisioning, /revoke all on function public\.handle_kingmaker_new_auth_user\(\) from public, anon, authenticated/);
 });
+
+test("wallet linking requires an expiring one-time challenge and server-side EIP-191 signer recovery", () => {
+  const migration = fs.readFileSync(path.join(root, "supabase/migrations/202611160014_secure_wallet_linking.sql"), "utf8");
+  const edge = fs.readFileSync(path.join(root, "supabase/functions/verify-wallet-link/index.ts"), "utf8");
+  assert.match(migration, /create_kingmaker_wallet_challenge/);
+  assert.match(migration, /now\(\) \+ interval '5 minutes'/);
+  assert.match(migration, /consumed_at timestamptz/);
+  assert.match(migration, /wallet_address text not null unique/);
+  assert.match(migration, /for update/);
+  assert.match(migration, /consumed_at is not null or v_challenge\.expires_at <= now\(\)/);
+  assert.match(migration, /grant execute on function public\.complete_kingmaker_wallet_link\(uuid,text,text\) to service_role/);
+  assert.match(edge, /recoverMessageAddress/);
+  assert.match(edge, /auth\.getUser\(token\)/);
+  assert.match(edge, /complete_kingmaker_wallet_link/);
+  assert.match(edge, /recovered !== address/);
+  assert.match(edge, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(edge, /privilegedChallenge\.consumed_at/);
+  assert.match(foundation, /create_kingmaker_wallet_challenge/);
+  assert.match(foundation, /personal_sign/);
+  assert.match(foundation, /verify-wallet-link/);
+  assert.match(foundation, /Ownership verified and linked/);
+});
