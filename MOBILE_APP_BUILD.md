@@ -1,6 +1,6 @@
-# KINGMAKER native mobile app build
+# KINGMAKER Mining native mobile app build
 
-KINGMAKER now has a Capacitor-based native iOS/Android project foundation. The browser game remains the shared game engine; Capacitor supplies native application packaging and platform integration. This is not yet a store-ready binary.
+The native app being packaged here is the existing KINGMAKER CROWN Mining portal (`mining.html`) only. It is not the nation-building game and does not package the main game website, network marketing portal or whitepaper as the app home screen. Capacitor supplies native iOS/Android packaging; this is not yet a store-ready binary.
 
 ## Build the shared mobile bundle
 
@@ -23,8 +23,8 @@ Android builds require Android Studio and a supported Android SDK/JDK. iOS build
 
 ## App identifiers
 
-- Display name: KINGMAKER
-- Android/iOS bundle identifier: `com.kingmaker.world`
+- Display name: KINGMAKER Mining
+- Android/iOS bundle identifier: `com.kingmaker.crownmining`
 - Web bundle output: `www/`
 
 Confirm legal ownership and identifier availability before a public store submission. Changing an app identifier after release can be disruptive.
@@ -35,7 +35,8 @@ Confirm legal ownership and identifier availability before a public store submis
 - [ ] Create native launcher icons and splash assets in required platform sizes.
 - [ ] Implement and test native haptics, status bar, app lifecycle and Android back navigation using supported Capacitor plugin APIs.
 - [ ] Test real devices, performance, offline behavior, touch accessibility and save recovery.
-- [ ] Confirm Three.js and all remote assets load reliably; decide whether to bundle dependencies for offline play.
+- [ ] Verify the mining dashboard, Supabase authentication/session lifecycle, six-hour session states, claim flow and wallet connection on real iOS/Android devices.
+- [ ] Verify network connectivity, error states, external wallet handoff and privacy disclosures.
 - [ ] Complete security, privacy, age-rating, support and store disclosure reviews.
 - [ ] Produce signed Android App Bundle and iOS archive; test internal/beta releases.
 - [ ] Submit through publisher-controlled Google Play Console and App Store Connect accounts.
