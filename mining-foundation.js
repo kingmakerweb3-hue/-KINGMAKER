@@ -324,6 +324,22 @@
     adStatus.textContent = "Not live: connect an approved rewarded-ad provider and server-side verification before enabling this feature.";
   }
 
-  db.auth.onAuthStateChange(() => refresh());
-  refresh();
+  // Supabase auth callbacks must stay synchronous. Defer database reads until
+  // after the callback returns to avoid auth-lock deadlocks during token refresh.
+  let authRefreshTimer = null;
+  db.auth.onAuthStateChange((_event, _session) => {
+    clearTimeout(authRefreshTimer);
+    authRefreshTimer = setTimeout(() => {
+      refresh().catch(() => {
+        say("ACCOUNT STATUS UNAVAILABLE", "Please reload the page or request a new secure sign-in link.");
+        start.disabled = true;
+        claim.disabled = true;
+      });
+    }, 0);
+  });
+  refresh().catch(() => {
+    say("ACCOUNT STATUS UNAVAILABLE", "Please reload the page or request a new secure sign-in link.");
+    start.disabled = true;
+    claim.disabled = true;
+  });
 })();
