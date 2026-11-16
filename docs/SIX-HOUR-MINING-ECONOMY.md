@@ -21,11 +21,11 @@ A session lasts exactly 21,600 seconds.
 8. The player may start another session only after the prior session is claimed and any configured cooldown has elapsed.
 
 ## 3. Reward calculation
-Use a server-owned, versioned reward configuration. The base reward must be set only after economy simulations and abuse testing; it is intentionally unspecified here.
+Use a server-owned, versioned reward configuration. For the initial pilot, the base reward is **600 CROWN per fully completed six-hour session** (100 CROWN per hour). The 10% completion bonus is **disabled** in the pilot so the reward is simple, predictable, and easier to audit. Any bonus can be introduced later as a separately versioned rule after economy simulations and abuse testing.
 
-earned = base_reward × eligible_multiplier
+earned = 600 CROWN after one complete six-hour session; otherwise = 0.
 
-The multiplier is derived exclusively from validated server-side eligibility. Do not accept a reward amount or multiplier supplied by the browser.
+The server calculates the fixed reward from the session's snapshotted configuration. Do not accept a reward amount or multiplier supplied by the browser. The 10% bonus is off for the pilot and must not be silently included in the hourly rate.
 
 Referral or group bonuses are not enabled by this specification. Any future bonus requires documented eligibility, caps, anti-sybil controls, transparent rules, and legal review. Avoid pay-to-recruit structures and guaranteed-income language.
 
