@@ -204,11 +204,12 @@
     const owner = territory.owner === "player" ? state.nation.name :
       territory.owner === "unclaimed" ? "Unclaimed" : (state.rivals[territory.owner]?.name || "Unknown nation");
     const deposits = (state.world?.resourceNodes || []).filter(node => node.territoryId === territory.id);
-    const depositText = deposits.length ? deposits.map(node => esc(node.resource) + " · " + num(node.quantity) + " units" + (node.operational ? " · extracting" : node.depleted ? " · depleted" : " · undeveloped")).join(" / ") : "No mapped deposits";
+    const depositText = deposits.length ? deposits.map(node => esc(node.resource) + " · " + num(node.quantity) + " units" + (node.depleted ? " · depleted" : node.operational ? " · extracting" : " · undeveloped")).join(" / ") : "No mapped deposits";
     let action = "";
     if (territory.owner === "unclaimed") {
       const cost = E.territoryClaimCost(state);
       const missing = [];
+      if (state.status !== "playing") missing.push("an active campaign");
       if (state.resources.materials < cost.materials) missing.push((cost.materials - state.resources.materials) + " materials");
       if (state.resources.credits < cost.credits) missing.push((cost.credits - state.resources.credits) + " credits");
       if (state.resources.influence < cost.influence) missing.push((cost.influence - state.resources.influence) + " influence");
