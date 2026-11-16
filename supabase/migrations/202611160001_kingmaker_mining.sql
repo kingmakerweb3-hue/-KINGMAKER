@@ -126,3 +126,19 @@ revoke all on function public.claim_kingmaker_mining(uuid) from public;
 grant execute on function public.start_kingmaker_mining() to authenticated;
 grant execute on function public.claim_kingmaker_mining(uuid) to authenticated;
 grant select on public.kingmaker_profiles, public.mining_config, public.mining_sessions, public.crown_ledger to authenticated;
+
+
+-- Read-only balance endpoint: returns only the authenticated member's ledger total.
+create or replace function public.get_kingmaker_crown_balance()
+returns numeric
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select coalesce(sum(amount), 0)::numeric(28,8)
+  from public.crown_ledger
+  where user_id = auth.uid();
+$$;
+revoke all on function public.get_kingmaker_crown_balance() from public;
+grant execute on function public.get_kingmaker_crown_balance() to authenticated;
