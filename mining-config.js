@@ -6,7 +6,7 @@
  */
 window.KM_CONFIG = Object.freeze({
   supabaseUrl: "https://narpyrvmftxnjvorxxgm.supabase.co",
-  supabaseAnonKey: "",
+  supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hcnB5cnZtZnR4bmp2b3J4eGdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ4MDQxNzIsImV4cCI6MjExMDM4MDE3Mn0.nl9siNjKWv50qcsJr2hSJi19AukxuR1MRSYbV-GyuIM",
   rewardedAdRestartEnabled: false,
   community: Object.freeze({
     youtubeChannelUrl: "",
