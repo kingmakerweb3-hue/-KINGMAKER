@@ -282,3 +282,33 @@ test('national council presents a player decision every four turns and applies t
   expect(after.credits).toBe(before.credits-15);
   await expect(page.locator('#worldEventPanel')).not.toContainText('National Council Decision');
 });
+
+test('command deck hydrates live nation telemetry and opens the 3D world', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Empire status' })).toBeVisible();
+  for (const id of ['deck-population','deck-stability','deck-power','deck-science']) {
+    await expect(page.locator('#' + id)).not.toHaveText('—');
+  }
+  await page.locator('[data-jump-tab="world3d"]').click();
+  await expect(page.locator('#panel-world3d')).toBeVisible();
+  await expect(page.locator('#tab-world3d')).toHaveAttribute('aria-selected', 'true');
+});
+
+test('command deck quick links open their intended application panels', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-jump-tab="research"]').click();
+  await expect(page.locator('#panel-research')).toBeVisible();
+  await page.locator('[data-jump-tab="market"]').click();
+  await expect(page.locator('#panel-market')).toBeVisible();
+});
+
+test('command deck and navigation fit a narrow mobile viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Empire status' })).toBeVisible();
+  const dimensions = await page.evaluate(() => ({
+    viewport: document.documentElement.clientWidth,
+    content: document.documentElement.scrollWidth
+  }));
+  expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport + 1);
+});
