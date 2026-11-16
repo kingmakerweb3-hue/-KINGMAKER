@@ -6,31 +6,30 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const out = path.join(root, "www");
 const files = [
-  "mining.html", "mobile-shell.js", "assets/kingmaker-app-icon.svg",
-  "manifest.json", "sw.js",
-  "mining.js", "mining-config.js",
-  "mining-foundation.js", "mining-manifest.json", "mining-sw.js"
+  "mining.js",
+  "mining-config.js",
+  "mining-foundation.js",
+  "mining-manifest.json",
+  "mining-sw.js",
+  "mobile-shell.js"
 ];
-const dirs = ["src", "assets"];
 
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
 
 for (const file of files) {
   const source = path.join(root, file);
-  if (fs.existsSync(source) && fs.statSync(source).isFile()) {
-    const destination = path.join(out, file);
-    fs.mkdirSync(path.dirname(destination), { recursive: true });
-    fs.copyFileSync(source, destination);
+  if (!fs.existsSync(source) || !fs.statSync(source).isFile()) {
+    throw new Error("Required KINGMAKER Mining asset is missing: " + file);
   }
+  fs.copyFileSync(source, path.join(out, file));
 }
-for (const dir of dirs) {
-  const source = path.join(root, dir);
-  if (fs.existsSync(source)) {
-    fs.cpSync(source, path.join(out, dir), { recursive: true });
-  }
+
+const miningEntry = path.join(root, "mining.html");
+if (!fs.existsSync(miningEntry)) {
+  throw new Error("Required KINGMAKER Mining entry point is missing: mining.html");
 }
-if (!fs.existsSync(path.join(out, "index.html"))) {
-  throw new Error("Mobile web bundle is missing index.html");
-}
-process.stdout.write("KINGMAKER mobile web bundle created at www/\n");
+let html = fs.readFileSync(miningEntry, "utf8");
+html = html.replace("</head>", '  <script defer src="mobile-shell.js"></script>\n</head>');
+fs.writeFileSync(path.join(out, "index.html"), html);
+process.stdout.write("KINGMAKER Mining native app bundle created at www/\n");
