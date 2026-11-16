@@ -138,3 +138,13 @@ button{min-height:38px}
 .first-steps-actions{display:flex;gap:10px;justify-content:flex-end}
 @media(max-width:850px){.first-steps ol{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.first-steps{padding:18px}.first-steps ol{grid-template-columns:1fr}.first-steps-actions{flex-wrap:wrap}}
+
+
+/* Native iOS/Android safe areas and touch-first controls */
+:root{--km-safe-top:env(safe-area-inset-top,0px);--km-safe-bottom:env(safe-area-inset-bottom,0px)}
+html,body{min-height:100%;overscroll-behavior-y:contain}
+body{padding-top:var(--km-safe-top);padding-bottom:var(--km-safe-bottom)}
+button,a,[role="button"],input,select{touch-action:manipulation}
+button{min-height:40px}
+@media(max-width:720px){.topbar{padding-top:calc(10px + var(--km-safe-top));padding-left:14px;padding-right:14px}.top-actions{gap:7px}.top-actions button,.top-actions a{font-size:12px}.tabs{position:sticky;top:0;z-index:20;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:thin;padding:8px 4px}.tabs button{flex:0 0 auto;min-width:max-content}.world3d-viewport{min-height:360px;height:55vh;max-height:620px}.world3d-toolbar{gap:8px;flex-wrap:wrap}.world3d-toolbar>div{display:flex;flex-wrap:wrap;gap:6px}.world3d-toolbar button{min-height:42px}.panel{scroll-margin-top:70px}}
+@media(max-width:480px){.brand small{font-size:8px}.brand b{font-size:15px}.top-actions{max-width:100%;overflow-x:auto}.welcome{padding:20px 14px}.welcome h1{font-size:clamp(32px,10vw,48px)}.command-deck,.panel{border-radius:10px}.metric-card{min-width:calc(50% - 8px)}.world3d-viewport{height:50vh;min-height:300px}}
