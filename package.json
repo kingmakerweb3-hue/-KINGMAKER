@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node src/server.js",
     "test": "node --test",
-    "check": "node --check src/engine.js && node --check src/citizens.js && node --check src/app.js && node --check src/server.js && node --check src/agent-identity.js && node --check mining.js && node --check mining-foundation.js && node --check network.js && node --check mining-config.js && node --check mining-sw.js && node --check sw.js && node --check tests/agent-identity.test.js && node --check tests/server.test.js && node --check tests/engine.test.js && node --check tests/citizens.test.js && node --input-type=module --check < src/world3d.js"
+    "check": "node --check src/engine.js && node --check src/citizens.js && node --check src/app.js && node --check src/server.js && node --check src/agent-identity.js && node --check mining.js && node --check mining-foundation.js && node --check network.js && node --check mining-config.js && node --check mining-sw.js && node --check sw.js && node --check tests/agent-identity.test.js && node --check tests/mining-contract.test.js && node --check tests/server.test.js && node --check tests/engine.test.js && node --check tests/citizens.test.js && node --input-type=module --check < src/world3d.js"
   },
   "engines": {
     "node": ">=20"
