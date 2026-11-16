@@ -46,6 +46,7 @@ jobs:
           npm run build:mobile
           npx cap add android
           npx cap sync android
+          npx @capacitor/assets@3.0.5 generate --android --iconBackgroundColor '#050912' --iconBackgroundColorDark '#050912' --splashBackgroundColor '#0b1220' --splashBackgroundColorDark '#0b1220'
       - name: Build debug APK
         working-directory: android
         run: ./gradlew assembleDebug
@@ -69,6 +70,7 @@ jobs:
           npm run build:mobile
           npx cap add ios
           npx cap sync ios
+          npx @capacitor/assets@3.0.5 generate --ios --iconBackgroundColor '#050912' --iconBackgroundColorDark '#050912' --splashBackgroundColor '#0b1220' --splashBackgroundColorDark '#0b1220'
       - name: Build iOS simulator app
         run: |
           xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath build CODE_SIGNING_ALLOWED=NO
