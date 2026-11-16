@@ -94,6 +94,32 @@ begin
     raise exception 'FAIL: unique ledger session credit constraint is missing';
   end if;
 
+  if not exists (
+    select 1
+    from pg_trigger
+    where tgrelid = 'auth.users'::regclass
+      and tgname = 'on_kingmaker_auth_user_created'
+      and not tgisinternal
+  ) then
+    raise exception 'FAIL: new-account profile provisioning trigger is missing';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_proc
+    where oid = 'public.handle_kingmaker_new_auth_user()'::regprocedure
+      and prosecdef
+      and coalesce(array_to_string(proconfig, ','), '') like
+          '%search_path=pg_catalog, public, extensions, pg_temp%'
+  ) then
+    raise exception 'FAIL: signup profile trigger function is not SECURITY DEFINER with a hardened search_path';
+  end if;
+
+  if has_function_privilege('anon', 'public.handle_kingmaker_new_auth_user()', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.handle_kingmaker_new_auth_user()', 'EXECUTE') then
+    raise exception 'FAIL: client roles must not invoke the signup trigger function directly';
+  end if;
+
   raise notice 'PASS: CROWN mining staging security invariants verified. Mining remains disabled.';
 end;
 $audit$;
