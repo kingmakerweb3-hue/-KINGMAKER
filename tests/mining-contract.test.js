@@ -55,3 +55,16 @@ test("member dashboard RPC exposes only the signed-in member's aggregate activit
   assert.match(dashboard, /grant execute on function public\.get_kingmaker_member_dashboard\(\) to authenticated/);
   assert.match(client, /get_kingmaker_member_dashboard/);
 });
+
+test("member activity RPC is authenticated, owner-scoped, bounded, and ledger-backed", () => {
+  const activity = fs.readFileSync(path.join(root, "supabase/migrations/202611160004_kingmaker_member_activity.sql"), "utf8");
+  assert.match(activity, /security definer/);
+  assert.match(activity, /if v_user is null then raise exception 'Authentication required'/);
+  assert.match(activity, /where s\.user_id = v_user/);
+  assert.match(activity, /l\.user_id = v_user/);
+  assert.match(activity, /order by s\.started_at desc\s+limit 20/);
+  assert.match(activity, /grant execute on function public\.get_kingmaker_member_activity\(\) to authenticated/);
+  assert.match(activity, /s\.ends_at > now\(\)/);
+  assert.match(client, /get_kingmaker_member_activity/);
+  assert.match(client, /row\.credited_crown == null/);
+});
