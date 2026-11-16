@@ -10,7 +10,7 @@ This checklist distinguishes what exists today from what must be completed befor
 - Installable web-app foundation (HTTPS hosting required for service-worker behavior).
 
 ## Release blockers
-- [ ] Fix and verify all failing automated tests; add tests only after reproducing behavior against the actual interface.
+- [x] Automated quality checks and browser smoke tests pass on the current deployed commit. Manual playthroughs and broader device/accessibility testing remain outstanding.
 - [ ] Complete manual playthroughs from a new save through each victory path.
 - [ ] Balance resource generation, costs, tax effects, research pacing, rival difficulty and battle outcomes.
 - [ ] Test current desktop and mobile browsers, small screens, keyboard access and reduced motion.
