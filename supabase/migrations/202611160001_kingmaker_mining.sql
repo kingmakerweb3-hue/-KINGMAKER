@@ -51,7 +51,7 @@ alter table public.mining_sessions enable row level security;
 alter table public.crown_ledger enable row level security;
 
 create policy "profile owner can read" on public.kingmaker_profiles for select using (auth.uid() = user_id);
-create policy "profile owner can create" on public.kingmaker_profiles for insert with check (auth.uid() = user_id and referred_by is null or auth.uid() = user_id);
+create policy "profile owner can create" on public.kingmaker_profiles for insert with check (auth.uid() = user_id and referred_by is null);
 create policy "config readable" on public.mining_config for select using (true);
 create policy "users read own sessions" on public.mining_sessions for select using (auth.uid() = user_id);
 create policy "users read own ledger" on public.crown_ledger for select using (auth.uid() = user_id);
