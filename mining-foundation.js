@@ -142,7 +142,7 @@
       const reward = document.createElement("strong");
       reward.style.cssText = "font:600 14px var(--mono);color:var(--cyan);align-self:center";
       reward.textContent = row.credited_crown == null
-        ? "Not credited" : Number(row.credited_crown).toFixed(8).replace(/\\.?0+$/, "") + " CROWN";
+        ? "Not credited" : Number(row.credited_crown).toFixed(8).replace(/\.?0+$/, "") + " CROWN";
       card.append(details, reward);
       list.append(card);
     }
