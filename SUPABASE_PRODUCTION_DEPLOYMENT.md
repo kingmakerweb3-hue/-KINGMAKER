@@ -31,3 +31,14 @@ The provider choice and its account-issued app/placement identifiers are require
 - Never commit Supabase access tokens, database passwords, service-role keys, provider secrets or signing secrets.
 - The browser anon/publishable key is public and must be protected by RLS and least-privilege database functions.
 - Test email auth, six-hour start/claim, duplicate claim prevention, account isolation and backups in a staging project before enabling public mining.
+
+
+## Verified wallet linking
+The browser wallet button is account-bound and does not treat an injected wallet connection as proof of ownership.
+1. Apply migration `202611160014_secure_wallet_linking.sql` after the existing mining migrations.
+2. Deploy the Edge Function: `supabase functions deploy verify-wallet-link`.
+3. Confirm the function has the standard Supabase environment variables `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. Supabase supplies these to deployed Edge Functions; never copy the service-role key into browser configuration.
+4. Keep JWT verification enabled for the function. It authenticates the caller's Supabase access token, reads the user's short-lived challenge using server credentials, recovers the EIP-191 signer from the signature, and calls the service-role-only finalization RPC.
+5. Test an owned wallet, a mismatched signature, an expired challenge, a replayed nonce, a wallet already linked to another member, and a wallet switch. Confirm no wallet address is stored until signature verification succeeds.
+
+Challenges expire after five minutes and are limited to five requests per account per ten minutes. Linking proves control of the EVM address at signing time; it does not create a token, grant mining rewards, or authorize withdrawals.
