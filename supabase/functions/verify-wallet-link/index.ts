@@ -41,14 +41,8 @@ Deno.serve(async (req: Request) => {
   const { data: authData, error: authError } = await authClient.auth.getUser(token);
   if (authError || !authData.user) return reply(401, { error: "Session is invalid or expired" });
 
-  const { data: challenge, error: challengeError } = await authClient
-    .from("kingmaker_wallet_challenges")
-    .select("wallet_address,nonce,message,expires_at,consumed_at")
-    .eq("user_id", authData.user.id)
-    .eq("nonce", nonce)
-    .maybeSingle();
-  // The challenge table is deliberately inaccessible to clients; fetch it via the
-  // privileged client only after independently resolving the caller's auth identity.
+  // The challenge table is intentionally inaccessible to authenticated clients.
+  // Read it only with the service-role client after resolving the caller's JWT.
   const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: privilegedChallenge, error: privilegedChallengeError } = await admin
     .from("kingmaker_wallet_challenges")
