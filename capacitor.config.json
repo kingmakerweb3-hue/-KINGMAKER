@@ -1,6 +1,6 @@
 {
-  "appId": "com.kingmaker.world",
-  "appName": "KINGMAKER",
+  "appId": "com.kingmaker.crownmining",
+  "appName": "KINGMAKER Mining",
   "webDir": "www",
   "bundledWebRuntime": false,
   "backgroundColor": "#0b1220",
