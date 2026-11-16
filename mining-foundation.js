@@ -262,7 +262,7 @@
       clearInterval(ticker); ticker = setInterval(refreshCountdown, 1000);
     } else if (data.status === "active") {
       say("SESSION COMPLETE · CLAIM OR RESTART", miningEnabled
-        ? "Claim this completed session for " + sessionReward.toFixed(8).replace(/\\.?0+$/, "") + " CROWN, or start again now and forfeit it. A restart begins a fresh six-hour session."
+        ? "Claim this completed session for " + sessionReward.toFixed(8).replace(/\.?0+$/, "") + " CROWN, or start again now and forfeit it. A restart begins a fresh six-hour session."
         : "Your six-hour session is complete. Claim remains available, but new sessions are paused.");
       // The member may either claim the completed session or explicitly start
       // again. The server then expires the unclaimed session with zero credit
