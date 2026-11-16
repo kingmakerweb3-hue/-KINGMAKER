@@ -58,7 +58,7 @@ test('3D world exposes construction tools and simulation status', async ({ page 
 test('CROWN mining preview keeps real mining disabled until backend configuration', async ({ page }) => {
   await page.goto('/mining.html');
   await expect(page.getByText(/BACKEND NOT CONFIGURED/i)).toBeVisible();
-  await expect(page.getByRole('button', { name: /Start mining/i })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /START 6-HOUR SESSION/i })).toBeDisabled();
   await expect(page.getByText(/six-hour/i)).toBeVisible();
 });
 
