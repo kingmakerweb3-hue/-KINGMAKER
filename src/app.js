@@ -254,5 +254,21 @@
   $("director-run").addEventListener("click",assess);$("director-run-panel").addEventListener("click",assess);
   $("sound-toggle").addEventListener("click",e=>{soundOn=!soundOn;e.currentTarget.setAttribute("aria-pressed",String(soundOn));e.currentTarget.textContent=soundOn?"Sound: on":"Sound: off";beep();});
   document.querySelectorAll("[data-jump-tab]").forEach(button=>button.addEventListener("click",()=>{tab(button.dataset.jumpTab);document.getElementById("panel-"+button.dataset.jumpTab)?.scrollIntoView({behavior:"smooth",block:"start"});}));
-  state=load();render();persist();
+  const guide=$("first-steps");
+  const GUIDE_KEY="kingmaker_briefing_dismissed_v1";
+  function showGuide(force=false){
+    if(!guide)return;
+    guide.hidden=!force&&localStorage.getItem(GUIDE_KEY)==="yes";
+    if(force)guide.hidden=false;
+  }
+  $("guide-dismiss")?.addEventListener("click",()=>{localStorage.setItem(GUIDE_KEY,"yes");guide.hidden=true;});
+  $("guide-reopen")?.addEventListener("click",()=>showGuide(true));
+  guide?.addEventListener("click",event=>{
+    const button=event.target.closest("[data-guide-tab]");
+    if(!button)return;
+    tab(button.dataset.guideTab);
+    document.getElementById("panel-"+button.dataset.guideTab)?.scrollIntoView({behavior:"smooth",block:"start"});
+  });
+  $("guide-advance")?.addEventListener("click",()=>{act(()=>E.advanceTurn(state));toast("Your first world turn is complete.","success");});
+  state=load();render();persist();showGuide();
 })();
