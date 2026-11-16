@@ -53,6 +53,8 @@
   async function refresh() {
     const { data: auth } = await db.auth.getUser();
     if (!auth?.user) {
+      clearInterval(ticker);
+      activeSession = null;
       say("SIGN IN REQUIRED", "A secure KINGMAKER account is required. No local-only mining session is created.");
       start.disabled = true; claim.disabled = true;
       if (memberStatus) memberStatus.textContent = "Not signed in. Request a secure email sign-in link above.";
@@ -67,6 +69,7 @@
     if (error) { say("MINING SERVICE UNAVAILABLE", "The server could not load your session. Please try again later."); return; }
     activeSession = data;
     if (!data) {
+      clearInterval(ticker);
       say("READY · NO ACTIVE SESSION", "Start a six-hour session when the network opens.");
       start.disabled = false; claim.disabled = true; return;
     }
