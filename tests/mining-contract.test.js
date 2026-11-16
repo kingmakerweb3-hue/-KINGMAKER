@@ -68,3 +68,9 @@ test("member activity RPC is authenticated, owner-scoped, bounded, and ledger-ba
   assert.match(client, /get_kingmaker_member_activity/);
   assert.match(client, /row\.credited_crown == null/);
 });
+
+test("signing out clears private referral details from the member screen", () => {
+  assert.match(client, /referralCode\) referralCode\.textContent = "Sign in to load"/);
+  assert.match(client, /copyReferral\) copyReferral\.disabled = true/);
+  assert.match(client, /referralInput\) referralInput\.value = ""/);
+});
