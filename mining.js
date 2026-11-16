@@ -5,7 +5,32 @@
   const dailyState = document.getElementById('daily-state');
   const installButton = document.getElementById('install-app');
   const installNote = document.getElementById('install-note');
-  let installPrompt = null;
+  let installPrompt = null;\n\n  const communityConfig = window.KM_CONFIG && window.KM_CONFIG.community || {};
+  const setCommunityLink = (id, value) => {
+    const el = document.getElementById(id);
+    if (!el || typeof value !== 'string' || !/^https:\/\//i.test(value)) return false;
+    try {
+      const url = new URL(value);
+      if (!['youtube.com','www.youtube.com','youtu.be','x.com','www.x.com','twitter.com','www.twitter.com'].includes(url.hostname)) return false;
+      el.href = url.href;
+      el.hidden = false;
+      return true;
+    } catch (_) { return false; }
+  };
+  const videoReady = setCommunityLink('community-watch', communityConfig.latestVideoUrl);
+  const channelReady = setCommunityLink('community-channel', communityConfig.youtubeChannelUrl);
+  const xReady = setCommunityLink('community-x', communityConfig.xProfileUrl);
+  if (communityConfig.latestVideoTitle) {
+    const title = document.getElementById('community-video-title');
+    if (title) title.textContent = String(communityConfig.latestVideoTitle).slice(0, 90);
+  }
+  const communityStatus = document.getElementById('community-link-status');
+  if (communityStatus) {
+    communityStatus.textContent = videoReady || channelReady || xReady
+      ? 'OFFICIAL COMMUNITY LINKS CONNECTED · SOCIAL VISITS ARE OPTIONAL'
+      : 'OFFICIAL CHANNEL LINKS WILL APPEAR HERE WHEN CONFIGURED.';
+  }
+
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     window.addEventListener('load', () => navigator.serviceWorker.register('./mining-sw.js').catch(() => {}));
