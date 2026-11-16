@@ -131,7 +131,10 @@ test("pilot reward configuration stays paused at 100 CROWN per hour for a 600 CR
     assert.match(migration, /session_seconds = 21600/);
     assert.match(migration, /crown_per_hour = 100/);
   }
-  assert.match(client, /Claim this completed session for 600 CROWN/);
+  assert.match(client, /sessionReward = !configError && configRow/);
+  assert.match(client, /sessionReward\.toFixed\(8\)/);
+  assert.match(client, /Claim this completed session for /);
+  assert.doesNotMatch(client, /Claim this completed session for 600 CROWN/);
 });
 
 test("missed-session reset expires only the prior active session and never credits it", () => {
