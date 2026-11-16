@@ -32,18 +32,46 @@
   const emailInput = $("member-email"), signIn = $("member-signin");
   const signOut = $("member-signout"), memberStatus = $("member-status");
   const crownBalance = $("crown-balance"), ledgerStatus = $("ledger-status");
+  let signInCooldownUntil = 0, signInCooldownTimer = null;
   if (signIn) signIn.addEventListener("click", async () => {
     const email = (emailInput?.value || "").trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      memberStatus.textContent = "Enter a valid email address."; return;
+      if (memberStatus) memberStatus.textContent = "Enter a valid email address.";
+      return;
     }
+    if (Date.now() < signInCooldownUntil) return;
     signIn.disabled = true;
-    const { error } = await db.auth.signInWithOtp({
-      email, options: { emailRedirectTo: location.origin + location.pathname }
-    });
-    memberStatus.textContent = error ? "Sign-in link could not be sent. Check the account configuration." :
-      "Check your email for the secure KINGMAKER sign-in link.";
-    signIn.disabled = false;
+    signIn.textContent = "SENDING LINK…";
+    if (memberStatus) memberStatus.textContent = "Requesting a secure email sign-in link…";
+    try {
+      const { error } = await db.auth.signInWithOtp({
+        email, options: { emailRedirectTo: location.origin + location.pathname }
+      });
+      if (error) {
+        if (memberStatus) memberStatus.textContent = "Sign-in link could not be sent. Wait a moment and try again.";
+        signIn.textContent = "SEND SIGN-IN LINK";
+        return;
+      }
+      signInCooldownUntil = Date.now() + 60000;
+      if (memberStatus) memberStatus.textContent = "Check your email for the secure KINGMAKER sign-in link. You can request another in 60 seconds.";
+      signIn.textContent = "RESEND LINK IN 60s";
+      clearInterval(signInCooldownTimer);
+      signInCooldownTimer = setInterval(() => {
+        const seconds = Math.ceil((signInCooldownUntil - Date.now()) / 1000);
+        if (seconds <= 0) {
+          clearInterval(signInCooldownTimer);
+          signIn.disabled = false;
+          signIn.textContent = "RESEND SIGN-IN LINK";
+        } else {
+          signIn.textContent = "RESEND LINK IN " + seconds + "s";
+        }
+      }, 1000);
+    } catch (_) {
+      if (memberStatus) memberStatus.textContent = "Network error. Check your connection and try the sign-in link again.";
+      signIn.textContent = "SEND SIGN-IN LINK";
+    } finally {
+      if (Date.now() >= signInCooldownUntil) signIn.disabled = false;
+    }
   });
   if (signOut) signOut.addEventListener("click", async () => {
     await db.auth.signOut();
