@@ -115,6 +115,7 @@
       return;
     }
     if (memberStatus) memberStatus.textContent = "Signed in: " + auth.user.email;
+    await loadReferral();
     await refreshBalance(auth.user.id);
     if (signOut) signOut.hidden = false;
     const { data: configRow, error: configError } = await db.from("mining_config")
