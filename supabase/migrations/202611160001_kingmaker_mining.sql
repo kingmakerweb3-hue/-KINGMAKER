@@ -41,6 +41,7 @@ update public.mining_sessions
 set reward_rate = coalesce((select crown_per_hour from public.mining_config where id=true),0)
 where reward_rate is null;
 alter table public.mining_sessions alter column reward_rate set default 0;
+alter table public.mining_sessions alter column reward_rate set not null;
 alter table public.mining_sessions add constraint mining_sessions_reward_rate_nonnegative check (reward_rate >= 0);
 
 alter table public.mining_sessions add column if not exists status text not null default 'active';
