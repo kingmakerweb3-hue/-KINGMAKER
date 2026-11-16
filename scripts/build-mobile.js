@@ -30,6 +30,10 @@ if (!fs.existsSync(miningEntry)) {
   throw new Error("Required KINGMAKER Mining entry point is missing: mining.html");
 }
 let html = fs.readFileSync(miningEntry, "utf8");
+const publicBase = "https://kingmakerweb3-hue.github.io/-KINGMAKER/";
+for (const page of ["network.html", "whitepaper.html", "index.html"]) {
+  html = html.replaceAll('href="' + page + '"', 'href="' + publicBase + page + '"');
+}
 html = html.replace("</head>", '  <script defer src="mobile-shell.js"></script>\n</head>');
 fs.writeFileSync(path.join(out, "index.html"), html);
 process.stdout.write("KINGMAKER Mining native app bundle created at www/\n");
