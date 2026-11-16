@@ -7,7 +7,7 @@
 - No fake ad views, local mining balances, or simulated payouts.
 
 ## Required production setup
-1. Create a Supabase project and apply `supabase/migrations/202611160001_kingmaker_mining.sql`.
+1. Follow `SUPABASE_PRODUCTION_DEPLOYMENT.md` to create a Supabase project, configure encrypted GitHub Actions secrets and run the manual migration deployment workflow.
 2. Enable Supabase Auth and configure the site's allowed redirect URLs.
 3. Add the Supabase JS v2 browser library before `mining-foundation.js`.
 4. Before loading the mining client, configure:
