@@ -161,7 +161,7 @@
       const details = document.createElement("div");
       const title = document.createElement("strong");
       title.style.color = "var(--gold)";
-      title.textContent = row.session_status === "claimed" ? "SESSION CLAIMED" : "SIX-HOUR SESSION";
+      title.textContent = row.session_status === "claimed" ? "SESSION CLAIMED" : row.session_status === "expired" ? "SESSION MISSED · EXPIRED" : "SIX-HOUR SESSION";
       const dates = document.createElement("div");
       dates.style.cssText = "font-size:14px;color:#9aaec2;margin-top:5px";
       dates.textContent = "Started: " + new Date(row.started_at).toLocaleString() +
@@ -254,8 +254,16 @@
       say("SESSION COMPLETE · CLAIM AVAILABLE", "Your server-timed six-hour session has ended.");
       start.disabled = true; claim.disabled = false;
     } else {
-      if (miningEnabled) {
-        say("SESSION CLOSED", "Your previous session is claimed. A new six-hour session is available.");
+      if (data.status === "expired") {
+        if (miningEnabled) {
+          say("PREVIOUS SESSION MISSED · NO REWARD", "That session was forfeited when you started again. A fresh six-hour session is ready.");
+          start.disabled = false;
+        } else {
+          say("SESSION EXPIRED · MINING PAUSED", "No reward was issued for the missed session. New sessions are currently paused.");
+          start.disabled = true;
+        }
+      } else if (miningEnabled) {
+        say("SESSION CLAIMED · READY", "Your previous session was claimed. A new six-hour session is available.");
         start.disabled = false;
       } else {
         say("NETWORK CLOSED · MINING PAUSED", "Your previous session is closed. New sessions are paused by KINGMAKER.");
