@@ -4,7 +4,7 @@
 -- This affects sessions started after this migration; existing sessions
 -- keep the reward_rate snapshotted when they started.
 update public.mining_config
-set enabled = true,
+set enabled = false,
     session_seconds = 21600,
     crown_per_hour = 100,
     updated_at = now()
