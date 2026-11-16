@@ -17,7 +17,7 @@ test("native mining bundle includes the referenced app icon asset", () => {
     const iconPath = path.join(output, "assets", "kingmaker-app-icon.svg");
 
     assert.ok(fs.existsSync(iconPath), "app icon must be copied into www/assets");
-    assert.ok(entry.includes('src="mining-manifest.json"'), "native entry should retain the web manifest");
+    assert.ok(entry.includes('href="mining-manifest.json"'), "native entry should retain the web manifest");
     assert.ok(manifest.icons.some((icon) => icon.src === "./assets/kingmaker-app-icon.svg"));
   } finally {
     fs.rmSync(output, { recursive: true, force: true });
