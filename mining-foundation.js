@@ -31,9 +31,10 @@
   let activeSession = null, ticker = null;
   const emailInput = $("member-email"), signIn = $("member-signin");
   const signOut = $("member-signout"), memberStatus = $("member-status");
+  const crownBalance = $("crown-balance"), ledgerStatus = $("ledger-status");
   if (signIn) signIn.addEventListener("click", async () => {
     const email = (emailInput?.value || "").trim();
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+    if (!/^[^\s@]+@[^\s@]+\\.[^\s@]+$/.test(email)) {
       memberStatus.textContent = "Enter a valid email address."; return;
     }
     signIn.disabled = true;
@@ -50,6 +51,20 @@
     await refresh();
   });
 
+  async function refreshBalance(userId) {
+    if (!crownBalance || !ledgerStatus) return;
+    ledgerStatus.textContent = "Loading server-recorded CROWN ledger…";
+    const { data, error } = await db.from("crown_ledger").select("amount").eq("user_id", userId);
+    if (error) {
+      crownBalance.textContent = "Unavailable";
+      ledgerStatus.textContent = "The server could not load your ledger. No local balance is shown.";
+      return;
+    }
+    const total = (data || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    crownBalance.textContent = total.toFixed(8).replace(/\\.?0+$/, "") + " CROWN";
+    ledgerStatus.textContent = (data || []).length + " verified ledger entr" + ((data || []).length === 1 ? "y" : "ies") + ". This is an off-chain participation ledger, not a withdrawable token balance.";
+  }
+
   async function refresh() {
     const { data: auth } = await db.auth.getUser();
     if (!auth?.user) {
@@ -58,10 +73,13 @@
       say("SIGN IN REQUIRED", "A secure KINGMAKER account is required. No local-only mining session is created.");
       start.disabled = true; claim.disabled = true;
       if (memberStatus) memberStatus.textContent = "Not signed in. Request a secure email sign-in link above.";
+      if (crownBalance) crownBalance.textContent = "— CROWN";
+      if (ledgerStatus) ledgerStatus.textContent = "Sign in to view your recorded balance. No preview balance is displayed.";
       if (signOut) signOut.hidden = true;
       return;
     }
     if (memberStatus) memberStatus.textContent = "Signed in: " + auth.user.email;
+    await refreshBalance(auth.user.id);
     if (signOut) signOut.hidden = false;
     const { data, error } = await db.from("mining_sessions")
       .select("id,status,started_at,ends_at").eq("user_id", auth.user.id)
