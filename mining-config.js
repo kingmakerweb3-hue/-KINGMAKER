@@ -5,7 +5,7 @@
  * Community URLs below are public links only; no credentials belong here.
  */
 window.KM_CONFIG = Object.freeze({
-  supabaseUrl: "",
+  supabaseUrl: "https://narpyrvmftxnjvorxxgm.supabase.co",
   supabaseAnonKey: "",
   rewardedAdRestartEnabled: false,
   community: Object.freeze({
