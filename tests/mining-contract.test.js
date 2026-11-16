@@ -184,8 +184,8 @@ test("wallet linking requires an expiring one-time challenge and server-side EIP
   assert.match(edge, /recovered !== address/);
   assert.match(edge, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(edge, /privilegedChallenge\.consumed_at/);
-  assert.match(foundation, /create_kingmaker_wallet_challenge/);
-  assert.match(foundation, /personal_sign/);
-  assert.match(foundation, /verify-wallet-link/);
-  assert.match(foundation, /Ownership verified and linked/);
+  assert.match(client, /create_kingmaker_wallet_challenge/);
+  assert.match(client, /personal_sign/);
+  assert.match(client, /verify-wallet-link/);
+  assert.match(client, /Ownership verified and linked/);
 });
