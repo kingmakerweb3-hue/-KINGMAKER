@@ -2,6 +2,11 @@ name: Deploy KINGMAKER Supabase database
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - '.github/workflows/supabase-deploy.yml'
 
 permissions:
   contents: read
