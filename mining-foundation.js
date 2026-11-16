@@ -29,14 +29,38 @@
 
   const db = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
   let activeSession = null, ticker = null;
+  const emailInput = $("member-email"), signIn = $("member-signin");
+  const signOut = $("member-signout"), memberStatus = $("member-status");
+  if (signIn) signIn.addEventListener("click", async () => {
+    const email = (emailInput?.value || "").trim();
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+      memberStatus.textContent = "Enter a valid email address."; return;
+    }
+    signIn.disabled = true;
+    const { error } = await db.auth.signInWithOtp({
+      email, options: { emailRedirectTo: location.origin + location.pathname }
+    });
+    memberStatus.textContent = error ? "Sign-in link could not be sent. Check the account configuration." :
+      "Check your email for the secure KINGMAKER sign-in link.";
+    signIn.disabled = false;
+  });
+  if (signOut) signOut.addEventListener("click", async () => {
+    await db.auth.signOut();
+    memberStatus.textContent = "You are signed out.";
+    await refresh();
+  });
 
   async function refresh() {
     const { data: auth } = await db.auth.getUser();
     if (!auth?.user) {
       say("SIGN IN REQUIRED", "A secure KINGMAKER account is required. No local-only mining session is created.");
       start.disabled = true; claim.disabled = true;
+      if (memberStatus) memberStatus.textContent = "Not signed in. Request a secure email sign-in link above.";
+      if (signOut) signOut.hidden = true;
       return;
     }
+    if (memberStatus) memberStatus.textContent = "Signed in: " + auth.user.email;
+    if (signOut) signOut.hidden = false;
     const { data, error } = await db.from("mining_sessions")
       .select("id,status,started_at,ends_at").eq("user_id", auth.user.id)
       .order("started_at", { ascending: false }).limit(1).maybeSingle();
