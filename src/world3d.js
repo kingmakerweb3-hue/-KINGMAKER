@@ -343,7 +343,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const auroraMaterial=new THREE.ShaderMaterial({uniforms:{uTime:{value:0},uDaylight:{value:1}},vertexShader:"varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",fragmentShader:"uniform float uTime; uniform float uDaylight; varying vec2 vUv;\nvoid main(){\nfloat wave=sin(vUv.x*18.0+uTime*.16)*.10+sin(vUv.x*7.0-uTime*.09)*.13;\nfloat curtain=sin((vUv.y+wave)*19.0+uTime*.22);\nfloat bands=smoothstep(.12,.92,curtain)*smoothstep(0.0,.2,vUv.y)*(1.0-smoothstep(.72,1.0,vUv.y));\nfloat drift=.55+.45*sin(vUv.x*11.0-uTime*.12);\nfloat alpha=bands*drift*pow(1.0-uDaylight,1.8)*.32;\nvec3 aurora=mix(vec3(.08,.82,.67),vec3(.28,.48,1.0),vUv.x);\ngl_FragColor=vec4(aurora,alpha);\n}",transparent:true,depthWrite:false,side:THREE.DoubleSide});
     auroraMesh=new THREE.Mesh(new THREE.PlaneGeometry(76,25),auroraMaterial);auroraMesh.position.set(0,22,-30);scene.add(auroraMesh);
     camera=new THREE.PerspectiveCamera(42,1,.1,150);camera.position.set(17,15,20);
-    renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:"high-performance"});renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.75));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
+    renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:"high-performance"});renderer.setPixelRatio(Math.min(devicePixelRatio||1,window.innerWidth<760?1.35:1.75));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
     host.innerHTML="";host.appendChild(renderer.domElement);
     controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.06;controls.maxPolarAngle=Math.PI*.48;controls.minDistance=9;controls.maxDistance=42;controls.target.set(0,0,0);controls.autoRotate=true;controls.autoRotateSpeed=.42;
     scene.add(new THREE.HemisphereLight(0xd9efff,0x465b45,1.45));scene.add(new THREE.AmbientLight(0x9fb7c4,.34));
@@ -489,7 +489,12 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     let index=0;const placedByType={};for(const [type,count] of Object.entries(state.buildings||{})){for(let i=0;i<Math.min(Number(count)||0,18);i++){const n=placedByType[type]||0;const saved=(state.world?.placedBuildings||[]).filter(p=>p.type===type)[n];makeBuilding(type,index++,total,saved);placedByType[type]=n+1;}}
     if(lastState&&state.nation.name){const title=document.getElementById("world3d-status");if(title)title.title=state.nation.name+" · population "+state.nation.population;}
   }
-  function dispose(){cancelAnimationFrame(animationId);resizeObserver?.disconnect();renderer?.dispose();controls?.dispose();}
+  function handleVisibilityChange(){
+    if(document.hidden){cancelAnimationFrame(animationId);animationId=0;return;}
+    if(renderer&&!animationId)animate();
+  }
+  document.addEventListener("visibilitychange",handleVisibilityChange);
+  function dispose(){cancelAnimationFrame(animationId);animationId=0;document.removeEventListener("visibilitychange",handleVisibilityChange);resizeObserver?.disconnect();renderer?.dispose();controls?.dispose();}
   window.addEventListener("pagehide",dispose,{once:true});
   try{createScene();window.KingmakerWorld3D={update,selectBuilding};window.dispatchEvent(new Event("kingmaker:world3d-ready"));if(lastState)update(lastState);}
   catch(error){host.innerHTML='<div class="world3d-loading">3D world could not initialize. Try a browser with WebGL enabled.</div>';const status=document.getElementById("world3d-status");if(status)status.textContent="3D ENGINE UNAVAILABLE";console.error("KINGMAKER 3D:",error);}
