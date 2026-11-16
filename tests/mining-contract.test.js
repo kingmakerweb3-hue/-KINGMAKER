@@ -153,3 +153,17 @@ test("concurrent session starts are serialized per member before checking active
   assert.ok(concurrency.indexOf("pg_advisory_xact_lock") < concurrency.indexOf("from public.mining_sessions"));
   assert.match(concurrency, /set search_path = pg_catalog, public, auth, extensions, pg_temp/);
 });
+
+
+test("new Supabase Auth accounts receive a private profile through a hardened trigger", () => {
+  const provisioning = fs.readFileSync(path.join(root, "supabase/migrations/202611160013_provision_member_profile_on_signup.sql"), "utf8");
+  assert.match(provisioning, /create or replace function public\\.handle_kingmaker_new_auth_user\\(\\)/);
+  assert.match(provisioning, /security definer/);
+  assert.match(provisioning, /set search_path = pg_catalog, public, extensions, pg_temp/);
+  assert.match(provisioning, /insert into public\\.kingmaker_profiles \\(user_id\\)/);
+  assert.match(provisioning, /values \\(new\\.id\\)/);
+  assert.match(provisioning, /on conflict \\(user_id\\) do nothing/);
+  assert.match(provisioning, /after insert on auth\\.users/);
+  assert.match(provisioning, /execute function public\\.handle_kingmaker_new_auth_user\\(\\)/);
+  assert.match(provisioning, /revoke all on function public\\.handle_kingmaker_new_auth_user\\(\\) from public, anon, authenticated/);
+});
