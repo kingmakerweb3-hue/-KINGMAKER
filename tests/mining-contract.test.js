@@ -118,3 +118,27 @@ test("mining SECURITY DEFINER RPCs use a hardened search path and client roles c
     "get_kingmaker_member_activity()"
   ]) assert.ok(hardening.includes("alter function public." + rpc), "missing hardened search_path for " + rpc);
 });
+
+
+test("pilot reward configuration stays paused at 100 CROWN per hour for a 600 CROWN session", () => {
+  for (const migrationName of [
+    "202611160005_enable_crown_pilot.sql",
+    "202611160006_set_600_crown_session.sql",
+    "202611160007_set_600_crown_base_reward.sql"
+  ]) {
+    const migration = fs.readFileSync(path.join(root, "supabase/migrations", migrationName), "utf8");
+    assert.match(migration, /enabled = false/);
+    assert.match(migration, /session_seconds = 21600/);
+    assert.match(migration, /crown_per_hour = 100/);
+  }
+  assert.match(client, /Claim this completed session for 600 CROWN/);
+});
+
+test("missed-session reset expires only the prior active session and never credits it", () => {
+  const reset = fs.readFileSync(path.join(root, "supabase/migrations/202611160008_expire_missed_mining_sessions.sql"), "utf8");
+  assert.match(reset, /where user_id = v_user and status = 'active'/);
+  assert.match(reset, /if v_previous\.ends_at > now\(\) then/);
+  assert.match(reset, /update public\.mining_sessions\s+set status = 'expired'\s+where id = v_previous\.id and claimed_at is null/);
+  assert.doesNotMatch(reset, /insert into public\.crown_ledger[\s\S]*?status = 'expired'/);
+  assert.match(reset, /insert into public\.mining_sessions\(user_id,started_at,ends_at,reward_rate\)/);
+});
