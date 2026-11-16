@@ -72,8 +72,8 @@ jobs:
       - name: Build iOS simulator app
         run: |
           xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath build CODE_SIGNING_ALLOWED=NO
-          cd build/Build/Products/Debug-iphonesimulator
-          zip -r "$GITHUB_WORKSPACE/kingmaker-mining-ios-simulator.zip" App.app
+          zip -r "$GITHUB_WORKSPACE/kingmaker-mining-ios-simulator.zip" build/Build/Products/Debug-iphonesimulator/App.app
+          test -s "$GITHUB_WORKSPACE/kingmaker-mining-ios-simulator.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: kingmaker-ios-simulator
