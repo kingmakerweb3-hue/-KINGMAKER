@@ -51,6 +51,42 @@
     await refresh();
   });
 
+  const referralCode = $("referral-code"), referralStatus = $("referral-status");
+  const copyReferral = $("copy-referral"), referralInput = $("referral-input");
+  const applyReferral = $("apply-referral");
+  async function loadReferral() {
+    if (!referralCode) return;
+    const { data, error } = await db.rpc("get_kingmaker_referral_code");
+    if (error || !data) {
+      referralCode.textContent = "Unavailable";
+      if (referralStatus) referralStatus.textContent = "Referral service is not available right now.";
+      return;
+    }
+    referralCode.textContent = data;
+    if (copyReferral) copyReferral.disabled = false;
+  }
+  if (copyReferral) copyReferral.addEventListener("click", async () => {
+    const code = referralCode?.textContent || "";
+    if (!code || code === "Unavailable" || code === "Sign in to load") return;
+    try {
+      await navigator.clipboard.writeText(code);
+      referralStatus.textContent = "Referral code copied. Share it with a friend.";
+    } catch (_) {
+      referralStatus.textContent = "Copy is unavailable in this browser. Select and copy the code.";
+    }
+  });
+  if (applyReferral) applyReferral.addEventListener("click", async () => {
+    const code = (referralInput?.value || "").trim();
+    if (!code) { referralStatus.textContent = "Enter an invite code first."; return; }
+    applyReferral.disabled = true;
+    const { error } = await db.rpc("apply_kingmaker_referral", { p_referral_code: code });
+    referralStatus.textContent = error
+      ? "Referral not applied: " + (error.message || "please check the code and account status.")
+      : "Referral successfully linked to your account. No bonus is issued by this feature.";
+    if (!error) referralInput.value = "";
+    applyReferral.disabled = false;
+  });
+
   async function refreshBalance(userId) {
     if (!crownBalance || !ledgerStatus) return;
     ledgerStatus.textContent = "Loading server-recorded CROWN ledger…";
