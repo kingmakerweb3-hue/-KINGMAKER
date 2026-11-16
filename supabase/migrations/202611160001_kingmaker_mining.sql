@@ -30,10 +30,19 @@ create table if not exists public.mining_sessions (
   claimed_at timestamptz,
   status text not null default 'active' check (status in ('active','claimed')),
   reward numeric(28,8),
+  reward_rate numeric(20,8),
   created_at timestamptz not null default now(),
   constraint valid_session_window check (ends_at = started_at + interval '6 hours'),
   constraint nonnegative_reward check (reward is null or reward >= 0)
 );
+alter table public.mining_sessions add column if not exists reward_rate numeric(20,8);
+-- Preserve the configured rate for already-created pre-snapshot sessions during migration.
+update public.mining_sessions
+set reward_rate = coalesce((select crown_per_hour from public.mining_config where id=true),0)
+where reward_rate is null;
+alter table public.mining_sessions alter column reward_rate set default 0;
+alter table public.mining_sessions add constraint mining_sessions_reward_rate_nonnegative check (reward_rate >= 0);
+
 alter table public.mining_sessions add column if not exists status text not null default 'active';
 update public.mining_sessions set status = case when claimed_at is null then 'active' else 'claimed' end;
 alter table public.mining_sessions drop constraint if exists mining_sessions_status_check;
@@ -86,8 +95,8 @@ begin
   if exists (select 1 from public.mining_sessions where user_id=v_user and claimed_at is null) then
     raise exception 'Claim your completed session before starting another';
   end if;
-  insert into public.mining_sessions(user_id,started_at,ends_at)
-  values(v_user,now(),now()+make_interval(secs=>v_cfg.session_seconds))
+  insert into public.mining_sessions(user_id,started_at,ends_at,reward_rate)
+  values(v_user,now(),now()+make_interval(secs=>v_cfg.session_seconds),v_cfg.crown_per_hour)
   returning * into v_session;
   return v_session;
 end;
@@ -111,8 +120,10 @@ begin
   if not found then raise exception 'Mining session not found'; end if;
   if v_session.claimed_at is not null then raise exception 'Session already claimed'; end if;
   if now() < v_session.ends_at then raise exception 'Six-hour session is not complete'; end if;
-  select crown_per_hour into v_rate from public.mining_config where id=true and enabled=true;
-  if coalesce(v_rate,0) <= 0 then raise exception 'Mining rewards are currently disabled'; end if;
+  -- Use the rate snapshotted when this session began. Pausing new sessions must
+  -- never erase a member's ability to claim an already-earned session.
+  v_rate := coalesce(v_session.reward_rate,0);
+  if v_rate <= 0 then raise exception 'This session has no configured reward rate'; end if;
   v_reward := round(v_rate * 6,8);
   update public.mining_sessions set claimed_at=now(), status='claimed', reward=v_reward where id=p_session_id;
   insert into public.crown_ledger(user_id,session_id,entry_type,amount)
