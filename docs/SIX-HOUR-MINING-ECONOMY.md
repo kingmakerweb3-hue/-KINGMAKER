@@ -73,7 +73,9 @@ All endpoints require authentication, authorization checks, rate limits, input v
 - A session can be credited only once.
 - Two concurrent claim requests produce one credit.
 - Retrying a successful claim returns the same result without a second credit.
-- A user cannot start a second active session.\n- Starting again after a completed but unclaimed session expires the old session with zero reward and starts a fresh six-hour session.\n- An expired session can never be claimed.
+- A user cannot start a second active session.
+- Starting again after a completed but unclaimed session expires the old session with zero reward and starts a fresh six-hour session.
+- An expired session can never be claimed.
 - Editing the device clock does not change eligibility.
 - A forged user ID, amount, multiplier, or session ID is rejected.
 - A database failure does not create a partial credit.
