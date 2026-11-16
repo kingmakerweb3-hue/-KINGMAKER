@@ -25,6 +25,16 @@
       <div><p class="eyebrow">WORLD ENGINE · LOCAL CAMPAIGN</p><h1>Your nation is only<br>the beginning.</h1><p class="intro">Build a resilient economy, discover new technologies, and decide how your nation meets its neighbors. Every turn changes the world.</p></div>
       <div class="welcome-actions"><div id="game-banner" class="game-banner"></div><button id="advance-turn" class="primary large">Advance World <span aria-hidden="true">→</span></button></div>
     </section>
+    <section class="command-deck" aria-label="Command deck">
+      <div class="deck-heading"><div><p class="eyebrow">KINGMAKER COMMAND DECK · PLANETARY INTELLIGENCE</p><h2>Empire status</h2></div><span class="live-indicator"><i></i> SIMULATION ONLINE</span></div>
+      <div class="deck-grid">
+        <article class="deck-card deck-core"><span class="deck-label">CIVILIZATION CORE</span><strong id="deck-population">—</strong><small>Citizens under your charter</small><div class="deck-orbit"><i></i><b>K</b></div></article>
+        <article class="deck-card"><span class="deck-label">STABILITY INDEX</span><strong id="deck-stability">—</strong><div class="deck-meter"><i id="deck-stability-bar"></i></div><small>National resilience</small></article>
+        <article class="deck-card"><span class="deck-label">ENERGY RESERVE</span><strong id="deck-power">—</strong><small>Stored power units</small><span class="deck-glyph">ϟ</span></article>
+        <article class="deck-card"><span class="deck-label">RESEARCH MATRIX</span><strong id="deck-science">—</strong><small>Available science</small><span class="deck-glyph">⌬</span></article>
+      </div>
+      <div class="deck-actions"><button type="button" data-jump-tab="world3d">◈ Open 3D world</button><button type="button" data-jump-tab="research">⌬ Technology matrix</button><button type="button" data-jump-tab="market">↗ Global economy</button><a href="mining.html">♛ CROWN mining portal</a></div>
+    </section>
     <section id="metrics" class="metrics" aria-label="National resources"></section>
     <nav class="tabs" aria-label="Game sections" role="tablist">
       <button id="tab-world3d" role="tab" aria-controls="panel-world3d" aria-selected="false" data-tab="world3d">3D World</button>
