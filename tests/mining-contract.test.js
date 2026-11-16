@@ -142,3 +142,11 @@ test("missed-session reset expires only the prior active session and never credi
   assert.doesNotMatch(reset, /insert into public\.crown_ledger[\s\S]*?status = 'expired'/);
   assert.match(reset, /insert into public\.mining_sessions\(user_id,started_at,ends_at,reward_rate\)/);
 });
+
+
+test("concurrent session starts are serialized per member before checking active sessions", () => {
+  const concurrency = fs.readFileSync(path.join(root, "supabase/migrations/202611160012_serialize_mining_session_starts.sql"), "utf8");
+  assert.match(concurrency, /pg_advisory_xact_lock\\(hashtextextended\\(v_user::text, 0\\)\\)/);
+  assert.ok(concurrency.indexOf("pg_advisory_xact_lock") < concurrency.indexOf("from public.mining_sessions"));
+  assert.match(concurrency, /set search_path = pg_catalog, public, auth, extensions, pg_temp/);
+});
