@@ -1,0 +1,2 @@
+# Local Supabase CLI workspace identifier. The production project ref is supplied securely via GitHub Actions secrets.
+project_id = "kingmaker-mining"
