@@ -26,6 +26,31 @@
     const title = document.getElementById('community-video-title');
     if (title) title.textContent = String(communityConfig.latestVideoTitle).slice(0, 90);
   }
+  if (videoReady) {
+    try {
+      const videoUrl = new URL(communityConfig.latestVideoUrl);
+      let videoId = '';
+      if (videoUrl.hostname === 'youtu.be') videoId = videoUrl.pathname.split('/').filter(Boolean)[0] || '';
+      else if (videoUrl.hostname.endsWith('youtube.com')) {
+        videoId = videoUrl.searchParams.get('v') || (videoUrl.pathname.startsWith('/embed/') ? videoUrl.pathname.split('/')[2] : '');
+      }
+      if (/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
+        const frame = document.getElementById('community-video-frame');
+        if (frame) {
+          const iframe = document.createElement('iframe');
+          iframe.src = 'https://www.youtube-nocookie.com/embed/' + videoId;
+          iframe.title = 'KINGMAKER latest official community video';
+          iframe.loading = 'lazy';
+          iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+          iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+          iframe.allowFullscreen = true;
+          iframe.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0';
+          frame.replaceChildren(iframe);
+          frame.style.minHeight = '280px';
+        }
+      }
+    } catch (_) {}
+  }
   const communityStatus = document.getElementById('community-link-status');
   if (communityStatus) {
     communityStatus.textContent = videoReady || channelReady || xReady
