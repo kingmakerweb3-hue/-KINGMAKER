@@ -28,7 +28,7 @@
   }
 
   const db = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
-  let activeSession = null, ticker = null;
+  let activeSession = null, ticker = null, miningEnabled = false;
   const emailInput = $("member-email"), signIn = $("member-signin");
   const signOut = $("member-signout"), memberStatus = $("member-status");
   const crownBalance = $("crown-balance"), ledgerStatus = $("ledger-status");
@@ -81,6 +81,17 @@
     if (memberStatus) memberStatus.textContent = "Signed in: " + auth.user.email;
     await refreshBalance(auth.user.id);
     if (signOut) signOut.hidden = false;
+    const { data: configRow, error: configError } = await db.from("mining_config")
+      .select("enabled,crown_per_hour,session_seconds").eq("id", true).maybeSingle();
+    miningEnabled = !configError && configRow?.enabled === true &&
+      Number(configRow.crown_per_hour) > 0 && Number(configRow.session_seconds) === 21600;
+    if (configError || !configRow) {
+      clearInterval(ticker);
+      say("MINING SERVICE UNAVAILABLE", "The server could not verify whether six-hour mining is open. Starting is disabled.");
+      start.disabled = true;
+      claim.disabled = true;
+      return;
+    }
     const { data, error } = await db.from("mining_sessions")
       .select("id,status,started_at,ends_at").eq("user_id", auth.user.id)
       .order("started_at", { ascending: false }).limit(1).maybeSingle();
@@ -88,8 +99,14 @@
     activeSession = data;
     if (!data) {
       clearInterval(ticker);
-      say("READY · NO ACTIVE SESSION", "Start a six-hour session when the network opens.");
-      start.disabled = false; claim.disabled = true; return;
+      if (miningEnabled) {
+        say("READY · NO ACTIVE SESSION", "The network is open. Start a server-timed six-hour session.");
+        start.disabled = false;
+      } else {
+        say("NETWORK CLOSED · MINING PAUSED", "KINGMAKER has not enabled new mining sessions. No session or reward will be created.");
+        start.disabled = true;
+      }
+      claim.disabled = true; return;
     }
     const end = new Date(data.ends_at).getTime();
     if (data.status === "active" && end > Date.now()) {
@@ -100,8 +117,14 @@
       say("SESSION COMPLETE · CLAIM AVAILABLE", "Your server-timed six-hour session has ended.");
       start.disabled = true; claim.disabled = false;
     } else {
-      say("SESSION CLOSED", "A new session can start when the service rules permit.");
-      start.disabled = false; claim.disabled = true;
+      if (miningEnabled) {
+        say("SESSION CLOSED", "Your previous session is claimed. A new six-hour session is available.");
+        start.disabled = false;
+      } else {
+        say("NETWORK CLOSED · MINING PAUSED", "Your previous session is closed. New sessions are paused by KINGMAKER.");
+        start.disabled = true;
+      }
+      claim.disabled = true;
     }
   }
   async function refreshCountdown() {
@@ -112,6 +135,11 @@
   }
 
   start.addEventListener("click", async () => {
+    if (!miningEnabled) {
+      say("NETWORK CLOSED · MINING PAUSED", "KINGMAKER has not enabled new mining sessions.");
+      start.disabled = true;
+      return;
+    }
     start.disabled = true;
     const { error } = await db.rpc("start_kingmaker_mining");
     if (error) say("SESSION NOT STARTED", error.message.includes("disabled") ?
