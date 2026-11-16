@@ -55,6 +55,12 @@
     $("metrics").innerHTML=[["Population",state.nation.population],["Food",state.resources.food],["Materials",state.resources.materials],["Ore",state.resources.ore],["Goods",state.resources.goods],["Credits",state.resources.credits],["Power",state.resources.power],["Science",state.resources.science]]
       .map(([n,v])=>'<article class="metric-card"><span class="metric-label">'+n+'</span><strong>'+num(v)+'</strong><span class="metric-hint">national reserve</span></article>').join("");
     $("science-reserve").textContent=num(state.resources.science);
+    const deck={population:$("deck-population"),stability:$("deck-stability"),stabilityBar:$("deck-stability-bar"),power:$("deck-power"),science:$("deck-science")};
+    if(deck.population) deck.population.textContent=num(state.nation.population);
+    if(deck.stability) deck.stability.textContent=state.nation.stability+"%";
+    if(deck.stabilityBar) deck.stabilityBar.style.width=Math.max(0,Math.min(100,state.nation.stability))+"%";
+    if(deck.power) deck.power.textContent=num(state.resources.power);
+    if(deck.science) deck.science.textContent=num(state.resources.science);
   }
   function renderMap() {
     const rivals=Object.values(state.rivals),coords=[[18,28],[78,20],[83,58],[63,82],[30,80],[17,56],[49,14],[92,38],[48,91]];const points=[{x:50,y:50,id:"player",name:state.nation.name,rel:100},...rivals.map((r,i)=>({x:coords[i%coords.length][0],y:coords[i%coords.length][1],id:r.id,name:r.name,rel:r.relation}))];
@@ -247,5 +253,6 @@
   const assess=()=>{renderAdvice();toast("The local World Director assessed your nation.","success");};
   $("director-run").addEventListener("click",assess);$("director-run-panel").addEventListener("click",assess);
   $("sound-toggle").addEventListener("click",e=>{soundOn=!soundOn;e.currentTarget.setAttribute("aria-pressed",String(soundOn));e.currentTarget.textContent=soundOn?"Sound: on":"Sound: off";beep();});
+  document.querySelectorAll("[data-jump-tab]").forEach(button=>button.addEventListener("click",()=>{tab(button.dataset.jumpTab);document.getElementById("panel-"+button.dataset.jumpTab)?.scrollIntoView({behavior:"smooth",block:"start"});}));
   state=load();render();persist();
 })();
