@@ -391,7 +391,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   }
 
   function createScene(){
-    scene=new THREE.Scene();scene.background=new THREE.Color(0x9bb8c7);scene.fog=new THREE.FogExp2(0x9bb8c7,.012);
+    scene=new THREE.Scene();scene.background=new THREE.Color(0x9bb8c7);scene.fog=new THREE.FogExp2(0x9bb8c7,.005);
     // Distant stars and a moon make the existing day/night cycle read as a complete sky transition.
     const starVertices=[];
     for(let i=0;i<420;i++){const y=THREE.MathUtils.randFloatSpread(1),angle=Math.random()*Math.PI*2,r=Math.sqrt(1-y*y),radius=92;starVertices.push(Math.cos(angle)*r*radius,y*radius,Math.sin(angle)*r*radius);}
