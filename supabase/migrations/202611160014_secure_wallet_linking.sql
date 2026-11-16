@@ -43,6 +43,7 @@ declare
 begin
   if v_user is null then raise exception 'Authentication required'; end if;
   if v_address !~ '^0x[0-9a-f]{40}$' then raise exception 'Invalid EVM wallet address'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(v_user::text, 1));
   delete from public.kingmaker_wallet_challenges
     where user_id = v_user and expires_at < now() - interval '1 day';
   select count(*) into v_recent from public.kingmaker_wallet_challenges
