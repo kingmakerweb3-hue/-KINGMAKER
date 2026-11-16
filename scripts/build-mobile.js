@@ -36,4 +36,11 @@ for (const page of ["network.html", "whitepaper.html", "index.html"]) {
 }
 html = html.replace("</head>", '  <script defer src="mobile-shell.js"></script>\n</head>');
 fs.writeFileSync(path.join(out, "index.html"), html);
-process.stdout.write("KINGMAKER Mining native app bundle created at www/\n");
+
+const sourceAssets = path.join(root, "assets");
+const outputAssets = path.join(out, "assets");
+if (!fs.existsSync(sourceAssets) || !fs.existsSync(path.join(sourceAssets, "kingmaker-app-icon.svg"))) {
+  throw new Error("Required KINGMAKER Mining app icon is missing: assets/kingmaker-app-icon.svg");
+}
+fs.cpSync(sourceAssets, outputAssets, { recursive: true });
+process.stdout.write("KINGMAKER Mining native app bundle created at www/ (including app assets)\n");
