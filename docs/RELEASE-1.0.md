@@ -24,7 +24,7 @@ Release 1.0 is a complete, hosted **web game**. It is not an app-store release.
 - Save automatically, recover safely, and export/import a validated save.
 
 ### World and presentation
-- Stable 3D island scene with terrain, ocean, lighting/day-night, buildings, roads and resource deposits.
+- Stable 3D archipelago scene with a detailed home island, selectable outer-island territories, ownership borders, finite resource deposits, ocean and lighting/day-night; home-island buildings, roads and districts remain playable.
 - Citizens and vehicles animate without breaking controls or causing unacceptable performance.
 - Functional placement/selection controls, camera controls, and clear selected-object feedback.
 - Industrial, harbor and renewable-energy areas are visually legible and connected to game systems.
@@ -64,8 +64,8 @@ Do not simulate these capabilities in marketing or imply they are live.
 - [ ] **Gameplay:** a new campaign can be played through its main objectives; victory/defeat and restart work.
 - [ ] **Economy:** deterministic tests cover production, staffing, renewable power, factory throttling, market trades, shortages and crises.
 - [ ] **Save safety:** save/export/import/recovery and legacy migration tests pass; malformed or oversized input is rejected safely.
-- [ ] **3D smoke test:** supported desktop browser loads the scene; camera, selection, placement, roads, resource extraction and turn updates work; no fatal WebGL errors.
-- [ ] **Performance:** representative target hardware sustains a usable frame rate in the populated island scene; memory does not grow continuously during a 20-minute play session.
+- [ ] **3D smoke test:** supported desktop browser loads the scene; camera, island selection and claims, home-island placement, roads, resource extraction, save/reload and turn updates work; no fatal WebGL errors.
+- [ ] **Performance:** representative target hardware sustains a usable frame rate in the populated archipelago scene; memory does not grow continuously during a 20-minute play session.
 - [ ] **Security:** server routes, input validation, dependencies, headers, secrets and any wallet code receive a documented review; no unreviewed real-money flow.
 - [ ] **Accessibility/usability:** core actions have labels, visible focus, readable contrast and a usable onboarding/tutorial path.
 - [ ] **Operations:** production deployment, HTTPS, monitoring, backups, restore and rollback are verified.
