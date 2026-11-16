@@ -148,3 +148,15 @@ button,a,[role="button"],input,select{touch-action:manipulation}
 button{min-height:40px}
 @media(max-width:720px){.topbar{padding-top:calc(10px + var(--km-safe-top));padding-left:14px;padding-right:14px}.top-actions{gap:7px}.top-actions button,.top-actions a{font-size:12px}.tabs{position:sticky;top:0;z-index:20;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:thin;padding:8px 4px}.tabs button{flex:0 0 auto;min-width:max-content}.world3d-viewport{min-height:360px;height:55vh;max-height:620px}.world3d-toolbar{gap:8px;flex-wrap:wrap}.world3d-toolbar>div{display:flex;flex-wrap:wrap;gap:6px}.world3d-toolbar button{min-height:42px}.panel{scroll-margin-top:70px}}
 @media(max-width:480px){.brand small{font-size:8px}.brand b{font-size:15px}.top-actions{max-width:100%;overflow-x:auto}.welcome{padding:20px 14px}.welcome h1{font-size:clamp(32px,10vw,48px)}.command-deck,.panel{border-radius:10px}.metric-card{min-width:calc(50% - 8px)}.world3d-viewport{height:50vh;min-height:300px}}
+
+.world3d-territory-inspector{display:grid;gap:10px;margin-top:12px;padding:14px 16px;border:1px solid #496a72;border-radius:12px;background:linear-gradient(135deg,#0e1d2a,#10272c);min-width:0}
+.world3d-territory-inspector>p{margin:0;font-size:.82rem}
+.world3d-territory-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.world3d-territory-heading h3{margin:3px 0;font-size:1.05rem;color:var(--gold)}
+.world3d-territory-heading p,.territory-deposits{margin:0;color:var(--muted);font-size:.8rem;overflow-wrap:anywhere}
+.world3d-territory-inspector button{justify-self:start;max-width:100%}
+.territory-claim-cost{display:grid;gap:4px;padding:10px 12px;border:1px solid #496a72;border-radius:9px;background:#ffffff08}
+.territory-claim-cost span{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.territory-claim-cost b{font-size:.9rem;color:var(--gold)}
+.territory-claim-cost small,.world3d-territory-inspector>small{font-size:.76rem;color:var(--muted)}
+@media(max-width:640px){.world3d-territory-inspector{padding:12px}.world3d-territory-heading{gap:8px}}
