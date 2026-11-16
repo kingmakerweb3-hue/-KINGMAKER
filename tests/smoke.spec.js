@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
 });
 
 test('command deck and national resource dashboard render live game state', async ({ page }) => {
@@ -56,10 +56,10 @@ test('3D world exposes construction tools and simulation status', async ({ page 
 });
 
 test('CROWN mining preview keeps real mining disabled until backend configuration', async ({ page }) => {
-  await page.goto('/mining.html');
+  await page.goto('/mining.html', { waitUntil: 'domcontentloaded' });
   await expect(page.getByText(/BACKEND NOT CONFIGURED/i)).toBeVisible();
   await expect(page.getByRole('button', { name: /START 6-HOUR SESSION/i })).toBeDisabled();
-  await expect(page.getByText(/six-hour/i)).toBeVisible();
+  await expect(page.locator('#session-state')).toContainText('SIX-HOUR SESSION');
 });
 
 test('mobile command deck and navigation do not create horizontal overflow', async ({ page }) => {
