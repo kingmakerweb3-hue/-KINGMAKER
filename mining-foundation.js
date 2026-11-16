@@ -87,6 +87,29 @@
     applyReferral.disabled = false;
   });
 
+  async function loadDashboard() {
+    const status = $("dashboard-status");
+    const referrals = $("dashboard-referrals");
+    const claimed = $("dashboard-claimed");
+    const total = $("dashboard-total");
+    const active = $("dashboard-active");
+    if (!status || !referrals || !claimed || !total || !active) return;
+    status.textContent = "Loading your private member activity…";
+    const { data, error } = await db.rpc("get_kingmaker_member_dashboard");
+    if (error || !data || !data.length) {
+      status.textContent = "Member activity is temporarily unavailable. No estimated figures are shown.";
+      return;
+    }
+    const row = data[0];
+    referrals.textContent = String(row.referral_count ?? 0);
+    claimed.textContent = String(row.sessions_claimed ?? 0);
+    total.textContent = String(row.sessions_total ?? 0);
+    active.textContent = row.active_session_ends_at
+      ? new Date(row.active_session_ends_at).toLocaleString()
+      : "No active session";
+    status.textContent = "Private server-verified totals for your account. Referral links do not create automatic bonuses.";
+  }
+
   async function refreshBalance(userId) {
     if (!crownBalance || !ledgerStatus) return;
     ledgerStatus.textContent = "Loading server-recorded CROWN ledger…";
@@ -110,6 +133,8 @@
       start.disabled = true; claim.disabled = true;
       if (memberStatus) memberStatus.textContent = "Not signed in. Request a secure email sign-in link above.";
       if (crownBalance) crownBalance.textContent = "— CROWN";
+      for (const id of ["dashboard-referrals","dashboard-claimed","dashboard-total","dashboard-active"]) { const el = $(id); if (el) el.textContent = "—"; }
+      if ($("dashboard-status")) $("dashboard-status").textContent = "Sign in to load your private member activity.";
       if (ledgerStatus) ledgerStatus.textContent = "Sign in to view your recorded balance. No preview balance is displayed.";
       if (signOut) signOut.hidden = true;
       return;
@@ -117,6 +142,7 @@
     if (memberStatus) memberStatus.textContent = "Signed in: " + auth.user.email;
     await loadReferral();
     await refreshBalance(auth.user.id);
+    await loadDashboard();
     if (signOut) signOut.hidden = false;
     const { data: configRow, error: configError } = await db.from("mining_config")
       .select("enabled,crown_per_hour,session_seconds").eq("id", true).maybeSingle();
