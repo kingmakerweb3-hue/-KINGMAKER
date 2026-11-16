@@ -54,15 +54,15 @@
   async function refreshBalance(userId) {
     if (!crownBalance || !ledgerStatus) return;
     ledgerStatus.textContent = "Loading server-recorded CROWN ledger…";
-    const { data, error } = await db.from("crown_ledger").select("amount").eq("user_id", userId);
+    const { data, error } = await db.rpc("get_kingmaker_crown_balance");
     if (error) {
       crownBalance.textContent = "Unavailable";
       ledgerStatus.textContent = "The server could not load your ledger. No local balance is shown.";
       return;
     }
-    const total = (data || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const total = Number(data || 0);
     crownBalance.textContent = total.toFixed(8).replace(/\.?0+$/, "") + " CROWN";
-    ledgerStatus.textContent = (data || []).length + " verified ledger entr" + ((data || []).length === 1 ? "y" : "ies") + ". This is an off-chain participation ledger, not a withdrawable token balance.";
+    ledgerStatus.textContent = "Balance returned by the KINGMAKER server ledger. This is an off-chain participation balance, not a withdrawable token balance.";
   }
 
   async function refresh() {
