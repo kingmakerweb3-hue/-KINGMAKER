@@ -39,9 +39,15 @@ declare
   v_expires timestamptz := now() + interval '5 minutes';
   v_message text;
   v_id uuid;
+  v_recent integer;
 begin
   if v_user is null then raise exception 'Authentication required'; end if;
   if v_address !~ '^0x[0-9a-f]{40}$' then raise exception 'Invalid EVM wallet address'; end if;
+  delete from public.kingmaker_wallet_challenges
+    where user_id = v_user and expires_at < now() - interval '1 day';
+  select count(*) into v_recent from public.kingmaker_wallet_challenges
+    where user_id = v_user and created_at > now() - interval '10 minutes';
+  if v_recent >= 5 then raise exception 'Too many wallet link attempts; wait before requesting another challenge'; end if;
   v_message := 'KINGMAKER CROWN Wallet Link' || E'\n' ||
     'Address: ' || v_address || E'\n' ||
     'Nonce: ' || v_nonce || E'\n' ||
