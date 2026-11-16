@@ -102,3 +102,90 @@ test("missed completed sessions expire without reward and a fresh six-hour sessi
   assert.match(client, /PREVIOUS SESSION MISSED · NO REWARD/);
   assert.match(client, /SESSION MISSED · EXPIRED/);
 });
+
+test("mining SECURITY DEFINER RPCs use a hardened search path and client roles cannot create public-schema objects", () => {
+  const hardening = fs.readFileSync(path.join(root, "supabase/migrations/202611160011_harden_public_schema_and_rpc_search_path.sql"), "utf8");
+  assert.match(hardening, /revoke create on schema public from public, anon, authenticated/i);
+  assert.match(hardening, /grant usage on schema public to anon, authenticated/i);
+  assert.equal((hardening.match(/set search_path = pg_catalog, public, auth, extensions, pg_temp/g) || []).length, 7);
+  for (const rpc of [
+    "start_kingmaker_mining()",
+    "claim_kingmaker_mining(uuid)",
+    "get_kingmaker_crown_balance()",
+    "get_kingmaker_referral_code()",
+    "apply_kingmaker_referral(text)",
+    "get_kingmaker_member_dashboard()",
+    "get_kingmaker_member_activity()"
+  ]) assert.ok(hardening.includes("alter function public." + rpc), "missing hardened search_path for " + rpc);
+});
+
+
+test("pilot reward configuration stays paused at 100 CROWN per hour for a 600 CROWN session", () => {
+  for (const migrationName of [
+    "202611160005_enable_crown_pilot.sql",
+    "202611160006_set_600_crown_session.sql",
+    "202611160007_set_600_crown_base_reward.sql"
+  ]) {
+    const migration = fs.readFileSync(path.join(root, "supabase/migrations", migrationName), "utf8");
+    assert.match(migration, /enabled = false/);
+    assert.match(migration, /session_seconds = 21600/);
+    assert.match(migration, /crown_per_hour = 100/);
+  }
+  assert.match(client, /sessionReward = !configError && configRow/);
+  assert.match(client, /sessionReward\.toFixed\(8\)/);
+  assert.match(client, /Claim this completed session for /);
+  assert.doesNotMatch(client, /Claim this completed session for 600 CROWN/);
+});
+
+test("missed-session reset expires only the prior active session and never credits it", () => {
+  const reset = fs.readFileSync(path.join(root, "supabase/migrations/202611160008_expire_missed_mining_sessions.sql"), "utf8");
+  assert.match(reset, /where user_id = v_user and status = 'active'/);
+  assert.match(reset, /if v_previous\.ends_at > now\(\) then/);
+  assert.match(reset, /update public\.mining_sessions\s+set status = 'expired'\s+where id = v_previous\.id and claimed_at is null/);
+  assert.doesNotMatch(reset, /insert into public\.crown_ledger[\s\S]*?status = 'expired'/);
+  assert.match(reset, /insert into public\.mining_sessions\(user_id,started_at,ends_at,reward_rate\)/);
+});
+
+
+test("concurrent session starts are serialized per member before checking active sessions", () => {
+  const concurrency = fs.readFileSync(path.join(root, "supabase/migrations/202611160012_serialize_mining_session_starts.sql"), "utf8");
+  assert.match(concurrency, /pg_advisory_xact_lock\(hashtextextended\(v_user::text, 0\)\)/);
+  assert.ok(concurrency.indexOf("pg_advisory_xact_lock") < concurrency.indexOf("from public.mining_sessions"));
+  assert.match(concurrency, /set search_path = pg_catalog, public, auth, extensions, pg_temp/);
+});
+
+
+test("new Supabase Auth accounts receive a private profile through a hardened trigger", () => {
+  const provisioning = fs.readFileSync(path.join(root, "supabase/migrations/202611160013_provision_member_profile_on_signup.sql"), "utf8");
+  assert.match(provisioning, /create or replace function public\.handle_kingmaker_new_auth_user\(\)/);
+  assert.match(provisioning, /security definer/);
+  assert.match(provisioning, /set search_path = pg_catalog, public, extensions, pg_temp/);
+  assert.match(provisioning, /insert into public\.kingmaker_profiles \(user_id\)/);
+  assert.match(provisioning, /values \(new\.id\)/);
+  assert.match(provisioning, /on conflict \(user_id\) do nothing/);
+  assert.match(provisioning, /after insert on auth\.users/);
+  assert.match(provisioning, /execute function public\.handle_kingmaker_new_auth_user\(\)/);
+  assert.match(provisioning, /revoke all on function public\.handle_kingmaker_new_auth_user\(\) from public, anon, authenticated/);
+});
+
+test("wallet linking requires an expiring one-time challenge and server-side EIP-191 signer recovery", () => {
+  const migration = fs.readFileSync(path.join(root, "supabase/migrations/202611160014_secure_wallet_linking.sql"), "utf8");
+  const edge = fs.readFileSync(path.join(root, "supabase/functions/verify-wallet-link/index.ts"), "utf8");
+  assert.match(migration, /create_kingmaker_wallet_challenge/);
+  assert.match(migration, /now\(\) \+ interval '5 minutes'/);
+  assert.match(migration, /consumed_at timestamptz/);
+  assert.match(migration, /wallet_address text not null unique/);
+  assert.match(migration, /for update/);
+  assert.match(migration, /consumed_at is not null or v_challenge\.expires_at <= now\(\)/);
+  assert.match(migration, /grant execute on function public\.complete_kingmaker_wallet_link\(uuid,text,text\) to service_role/);
+  assert.match(edge, /recoverMessageAddress/);
+  assert.match(edge, /auth\.getUser\(token\)/);
+  assert.match(edge, /complete_kingmaker_wallet_link/);
+  assert.match(edge, /recovered !== address/);
+  assert.match(edge, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(edge, /privilegedChallenge\.consumed_at/);
+  assert.match(client, /create_kingmaker_wallet_challenge/);
+  assert.match(client, /personal_sign/);
+  assert.match(client, /verify-wallet-link/);
+  assert.match(client, /Ownership verified and linked/);
+});

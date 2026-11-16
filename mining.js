@@ -92,23 +92,5 @@
     });
   }
 
-  if (!walletButton || !walletStatus) return;
-  walletButton.addEventListener('click', async () => {
-    if (!window.ethereum || typeof window.ethereum.request !== 'function') {
-      walletStatus.textContent = 'No compatible browser wallet detected. You can continue browsing without connecting.';
-      return;
-    }
-    walletButton.disabled = true;
-    walletStatus.textContent = 'Waiting for wallet approval…';
-    try {
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      const address = Array.isArray(accounts) && accounts.length ? accounts[0] : '';
-      if (!address) throw new Error('No account was returned.');
-      walletStatus.textContent = 'Wallet connected for this browser session: ' + address.slice(0, 6) + '…' + address.slice(-4) + '. No signature or transaction was requested.';
-      walletButton.textContent = 'WALLET CONNECTED';
-    } catch (error) {
-      walletStatus.textContent = error && error.code === 4001 ? 'Wallet connection was cancelled.' : 'Wallet connection could not be completed.';
-      walletButton.disabled = false;
-    }
-  });
+  // Secure account-to-wallet linking is handled by mining-foundation.js after authentication.
 })();
