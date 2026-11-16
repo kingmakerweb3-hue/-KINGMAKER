@@ -5,6 +5,12 @@ on:
   push:
     branches: [main]
     paths:
+      - "mining.html"
+      - "mining.js"
+      - "mining-config.js"
+      - "mining-foundation.js"
+      - "mining-manifest.json"
+      - "mining-sw.js"
       - "index.html"
       - "styles.css"
       - "mobile-shell.js"
@@ -14,6 +20,8 @@ on:
       - "scripts/**"
       - "src/**"
       - "assets/**"
+      - "tests/**"
+      - "docs/**"
       - ".github/workflows/native-mobile-build.yml"
 
 permissions:
