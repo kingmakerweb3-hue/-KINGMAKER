@@ -1196,3 +1196,11 @@ test("resource extraction on a remote island requires player territorial control
   assert.equal(deposit.operational, true);
   assert.equal(deposit.territoryId, territory.id);
 });
+
+
+test("the normal world turn runs rival territorial expansion", () => {
+  const state = Engine.createInitialState({ seed: 52010 });
+  Engine.advanceTurn(state);
+  assert.ok(state.world.territories.some(territory => territory.owner === "duneward" && territory.id !== "isle-duneward"));
+  assert.ok(state.events.some(event => event.text.includes("Duneward expanded into")));
+});
