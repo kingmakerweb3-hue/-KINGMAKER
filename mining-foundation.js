@@ -251,8 +251,14 @@
       start.disabled = true; claim.disabled = true;
       clearInterval(ticker); ticker = setInterval(refreshCountdown, 1000);
     } else if (data.status === "active") {
-      say("SESSION COMPLETE · CLAIM AVAILABLE", "Your server-timed six-hour session has ended.");
-      start.disabled = true; claim.disabled = false;
+      say("SESSION COMPLETE · CLAIM OR RESTART", miningEnabled
+        ? "Claim this completed session for 600 CROWN, or start again now and forfeit it. A restart begins a fresh six-hour session."
+        : "Your six-hour session is complete. Claim remains available, but new sessions are paused.");
+      // The member may either claim the completed session or explicitly start
+      // again. The server then expires the unclaimed session with zero credit
+      // and creates a fresh six-hour session. The database remains authoritative.
+      start.disabled = !miningEnabled;
+      claim.disabled = false;
     } else {
       if (data.status === "expired") {
         if (miningEnabled) {
