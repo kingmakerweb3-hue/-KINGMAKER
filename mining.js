@@ -5,7 +5,9 @@
   const dailyState = document.getElementById('daily-state');
   const installButton = document.getElementById('install-app');
   const installNote = document.getElementById('install-note');
-  let installPrompt = null;\n\n  const communityConfig = window.KM_CONFIG && window.KM_CONFIG.community || {};
+  let installPrompt = null;
+
+  const communityConfig = window.KM_CONFIG && window.KM_CONFIG.community || {};
   const setCommunityLink = (id, value) => {
     const el = document.getElementById(id);
     if (!el || typeof value !== 'string' || !/^https:\/\//i.test(value)) return false;
