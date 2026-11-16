@@ -55,11 +55,12 @@ test('3D world exposes construction tools and simulation status', async ({ page 
   await expect(page.locator('#world3d-stats')).toBeVisible();
 });
 
-test('CROWN mining preview keeps real mining disabled until backend configuration', async ({ page }) => {
+test('CROWN mining connects to its configured backend but stays closed until operator launch', async ({ page }) => {
   await page.goto('/mining.html', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText(/BACKEND NOT CONFIGURED/i)).toBeVisible();
+  await expect(page.locator('#session-state')).toContainText(/SIGN IN REQUIRED|NETWORK CLOSED|MINING SERVICE UNAVAILABLE/);
   await expect(page.getByRole('button', { name: /START 6-HOUR SESSION/i })).toBeDisabled();
-  await expect(page.locator('#session-state')).toContainText('SIX-HOUR SESSION');
+  await expect(page.locator('#member-email')).toBeVisible();
+  await expect(page.locator('#crown-balance')).toContainText(/— CROWN|Unavailable/);
 });
 
 test('mobile command deck and navigation do not create horizontal overflow', async ({ page }) => {
