@@ -1,12 +1,10 @@
--- KINGMAKER controlled CROWN pilot activation.
--- Initial pilot rate: 1 off-chain CROWN ledger credit per hour.
--- Each completed six-hour session credits 6 CROWN.
--- This is an internal, off-chain participation balance, not a token,
--- cash equivalent, withdrawal right, or promise of future conversion.
--- Operators can pause new sessions by setting enabled=false.
+-- Historical pilot configuration retained for migration continuity.
+-- Mining must remain disabled until production backend security and end-to-end
+-- tests are complete. This migration must never activate member rewards.
+-- CROWN is an off-chain participation ledger balance, not a withdrawable token.
 update public.mining_config
-set enabled = true,
+set enabled = false,
     session_seconds = 21600,
-    crown_per_hour = 1,
+    crown_per_hour = 100,
     updated_at = now()
 where id = true;
