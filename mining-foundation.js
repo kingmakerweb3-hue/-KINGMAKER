@@ -186,7 +186,15 @@
       ledgerStatus.textContent = "The server could not load your ledger. No local balance is shown.";
       return;
     }
-    const total = Number(data || 0);
+    // A missing or malformed RPC value is not a zero balance. Fail closed so
+    // a backend/schema error can never be presented as a valid member balance.
+    if (data === null || data === undefined || data === "" ||
+        !Number.isFinite(Number(data)) || Number(data) < 0) {
+      crownBalance.textContent = "Unavailable";
+      ledgerStatus.textContent = "The server returned an invalid ledger balance. No estimated or fallback balance is shown.";
+      return;
+    }
+    const total = Number(data);
     crownBalance.textContent = total.toFixed(8).replace(/\.?0+$/, "") + " CROWN";
     ledgerStatus.textContent = "Balance returned by the KINGMAKER server ledger. This is an off-chain participation balance, not a withdrawable token balance.";
   }
