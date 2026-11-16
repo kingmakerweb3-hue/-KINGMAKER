@@ -84,3 +84,10 @@ test("magic-link sign-in handles network errors and throttles resend requests", 
   assert.match(client, /RESEND LINK IN /);
   assert.match(client, /60000/);
 });
+
+test("Supabase auth state changes defer refresh work until after the callback returns", () => {
+  assert.match(client, /onAuthStateChange\\(\\(_event, _session\\) => \\{/);
+  assert.match(client, /authRefreshTimer = setTimeout\\(\\(\\) =>/);
+  assert.match(client, /refresh\\(\\)\\.catch\\(\\(\\) =>/);
+  assert.match(client, /after the callback returns to avoid auth-lock deadlocks/);
+});
