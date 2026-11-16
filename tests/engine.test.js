@@ -1108,11 +1108,12 @@ test("claiming a neutral island charges resources and adds recurring regional in
   const territory = state.world.territories.find(item => item.owner === "unclaimed");
   const cost = Engine.territoryClaimCost(state);
   const before = { ...state.resources };
+  const beforeDevelopment = territory.development;
   const baselineCredits = Engine.economicSnapshot(state).production.credits;
   const claimed = Engine.claimTerritory(state, territory.id);
   assert.equal(claimed.owner, "player");
   assert.equal(claimed.claimedTurn, state.turn);
-  assert.equal(claimed.development, Math.min(100, territory.development));
+  assert.equal(claimed.development, Math.min(100, beforeDevelopment + 5));
   assert.equal(state.resources.materials, before.materials - cost.materials);
   assert.equal(state.resources.credits, before.credits - cost.credits);
   assert.equal(state.resources.influence, before.influence - cost.influence);
@@ -1179,4 +1180,17 @@ test("territory save validation rejects unknown owners and invalid coordinates",
   const invalidDeposit = JSON.parse(JSON.stringify(state));
   invalidDeposit.world.resourceNodes[8].x = 90;
   assert.throws(() => Engine.validateSave(invalidDeposit), /Resource deposit data is invalid/);
+});
+
+
+test("resource extraction on a remote island requires player territorial control", () => {
+  const state = Engine.createInitialState({ seed: 52009 });
+  const territory = state.world.territories.find(item => item.owner === "unclaimed");
+  const deposit = state.world.resourceNodes.find(node => node.territoryId === territory.id);
+  assert.ok(deposit);
+  assert.throws(() => Engine.developResourceSite(state, deposit.id), /must control this island/);
+  Engine.claimTerritory(state, territory.id);
+  Engine.developResourceSite(state, deposit.id);
+  assert.equal(deposit.operational, true);
+  assert.equal(deposit.territoryId, territory.id);
 });
