@@ -28,7 +28,7 @@
   }
 
   const db = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
-  let activeSession = null, ticker = null, miningEnabled = false;
+  let activeSession = null, ticker = null, miningEnabled = false, sessionReward = 0;
   const emailInput = $("member-email"), signIn = $("member-signin");
   const signOut = $("member-signout"), memberStatus = $("member-status");
   const crownBalance = $("crown-balance"), ledgerStatus = $("ledger-status");
@@ -228,6 +228,8 @@
     if (signOut) signOut.hidden = false;
     const { data: configRow, error: configError } = await db.from("mining_config")
       .select("enabled,crown_per_hour,session_seconds").eq("id", true).maybeSingle();
+    sessionReward = !configError && configRow && Number.isFinite(Number(configRow.crown_per_hour))
+      ? Number(configRow.crown_per_hour) * 6 : 0;
     miningEnabled = !configError && configRow?.enabled === true &&
       Number(configRow.crown_per_hour) > 0 && Number(configRow.session_seconds) === 21600;
     if (configError || !configRow) {
@@ -260,7 +262,7 @@
       clearInterval(ticker); ticker = setInterval(refreshCountdown, 1000);
     } else if (data.status === "active") {
       say("SESSION COMPLETE · CLAIM OR RESTART", miningEnabled
-        ? "Claim this completed session for 600 CROWN, or start again now and forfeit it. A restart begins a fresh six-hour session."
+        ? "Claim this completed session for " + sessionReward.toFixed(8).replace(/\\.?0+$/, "") + " CROWN, or start again now and forfeit it. A restart begins a fresh six-hour session."
         : "Your six-hour session is complete. Claim remains available, but new sessions are paused.");
       // The member may either claim the completed session or explicitly start
       // again. The server then expires the unclaimed session with zero credit
