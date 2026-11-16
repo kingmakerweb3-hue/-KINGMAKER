@@ -199,6 +199,73 @@
     ledgerStatus.textContent = "Balance returned by the KINGMAKER server ledger. This is an off-chain participation balance, not a withdrawable token balance.";
   }
 
+  // Wallet linking is account-bound: a one-time server challenge is signed by
+  // the wallet, then an Edge Function recovers the signer before storing it.
+  const walletButton = $("connect-wallet"), walletStatus = $("wallet-status");
+  async function showLinkedWallet() {
+    if (!walletStatus) return;
+    const { data, error } = await db.from("kingmaker_wallets")
+      .select("wallet_address,verified_at").maybeSingle();
+    if (error) {
+      walletStatus.textContent = "Wallet link status is unavailable. No wallet ownership is assumed.";
+      return;
+    }
+    if (data?.wallet_address) {
+      walletStatus.textContent = "Ownership verified and linked to this KINGMAKER account: " +
+        data.wallet_address.slice(0, 6) + "…" + data.wallet_address.slice(-4) + ".";
+      if (walletButton) walletButton.textContent = "UPDATE VERIFIED WALLET";
+    } else {
+      walletStatus.textContent = "No wallet is linked. Connect and sign a one-time ownership challenge to link it.";
+    }
+  }
+  if (walletButton && walletStatus) walletButton.addEventListener("click", async () => {
+    walletButton.disabled = true;
+    try {
+      const { data: authData, error: authError } = await db.auth.getUser();
+      if (authError || !authData?.user) {
+        walletStatus.textContent = "Sign in to your KINGMAKER account before linking a wallet.";
+        return;
+      }
+      if (!window.ethereum || typeof window.ethereum.request !== "function") {
+        walletStatus.textContent = "No compatible EVM wallet was detected in this browser.";
+        return;
+      }
+      walletStatus.textContent = "Requesting wallet account approval…";
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      const address = Array.isArray(accounts) && accounts.length ? String(accounts[0]).toLowerCase() : "";
+      if (!/^0x[a-f0-9]{40}$/.test(address)) throw new Error("Wallet did not return a valid EVM address.");
+      const { data: challengeRows, error: challengeError } = await db.rpc(
+        "create_kingmaker_wallet_challenge", { p_wallet_address: address }
+      );
+      const challenge = Array.isArray(challengeRows) ? challengeRows[0] : challengeRows;
+      if (challengeError || !challenge?.nonce || !challenge?.message) {
+        throw new Error("The server could not issue a wallet ownership challenge.");
+      }
+      walletStatus.textContent = "Approve the one-time signature in your wallet. No transaction or gas fee is required.";
+      const signature = await window.ethereum.request({
+        method: "personal_sign", params: [challenge.message, address]
+      });
+      if (typeof signature !== "string") throw new Error("Wallet did not return a signature.");
+      walletStatus.textContent = "Verifying wallet ownership with KINGMAKER…";
+      const { data: linkResult, error: linkError } = await db.functions.invoke("verify-wallet-link", {
+        body: { address, nonce: challenge.nonce, signature }
+      });
+      if (linkError || !linkResult?.linked) {
+        const detail = linkResult?.error || linkError?.message;
+        throw new Error(detail || "The server could not verify this wallet.");
+      }
+      walletStatus.textContent = "Wallet ownership verified and securely linked to your KINGMAKER account: " +
+        address.slice(0, 6) + "…" + address.slice(-4) + ".";
+      walletButton.textContent = "UPDATE VERIFIED WALLET";
+    } catch (error) {
+      walletStatus.textContent = error?.code === 4001
+        ? "Wallet approval or signature was cancelled. No wallet was linked."
+        : (error?.message || "Wallet linking failed. No wallet was linked.");
+    } finally {
+      walletButton.disabled = false;
+    }
+  });
+
   async function refresh() {
     const { data: auth } = await db.auth.getUser();
     if (!auth?.user) {
@@ -218,10 +285,14 @@
       if (referralStatus) referralStatus.textContent = "Sign in to view or apply a referral code.";
       if (referralInput) referralInput.value = "";
       if (signOut) signOut.hidden = true;
+      if (walletStatus) walletStatus.textContent = "Sign in before linking a wallet. Wallet ownership is not inferred from browser connection.";
+      if (walletButton) { walletButton.disabled = true; walletButton.textContent = "SIGN IN TO LINK WALLET"; }
       return;
     }
     if (memberStatus) memberStatus.textContent = "Signed in: " + auth.user.email;
+    if (walletButton) { walletButton.disabled = false; walletButton.textContent = "VERIFY & LINK WALLET"; }
     await loadReferral();
+    await showLinkedWallet();
     await refreshBalance(auth.user.id);
     await loadDashboard();
     await loadActivity();
