@@ -21,20 +21,20 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging
     env:
-      # Reuse the existing repository-level Supabase Actions secrets.
-      # The staging project ref is validated below and must not match production.
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      # Staging must use a separate Supabase project and dedicated credentials.
+      # Never fall back to production repository secrets.
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_STAGING_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_REF }}
       PRODUCTION_PROJECT_REF: narpyrvmftxnjvorxxgm
     steps:
       - name: Validate staging-only credentials and target
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$SUPABASE_ACCESS_TOKEN" || { echo "::error::Missing repository secret SUPABASE_ACCESS_TOKEN"; exit 1; }
-          test -n "$SUPABASE_DB_PASSWORD" || { echo "::error::Missing repository secret SUPABASE_DB_PASSWORD"; exit 1; }
-          test -n "$SUPABASE_PROJECT_REF" || { echo "::error::Missing repository secret SUPABASE_PROJECT_REF"; exit 1; }
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo "::error::Missing staging environment secret SUPABASE_STAGING_ACCESS_TOKEN"; exit 1; }
+          test -n "$SUPABASE_DB_PASSWORD" || { echo "::error::Missing staging environment secret SUPABASE_STAGING_DB_PASSWORD"; exit 1; }
+          test -n "$SUPABASE_PROJECT_REF" || { echo "::error::Missing staging environment secret SUPABASE_STAGING_PROJECT_REF"; exit 1; }
           if [ "$SUPABASE_PROJECT_REF" = "$PRODUCTION_PROJECT_REF" ]; then
             echo "::error::Refusing to deploy: staging project ref matches the production project"
             exit 1
