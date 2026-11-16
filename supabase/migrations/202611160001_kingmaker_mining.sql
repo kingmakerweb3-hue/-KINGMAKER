@@ -28,11 +28,17 @@ create table if not exists public.mining_sessions (
   started_at timestamptz not null default now(),
   ends_at timestamptz not null,
   claimed_at timestamptz,
+  status text not null default 'active' check (status in ('active','claimed')),
   reward numeric(28,8),
   created_at timestamptz not null default now(),
   constraint valid_session_window check (ends_at = started_at + interval '6 hours'),
   constraint nonnegative_reward check (reward is null or reward >= 0)
 );
+alter table public.mining_sessions add column if not exists status text not null default 'active';
+update public.mining_sessions set status = case when claimed_at is null then 'active' else 'claimed' end;
+alter table public.mining_sessions drop constraint if exists mining_sessions_status_check;
+alter table public.mining_sessions add constraint mining_sessions_status_check check (status in ('active','claimed'));
+
 create unique index if not exists one_open_mining_session_per_user
   on public.mining_sessions(user_id) where claimed_at is null;
 
@@ -108,7 +114,7 @@ begin
   select crown_per_hour into v_rate from public.mining_config where id=true and enabled=true;
   if coalesce(v_rate,0) <= 0 then raise exception 'Mining rewards are currently disabled'; end if;
   v_reward := round(v_rate * 6,8);
-  update public.mining_sessions set claimed_at=now(), reward=v_reward where id=p_session_id;
+  update public.mining_sessions set claimed_at=now(), status='claimed', reward=v_reward where id=p_session_id;
   insert into public.crown_ledger(user_id,session_id,entry_type,amount)
   values(v_user,p_session_id,'mining_reward',v_reward);
   return v_reward;
