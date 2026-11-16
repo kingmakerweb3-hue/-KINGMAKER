@@ -444,7 +444,7 @@
     if (normalized.world.territories.length !== 9 || normalized.world.territories.some(territory => {
       if (!territory || typeof territory.id !== "string" || !territory.id || territory.id.length > 48 || territoryIds.has(territory.id) ||
           typeof territory.name !== "string" || !territory.name || territory.name.length > 64 ||
-          !["player", "unclaimed"].includes(territory.owner) && !normalized.rivals[territory.owner] ||
+          !["player", "unclaimed"].includes(territory.owner) && !Object.hasOwn(normalized.rivals, territory.owner) ||
           !Number.isFinite(territory.x) || !Number.isFinite(territory.z) || Math.abs(territory.x) > 26 || Math.abs(territory.z) > 26 ||
           !Number.isFinite(territory.radius) || territory.radius < 4 || territory.radius > 16 ||
           !Number.isInteger(territory.population) || territory.population < 0 || territory.population > RESOURCE_LIMIT ||
