@@ -21,6 +21,17 @@
   </header>
   <main id="main">
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <section id="first-steps" class="first-steps" aria-labelledby="first-steps-title" hidden>
+      <div><p class="eyebrow">COMMANDER BRIEFING · NEW GOVERNOR</p><h2 id="first-steps-title">Your first five moves</h2><p>Build a stable nation before you expand. Your progress is saved in this browser.</p></div>
+      <ol>
+        <li><b>Inspect the 3D World.</b><span>Open the island and explore its resource deposits.</span><button type="button" data-guide-tab="world3d">Open 3D World</button></li>
+        <li><b>Secure production.</b><span>Build farms for food and workshops for materials.</span><button type="button" data-guide-tab="nation">Open Nation</button></li>
+        <li><b>Grow your economy.</b><span>Check stock and prices before buying or selling.</span><button type="button" data-guide-tab="market">Open Economy</button></li>
+        <li><b>Research technology.</b><span>Use science to improve production and resilience.</span><button type="button" data-guide-tab="research">Open Research</button></li>
+        <li><b>Advance carefully.</b><span>Each turn updates production, citizens, rivals and world events.</span><button type="button" id="guide-advance">Advance one turn</button></li>
+      </ol>
+      <div class="first-steps-actions"><button type="button" id="guide-dismiss">Got it · Hide briefing</button><button type="button" id="guide-reopen">Show briefing again</button></div>
+    </section>
     <section class="welcome">
       <div><p class="eyebrow">WORLD ENGINE · LOCAL CAMPAIGN</p><h1>Your nation is only<br>the beginning.</h1><p class="intro">Build a resilient economy, discover new technologies, and decide how your nation meets its neighbors. Every turn changes the world.</p></div>
       <div class="welcome-actions"><div id="game-banner" class="game-banner"></div><button id="advance-turn" class="primary large">Advance World <span aria-hidden="true">→</span></button></div>
