@@ -177,6 +177,10 @@
       if (ledgerStatus) ledgerStatus.textContent = "Sign in to view your recorded balance. No preview balance is displayed.";
       if ($("member-activity")) $("member-activity").textContent = "Sign in to view your session history.";
       if ($("activity-status")) $("activity-status").textContent = "Only server-recorded sessions and credited CROWN are shown.";
+      if (referralCode) referralCode.textContent = "Sign in to load";
+      if (copyReferral) copyReferral.disabled = true;
+      if (referralStatus) referralStatus.textContent = "Sign in to view or apply a referral code.";
+      if (referralInput) referralInput.value = "";
       if (signOut) signOut.hidden = true;
       return;
     }
