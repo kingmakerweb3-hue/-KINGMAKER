@@ -102,3 +102,19 @@ test("missed completed sessions expire without reward and a fresh six-hour sessi
   assert.match(client, /PREVIOUS SESSION MISSED · NO REWARD/);
   assert.match(client, /SESSION MISSED · EXPIRED/);
 });
+
+test("mining SECURITY DEFINER RPCs use a hardened search path and client roles cannot create public-schema objects", () => {
+  const hardening = fs.readFileSync(path.join(root, "supabase/migrations/202611160011_harden_public_schema_and_rpc_search_path.sql"), "utf8");
+  assert.match(hardening, /revoke create on schema public from public, anon, authenticated/i);
+  assert.match(hardening, /grant usage on schema public to anon, authenticated/i);
+  assert.equal((hardening.match(/set search_path = pg_catalog, public, auth, extensions, pg_temp/g) || []).length, 7);
+  for (const rpc of [
+    "start_kingmaker_mining()",
+    "claim_kingmaker_mining(uuid)",
+    "get_kingmaker_crown_balance()",
+    "get_kingmaker_referral_code()",
+    "apply_kingmaker_referral(text)",
+    "get_kingmaker_member_dashboard()",
+    "get_kingmaker_member_activity()"
+  ]) assert.ok(hardening.includes("alter function public." + rpc), "missing hardened search_path for " + rpc);
+});
