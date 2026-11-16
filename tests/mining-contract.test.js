@@ -91,3 +91,14 @@ test("Supabase auth state changes defer refresh work until after the callback re
   assert.ok(client.includes("refresh().catch(() =>"));
   assert.match(client, /after the callback returns to avoid auth-lock deadlocks/);
 });
+
+test("missed completed sessions expire without reward and a fresh six-hour session can start", () => {
+  const reset = fs.readFileSync(path.join(root, "supabase/migrations/202611160008_expire_missed_mining_sessions.sql"), "utf8");
+  assert.match(reset, /check \(status in \('active','claimed','expired'\)\)/);
+  assert.match(reset, /where status = 'active'/);
+  assert.match(reset, /set status = 'expired'/);
+  assert.match(reset, /Session expired; no CROWN reward was issued/);
+  assert.match(reset, /insert into public\.mining_sessions\(user_id,started_at,ends_at,reward_rate\)/);
+  assert.match(client, /PREVIOUS SESSION MISSED · NO REWARD/);
+  assert.match(client, /SESSION MISSED · EXPIRED/);
+});
