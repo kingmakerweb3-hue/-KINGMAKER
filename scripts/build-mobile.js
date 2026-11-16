@@ -6,12 +6,10 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const out = path.join(root, "www");
 const files = [
-  "index.html", "styles.css", "mobile-shell.js", "icon.svg",
+  "mining.html", "mobile-shell.js", "assets/kingmaker-app-icon.svg",
   "manifest.json", "sw.js",
-  "mining.html", "mining.css", "mining.js", "mining-config.js",
-  "mining-foundation.js", "mining-manifest.json", "mining-sw.js",
-  "network.html", "network.css", "network.js", "network-manifest.json",
-  "network-sw.js", "whitepaper.html"
+  "mining.js", "mining-config.js",
+  "mining-foundation.js", "mining-manifest.json", "mining-sw.js"
 ];
 const dirs = ["src", "assets"];
 
