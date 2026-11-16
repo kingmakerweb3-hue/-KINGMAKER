@@ -120,6 +120,45 @@ begin
     raise exception 'FAIL: client roles must not invoke the signup trigger function directly';
   end if;
 
-  raise notice 'PASS: CROWN mining staging security invariants verified. Mining remains disabled.';
+  if not (
+    (select relrowsecurity from pg_class where oid = 'public.kingmaker_wallet_challenges'::regclass)
+    and (select relrowsecurity from pg_class where oid = 'public.kingmaker_wallets'::regclass)
+  ) then
+    raise exception 'FAIL: RLS is not enabled on wallet challenge and wallet link tables';
+  end if;
+
+  if has_table_privilege('anon', 'public.kingmaker_wallet_challenges', 'SELECT')
+     or has_table_privilege('authenticated', 'public.kingmaker_wallet_challenges', 'SELECT')
+     or has_table_privilege('anon', 'public.kingmaker_wallets', 'INSERT')
+     or has_table_privilege('authenticated', 'public.kingmaker_wallets', 'INSERT')
+     or has_table_privilege('anon', 'public.kingmaker_wallets', 'UPDATE')
+     or has_table_privilege('authenticated', 'public.kingmaker_wallets', 'UPDATE') then
+    raise exception 'FAIL: clients can access private wallet challenges or directly mutate linked wallets';
+  end if;
+
+  if not has_function_privilege('authenticated', 'public.create_kingmaker_wallet_challenge(text)', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.complete_kingmaker_wallet_link(uuid,text,text)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.complete_kingmaker_wallet_link(uuid,text,text)', 'EXECUTE')
+     or not has_function_privilege('service_role', 'public.complete_kingmaker_wallet_link(uuid,text,text)', 'EXECUTE') then
+    raise exception 'FAIL: wallet challenge/finalization RPC grants are unsafe';
+  end if;
+
+  if not exists (
+    select 1 from pg_proc
+    where oid = 'public.create_kingmaker_wallet_challenge(text)'::regprocedure
+      and prosecdef
+      and coalesce(array_to_string(proconfig, ','), '') like
+          '%search_path=pg_catalog, public, auth, extensions, pg_temp%'
+  ) or not exists (
+    select 1 from pg_proc
+    where oid = 'public.complete_kingmaker_wallet_link(uuid,text,text)'::regprocedure
+      and prosecdef
+      and coalesce(array_to_string(proconfig, ','), '') like
+          '%search_path=pg_catalog, public, auth, extensions, pg_temp%'
+  ) then
+    raise exception 'FAIL: wallet linking RPCs lack SECURITY DEFINER hardened search paths';
+  end if;
+
+  raise notice 'PASS: CROWN mining and wallet-link staging security invariants verified. Mining remains disabled.';
 end;
 $audit$;
