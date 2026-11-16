@@ -74,3 +74,13 @@ test("signing out clears private referral details from the member screen", () =>
   assert.match(client, /copyReferral\) copyReferral\.disabled = true/);
   assert.match(client, /referralInput\) referralInput\.value = ""/);
 });
+
+test("magic-link sign-in handles network errors and throttles resend requests", () => {
+  assert.match(client, /signInCooldownUntil = 0/);
+  assert.match(client, /Date\.now\(\) < signInCooldownUntil/);
+  assert.match(client, /signInWithOtp/);
+  assert.match(client, /finally \{/);
+  assert.match(client, /Network error\. Check your connection/);
+  assert.match(client, /RESEND LINK IN /);
+  assert.match(client, /60000/);
+});
