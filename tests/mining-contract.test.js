@@ -45,3 +45,13 @@ test("sponsored restart requires an enabled provider and a server verification R
   assert.match(client, /restart_mining_after_verified_ad/);
   assert.doesNotMatch(client, /from\(["']crown_ledger["']\)\.insert/);
 });
+
+test("member dashboard RPC exposes only the signed-in member's aggregate activity", () => {
+  const dashboard = fs.readFileSync(path.join(root, "supabase/migrations/202611160003_kingmaker_member_dashboard.sql"), "utf8");
+  assert.match(dashboard, /security definer/);
+  assert.match(dashboard, /if v_user is null then raise exception 'Authentication required'/);
+  assert.match(dashboard, /where p\.referred_by = v_user/);
+  assert.match(dashboard, /where s\.user_id = v_user/);
+  assert.match(dashboard, /grant execute on function public\.get_kingmaker_member_dashboard\(\) to authenticated/);
+  assert.match(client, /get_kingmaker_member_dashboard/);
+});
