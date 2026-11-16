@@ -4,7 +4,7 @@
 
 KINGMAKER is being developed as a **web-first, AI-enabled, Web3 civilization world**: a persistent-feeling living world where people build nations, shape economies, discover technologies, interact with intelligent systems, and—once safely designed and implemented—use blockchain assets and a player economy.
 
-This is **not a project being built for the Google Play Store or Apple App Store**. The primary destination is the web: a rich browser experience that can evolve into a connected Web3 platform.
+The web game remains the primary development surface, and native iOS and Android distribution is now being prepared through Capacitor. The store apps must deliver a stable, touch-optimized game experience—not merely a thin wrapper around the marketing website. See [the native mobile build guide](MOBILE_APP_BUILD.md) and [store release plan](MOBILE_STORE_RELEASE_PLAN.md).
 
 ## The vision
 
@@ -61,7 +61,8 @@ KINGMAKER now has a fixed Release 1.0 scope and evidence-based ship checklist. W
 4. **Technology and civilization depth:** expand technology eras and make research visibly transform the world and its systems.
 5. **Web3 architecture:** finalize the purpose and distinction of any coin and token, chain selection, wallet model, asset ownership rules, marketplace design, security review, and applicable legal/compliance requirements.
 6. **Web3 implementation:** only after the design and security gates are approved, build and test wallet connection, on-chain features, and purchase flows. Never expose private keys or seed phrases to the game or its support systems.
-7. **Web release:** prepare a secure, scalable web deployment and staged public launch. App-store distribution is not the product target.
+7. **Web release:** prepare a secure, scalable web deployment and staged public launch.
+8. **Native mobile release:** package the game for iOS and Android with Capacitor, optimize touch controls and device behavior, test real devices, and complete Apple/Google review gates.
 
 ## Run quality checks
 
