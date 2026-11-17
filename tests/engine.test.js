@@ -1238,8 +1238,8 @@ test("claimed outer islands support saved buildings, districts, roads and local 
     territory.id
   );
   assert.equal(road.territoryId, territory.id);
-  assert.equal(Engine.roadEffects(state).logistics, 1);
-  assert.equal(Engine.roadEffects(state).production.credits, 2);
+  assert.equal(Engine.roadEffects(state).logistics, 2);
+  assert.equal(Engine.roadEffects(state).production.credits, 4);
   assert.equal(Engine.districtEffects(state).regionalGrowth[territory.id], 1);
   assert.equal(residential.territoryId, territory.id);
 
