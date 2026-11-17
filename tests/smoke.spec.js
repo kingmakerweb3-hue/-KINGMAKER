@@ -90,3 +90,54 @@ test('mobile command deck and navigation do not create horizontal overflow', asy
   expect(dimensions.page).toBeLessThanOrEqual(dimensions.viewport + 1);
   await expect(page.getByRole('heading', { name: 'Empire status' })).toBeVisible();
 });
+
+
+test('a claimed outer island accepts construction and preserves it after reload', async ({ page }) => {
+  await page.locator('[data-tab="world3d"]').click();
+  const target = await page.evaluate(() => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    const island = save.world.territories.find(territory => territory.owner === 'unclaimed');
+    window.dispatchEvent(new CustomEvent('kingmaker:inspect-territory', { detail: { id: island.id } }));
+    return { id: island.id, x: island.x, z: island.z, name: island.name };
+  });
+  await expect(page.locator('#world3d-territory-inspector')).toContainText(target.name);
+  await page.locator('#world3d-territory-inspector [data-action="claim-territory"]').click();
+  await expect(page.locator('#world3d-territory-inspector')).toContainText('Under your control');
+
+  await page.evaluate(({ id, x, z }) => {
+    window.dispatchEvent(new CustomEvent('kingmaker:place-building', {
+      detail: { type: 'farm', territoryId: id, x, z }
+    }));
+    window.dispatchEvent(new CustomEvent('kingmaker:place-district', {
+      detail: { type: 'agricultural', territoryId: id, x, z, radius: 2.6 }
+    }));
+    window.dispatchEvent(new CustomEvent('kingmaker:place-road', {
+      detail: {
+        territoryId: id,
+        from: { x: x - 1.8, z },
+        to: { x: x + 1.8, z }
+      }
+    }));
+  }, target);
+
+  const placed = await page.evaluate(id => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    return {
+      building: save.world.placedBuildings.find(item => item.territoryId === id),
+      district: save.world.placedDistricts.find(item => item.territoryId === id),
+      road: save.world.placedRoads.find(item => item.territoryId === id)
+    };
+  }, target.id);
+  expect(placed.building.type).toBe('farm');
+  expect(placed.district.type).toBe('agricultural');
+  expect(placed.road.territoryId).toBe(target.id);
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  const restored = await page.evaluate(id => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    return ['placedBuildings', 'placedDistricts', 'placedRoads'].every(key =>
+      save.world[key].some(item => item.territoryId === id)
+    );
+  }, target.id);
+  expect(restored).toBe(true);
+});
