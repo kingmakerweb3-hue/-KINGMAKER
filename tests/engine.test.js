@@ -1162,7 +1162,7 @@ test("version 9 saves migrate to the archipelago without losing existing extract
   legacy.world.resourceNodes[0].operational = true;
   legacy.world.resourceNodes[0].operatedSinceTurn = 1;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 10);
+  assert.equal(migrated.schemaVersion, 11);
   assert.equal(migrated.world.territories.length, 9);
   assert.equal(migrated.world.resourceNodes.length, 16);
   assert.equal(migrated.world.resourceNodes[0].operational, true);
