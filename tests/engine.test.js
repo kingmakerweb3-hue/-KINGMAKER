@@ -1204,3 +1204,87 @@ test("the normal world turn runs rival territorial expansion", () => {
   assert.ok(state.world.territories.some(territory => territory.owner === "duneward" && territory.id !== "isle-duneward"));
   assert.ok(state.events.some(event => event.text.includes("Duneward expanded into")));
 });
+
+
+test("claimed outer islands support saved buildings, districts, roads and local production", () => {
+  const state = Engine.createInitialState({ seed: 62001 });
+  const territory = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1200;
+  state.resources.credits = 1800;
+  state.resources.influence = 120;
+  Engine.claimTerritory(state, territory.id);
+
+  const beforeFarm = state.buildings.farm;
+  const building = Engine.placeWorldBuilding(state, "farm", {
+    territoryId: territory.id, x: territory.x, z: territory.z
+  });
+  assert.equal(building.territoryId, territory.id);
+  assert.equal(state.buildings.farm, beforeFarm + 1);
+
+  const foodBefore = Engine.districtEffects(state).production.food;
+  const agriculture = Engine.placeWorldDistrict(state, "agricultural", {
+    territoryId: territory.id, x: territory.x, z: territory.z, radius: 2.6
+  });
+  assert.equal(agriculture.territoryId, territory.id);
+  assert.equal(Engine.districtEffects(state).production.food, foodBefore + 3);
+
+  const residential = Engine.placeWorldDistrict(state, "residential", {
+    territoryId: territory.id, x: territory.x + 0.25, z: territory.z, radius: 2.6
+  });
+  const populationBefore = territory.population;
+  const road = Engine.placeWorldRoad(state,
+    { x: territory.x - 1.8, z: territory.z },
+    { x: territory.x + 1.8, z: territory.z },
+    territory.id
+  );
+  assert.equal(road.territoryId, territory.id);
+  assert.equal(Engine.roadEffects(state).logistics, 1);
+  assert.equal(Engine.roadEffects(state).production.credits, 2);
+  assert.equal(Engine.districtEffects(state).regionalGrowth[territory.id], 1);
+  assert.equal(residential.territoryId, territory.id);
+
+  Engine.advanceTurn(state);
+  assert.equal(territory.population, populationBefore + 1);
+  const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(saved.world.placedBuildings, state.world.placedBuildings);
+  assert.deepEqual(saved.world.placedDistricts, state.world.placedDistricts);
+  assert.deepEqual(saved.world.placedRoads, state.world.placedRoads);
+});
+
+test("outer-island construction rejects unowned land and positions outside its coast", () => {
+  const state = Engine.createInitialState({ seed: 62002 });
+  const neutral = state.world.territories.find(item => item.owner === "unclaimed");
+  assert.throws(() => Engine.placeWorldBuilding(state, "farm", {
+    territoryId: neutral.id, x: neutral.x, z: neutral.z
+  }), /must control this island/);
+
+  state.resources.materials = 1000;
+  state.resources.credits = 1000;
+  state.resources.influence = 100;
+  Engine.claimTerritory(state, neutral.id);
+  assert.throws(() => Engine.placeWorldBuilding(state, "farm", {
+    territoryId: neutral.id, x: neutral.x + neutral.radius, z: neutral.z
+  }), /outside your buildable territory/);
+  assert.throws(() => Engine.placeWorldRoad(state,
+    { x: neutral.x - 1, z: neutral.z },
+    { x: neutral.x + 1, z: neutral.z },
+    "home"
+  ), /outside your buildable territory/);
+  assert.throws(() => Engine.placeWorldDistrict(state, "residential", {
+    territoryId: neutral.id, x: neutral.x + 3, z: neutral.z, radius: 2.6
+  }), /shore/);
+});
+
+test("version 10 home placements migrate into schema 11 without changing their location", () => {
+  const legacy = Engine.createInitialState({ seed: 62003 });
+  legacy.schemaVersion = 10;
+  legacy.world.placedBuildings.push({ type: "farm", x: 3, z: 4 });
+  legacy.world.placedRoads.push({ from: { x: -2, z: 0 }, to: { x: 2, z: 0 } });
+  legacy.world.placedDistricts.push({ type: "residential", x: 1, z: 1, radius: 2.6 });
+  const migrated = Engine.migrateSave(legacy);
+  assert.equal(migrated.schemaVersion, 11);
+  assert.equal(migrated.world.placedBuildings[0].territoryId, "home");
+  assert.equal(migrated.world.placedRoads[0].territoryId, "home");
+  assert.equal(migrated.world.placedDistricts[0].territoryId, "home");
+  assert.deepEqual(Engine.migrateSave(JSON.parse(Engine.exportSave(migrated))).world.placedBuildings, migrated.world.placedBuildings);
+});
