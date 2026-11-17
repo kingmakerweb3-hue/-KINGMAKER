@@ -477,7 +477,8 @@
     if (normalized.world.placedDistricts.some(district => {
       const territory = territoryById.get(district.territoryId);
       if (!territory || territory.owner !== "player") return true;
-      const limit = territory.id === "home" ? 13.2 : Math.max(1, territory.radius - district.radius - 0.2);
+      if (territory.id === "home") return Math.abs(district.x) > 10.5 || Math.abs(district.z) > 10.5;
+      const limit = Math.max(1, territory.radius - district.radius - 0.2);
       return Math.hypot(district.x - territory.x, district.z - territory.z) > limit;
     })) throw new Error("District placement territory is invalid.");
     const depositIds = new Set();
@@ -937,6 +938,7 @@
     const x = Number(placement?.x), z = Number(placement?.z), radius = Number(placement?.radius ?? 2.6), territoryId = placement?.territoryId || "home";
     const territory = worldPlacementTerritory(state, territoryId, x, z, 0.75);
     if (!Number.isFinite(radius) || radius < 1.5 || radius > 3.5) throw new Error("District radius is invalid.");
+    if (territory.id === "home" && (Math.abs(x) > 10.5 || Math.abs(z) > 10.5)) throw new Error("Districts must be placed farther inside the island.");
     if (territory.id !== "home" && Math.hypot(x - territory.x, z - territory.z) > territory.radius - radius - 0.2) throw new Error("The district is too close to the island shore.");
     if (state.world.placedDistricts.length >= 1000) throw new Error("Your nation has reached its district limit.");
     if (state.resources.materials < 20 || state.resources.credits < 30) throw new Error("A district requires 20 materials and 30 credits.");
