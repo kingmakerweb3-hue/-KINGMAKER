@@ -160,3 +160,6 @@ button{min-height:40px}
 .territory-claim-cost b{font-size:.9rem;color:var(--gold)}
 .territory-claim-cost small,.world3d-territory-inspector>small{font-size:.76rem;color:var(--muted)}
 @media(max-width:640px){.world3d-territory-inspector{padding:12px}.world3d-territory-heading{gap:8px}}
+
+.territory-infrastructure{display:flex;flex-wrap:wrap;gap:8px}
+.territory-infrastructure span{padding:5px 9px;border:1px solid #496a72;border-radius:999px;background:#ffffff08;color:var(--muted);font-size:.75rem}
