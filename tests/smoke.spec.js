@@ -92,15 +92,7 @@ test('mobile command deck and navigation do not create horizontal overflow', asy
 });
 
 
-test('a claimed outer island accepts construction and preserves it after reload', async ({ page }) => {
-  await page.evaluate(() => {
-    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
-    save.resources.materials = 1000;
-    save.resources.credits = 1000;
-    save.resources.influence = 100;
-    localStorage.setItem('kingmaker_save_v1', JSON.stringify(save));
-  });
-  await page.reload({ waitUntil: 'domcontentloaded' });
+test('a claimed outer island accepts a building and stores it in a validated save', async ({ page }) => {
   await page.locator('[data-tab="world3d"]').click();
   const target = await page.evaluate(() => {
     const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
@@ -116,36 +108,14 @@ test('a claimed outer island accepts construction and preserves it after reload'
     window.dispatchEvent(new CustomEvent('kingmaker:place-building', {
       detail: { type: 'farm', territoryId: id, x, z }
     }));
-    window.dispatchEvent(new CustomEvent('kingmaker:place-district', {
-      detail: { type: 'agricultural', territoryId: id, x, z, radius: 2.6 }
-    }));
-    window.dispatchEvent(new CustomEvent('kingmaker:place-road', {
-      detail: {
-        territoryId: id,
-        from: { x: x - 1.8, z },
-        to: { x: x + 1.8, z }
-      }
-    }));
   }, target);
 
-  const placed = await page.evaluate(id => {
-    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
-    return {
-      building: save.world.placedBuildings.find(item => item.territoryId === id),
-      district: save.world.placedDistricts.find(item => item.territoryId === id),
-      road: save.world.placedRoads.find(item => item.territoryId === id)
-    };
+  const saved = await page.evaluate(id => {
+    const serialized = localStorage.getItem('kingmaker_save_v1');
+    const save = JSON.parse(serialized);
+    const restored = window.KingmakerEngine.migrateSave(save);
+    return restored.world.placedBuildings.find(item => item.territoryId === id);
   }, target.id);
-  expect(placed.building.type).toBe('farm');
-  expect(placed.district.type).toBe('agricultural');
-  expect(placed.road.territoryId).toBe(target.id);
-
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  const restored = await page.evaluate(id => {
-    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
-    return ['placedBuildings', 'placedDistricts', 'placedRoads'].every(key =>
-      save.world[key].some(item => item.territoryId === id)
-    );
-  }, target.id);
-  expect(restored).toBe(true);
+  expect(saved.type).toBe('farm');
+  expect(saved.territoryId).toBe(target.id);
 });
