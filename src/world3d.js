@@ -447,13 +447,13 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     resizeObserver=new ResizeObserver(resize);resizeObserver.observe(host);resize();
     document.getElementById("world3d-home")?.addEventListener("click",fitWorldView);
     document.getElementById("world3d-rotate")?.addEventListener("click",e=>{autoRotate=!autoRotate;controls.autoRotate=autoRotate;e.currentTarget.setAttribute("aria-pressed",String(autoRotate));e.currentTarget.textContent="Auto-rotate: "+(autoRotate?"on":"off");});
-    document.getElementById("world3d-road")?.addEventListener("click",e=>{roadMode=!roadMode;roadStart=null;districtMode=false;selectedDistrict=null;selectedBuilding=null;if(previewMarker)previewMarker.visible=false;e.currentTarget.classList.toggle("selected",roadMode);e.currentTarget.setAttribute("aria-pressed",String(roadMode));e.currentTarget.textContent=roadMode?"Cancel road":"Build road";const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent=roadMode?"Tap two points on the same player-controlled island to connect them.":"Select a structure or build a road.";if(renderer)renderer.domElement.style.cursor=roadMode?"crosshair":"grab";});
+    document.getElementById("world3d-road")?.addEventListener("click",e=>{roadMode=!roadMode;roadStart=null;districtMode=false;selectedDistrict=null;selectedBuilding=null;if(previewMarker)previewMarker.visible=false;e.currentTarget.classList.toggle("selected",roadMode);e.currentTarget.setAttribute("aria-pressed",String(roadMode));e.currentTarget.textContent=roadMode?"Cancel road":"Build road · 8 materials / 12 credits";const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent=roadMode?"Tap two points on the same player-controlled island to connect them.":"Select a structure or build a road.";if(renderer)renderer.domElement.style.cursor=roadMode?"crosshair":"grab";});
     document.querySelectorAll("[data-world-district]").forEach(button=>button.addEventListener("click",()=>{
       const togglingOff=districtMode&&selectedDistrict===button.dataset.worldDistrict;
       selectedDistrict=togglingOff?null:button.dataset.worldDistrict;districtMode=!togglingOff;
       roadMode=false;roadStart=null;selectedBuilding=null;
       document.getElementById("world3d-road")?.classList.remove("selected");document.getElementById("world3d-road")?.setAttribute("aria-pressed","false");
-      const roadButton=document.getElementById("world3d-road");if(roadButton)roadButton.textContent="Build road";
+      const roadButton=document.getElementById("world3d-road");if(roadButton)roadButton.textContent="Build road · 8 materials / 12 credits";
       document.querySelectorAll("[data-world-build]").forEach(b=>b.classList.remove("selected"));
       document.querySelectorAll("[data-world-district]").forEach(b=>b.classList.toggle("selected",districtMode&&b===button));
       const hint=document.getElementById("world3d-build-hint");
@@ -565,7 +565,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     roadMode=false;roadStart=null;districtMode=false;selectedDistrict=null;
     const roadButton=document.getElementById("world3d-road");
     roadButton?.classList.remove("selected");roadButton?.setAttribute("aria-pressed","false");
-    if(roadButton)roadButton.textContent="Build road";
+    if(roadButton)roadButton.textContent="Build road · 8 materials / 12 credits";
     document.querySelectorAll("[data-world-district]").forEach(button=>button.classList.remove("selected"));
     if(previewMarker)previewMarker.visible=false;
     const hint=document.getElementById("world3d-build-hint");
