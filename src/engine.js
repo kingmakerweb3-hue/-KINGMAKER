@@ -935,7 +935,7 @@
   function placeWorldDistrict(state, type, placement) {
     if (!["residential", "commercial", "industrial", "agricultural"].includes(type)) throw new Error("District type is invalid.");
     const x = Number(placement?.x), z = Number(placement?.z), radius = Number(placement?.radius ?? 2.6), territoryId = placement?.territoryId || "home";
-    const territory = worldPlacementTerritory(state, territoryId, x, z, radius + 0.2);
+    const territory = worldPlacementTerritory(state, territoryId, x, z, 0.75);
     if (!Number.isFinite(radius) || radius < 1.5 || radius > 3.5) throw new Error("District radius is invalid.");
     if (territory.id !== "home" && Math.hypot(x - territory.x, z - territory.z) > territory.radius - radius - 0.2) throw new Error("The district is too close to the island shore.");
     if (state.world.placedDistricts.length >= 1000) throw new Error("Your nation has reached its district limit.");
