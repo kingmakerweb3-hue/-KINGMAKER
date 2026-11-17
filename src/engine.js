@@ -480,7 +480,7 @@
       if (territory.id === "home") return Math.abs(district.x) > 10.5 || Math.abs(district.z) > 10.5;
       const limit = Math.max(1, territory.radius - district.radius - 0.2);
       return Math.hypot(district.x - territory.x, district.z - territory.z) > limit;
-    })) throw new Error("District placement territory is invalid.");
+    })) throw new Error("District placement data is invalid.");
     const depositIds = new Set();
     if (normalized.world.resourceNodes.length > 24 || normalized.world.resourceNodes.some(node => {
       if (!node || typeof node.id !== "string" || !node.id || node.id.length > 64 || depositIds.has(node.id) ||
