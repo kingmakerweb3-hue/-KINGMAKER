@@ -55,6 +55,23 @@ test('3D world exposes construction tools and simulation status', async ({ page 
   await expect(page.locator('#world3d-stats')).toBeVisible();
 });
 
+test('a neutral archipelago island can be inspected and claimed through the world UI', async ({ page }) => {
+  await page.locator('[data-tab="world3d"]').click();
+  const target = await page.evaluate(() => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    const island = save.world.territories.find(territory => territory.owner === 'unclaimed');
+    window.dispatchEvent(new CustomEvent('kingmaker:inspect-territory', { detail: { id: island.id } }));
+    return { id: island.id, name: island.name };
+  });
+  await expect(page.locator('#world3d-territory-inspector')).toContainText(target.name);
+  const claim = page.locator('#world3d-territory-inspector [data-action="claim-territory"]');
+  await expect(claim).toBeEnabled();
+  await claim.click();
+  await expect(page.locator('#world3d-territory-inspector')).toContainText('Under your control');
+  const saved = await page.evaluate(id => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.territories.find(territory => territory.id === id), target.id);
+  expect(saved.owner).toBe('player');
+});
+
 test('CROWN mining connects to its configured backend but stays closed until operator launch', async ({ page }) => {
   await page.goto('/mining.html', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#session-state')).toContainText(/SIGN IN REQUIRED|NETWORK CLOSED|MINING SERVICE UNAVAILABLE/);
