@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 10;
+  const SAVE_VERSION = 11;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -395,6 +395,9 @@
     if (!Array.isArray(normalized.world.placedBuildings)) normalized.world.placedBuildings = [];
     if (!Array.isArray(normalized.world.placedRoads)) normalized.world.placedRoads = [];
     if (!Array.isArray(normalized.world.placedDistricts)) normalized.world.placedDistricts = [];
+    normalized.world.placedBuildings.forEach(item => { if (item && item.territoryId === undefined) item.territoryId = "home"; });
+    normalized.world.placedRoads.forEach(item => { if (item && item.territoryId === undefined) item.territoryId = "home"; });
+    normalized.world.placedDistricts.forEach(item => { if (item && item.territoryId === undefined) item.territoryId = "home"; });
     const needsTerritoryMigration = normalized.world.territories === undefined;
     if (needsTerritoryMigration) normalized.world.territories = createTerritories(normalized.seed);
     if (!Array.isArray(normalized.world.territories)) throw new Error("Territory data is invalid.");
@@ -436,10 +439,10 @@
         !Array.isArray(normalized.world.processedEventIds) || normalized.world.processedEventIds.length > 500 ||
         new Set(normalized.world.processedEventIds).size !== normalized.world.processedEventIds.length ||
         normalized.world.processedEventIds.some(id => typeof id !== "string" || id.length > 64)) throw new Error("World event state is invalid.");
-    if (normalized.world.placedBuildings.length > 10000 || normalized.world.placedBuildings.some(p => !p || !BUILDINGS[p.type] || !Number.isFinite(p.x) || !Number.isFinite(p.z) || Math.abs(p.x) > 13.2 || Math.abs(p.z) > 13.2)) throw new Error("Building placement data is invalid.");
-    if (normalized.world.placedRoads.length > 10000 || normalized.world.placedRoads.some(r => !r || !r.from || !r.to || ![r.from.x,r.from.z,r.to.x,r.to.z].every(Number.isFinite) || [r.from.x,r.from.z,r.to.x,r.to.z].some(n => Math.abs(n)>13.2) || Math.hypot(r.to.x-r.from.x,r.to.z-r.from.z)<1)) throw new Error("Road placement data is invalid.");
+    if (normalized.world.placedBuildings.length > 10000 || normalized.world.placedBuildings.some(p => !p || !BUILDINGS[p.type] || !Number.isFinite(p.x) || !Number.isFinite(p.z) || Math.abs(p.x) > 30 || Math.abs(p.z) > 30 || typeof p.territoryId !== "string")) throw new Error("Building placement data is invalid.");
+    if (normalized.world.placedRoads.length > 10000 || normalized.world.placedRoads.some(r => !r || !r.from || !r.to || ![r.from.x,r.from.z,r.to.x,r.to.z].every(Number.isFinite) || [r.from.x,r.from.z,r.to.x,r.to.z].some(n => Math.abs(n)>30) || Math.hypot(r.to.x-r.from.x,r.to.z-r.from.z)<1 || typeof r.territoryId !== "string")) throw new Error("Road placement data is invalid.");
     const districtTypes = ["residential", "commercial", "industrial", "agricultural"];
-    if (normalized.world.placedDistricts.length > 100 || normalized.world.placedDistricts.some(d => !d || !districtTypes.includes(d.type) || !Number.isFinite(d.x) || !Number.isFinite(d.z) || Math.abs(d.x) > 10.5 || Math.abs(d.z) > 10.5 || !Number.isFinite(d.radius) || d.radius < 1.5 || d.radius > 3.5)) throw new Error("District placement data is invalid.");
+    if (normalized.world.placedDistricts.length > 1000 || normalized.world.placedDistricts.some(d => !d || !districtTypes.includes(d.type) || !Number.isFinite(d.x) || !Number.isFinite(d.z) || Math.abs(d.x) > 30 || Math.abs(d.z) > 30 || !Number.isFinite(d.radius) || d.radius < 1.5 || d.radius > 3.5 || typeof d.territoryId !== "string")) throw new Error("District placement data is invalid.");
     const territoryIds = new Set();
     if (normalized.world.territories.length !== 9 || normalized.world.territories.some(territory => {
       if (!territory || typeof territory.id !== "string" || !territory.id || territory.id.length > 48 || territoryIds.has(territory.id) ||
@@ -457,6 +460,26 @@
     })) throw new Error("Territory data is invalid.");
     const homeTerritory = normalized.world.territories.find(territory => territory.id === "home");
     if (!homeTerritory || homeTerritory.owner !== "player" || homeTerritory.x !== 0 || homeTerritory.z !== 0) throw new Error("Home territory data is invalid.");
+    const territoryById = new Map(normalized.world.territories.map(territory => [territory.id, territory]));
+    const placementLimit = (territory, margin = 0.75) => territory.id === "home" ? 13.2 : Math.max(1, territory.radius - margin);
+    const pointIsInside = (territory, x, z, margin = 0.75) =>
+      Math.hypot(x - territory.x, z - territory.z) <= placementLimit(territory, margin);
+    if (normalized.world.placedBuildings.some(item => {
+      const territory = territoryById.get(item.territoryId);
+      return !territory || territory.owner !== "player" || !pointIsInside(territory, item.x, item.z, 0.8);
+    })) throw new Error("Building placement territory is invalid.");
+    if (normalized.world.placedRoads.some(road => {
+      const territory = territoryById.get(road.territoryId);
+      return !territory || territory.owner !== "player" ||
+        !pointIsInside(territory, road.from.x, road.from.z, 0.35) ||
+        !pointIsInside(territory, road.to.x, road.to.z, 0.35);
+    })) throw new Error("Road placement territory is invalid.");
+    if (normalized.world.placedDistricts.some(district => {
+      const territory = territoryById.get(district.territoryId);
+      if (!territory || territory.owner !== "player") return true;
+      const limit = territory.id === "home" ? 13.2 : Math.max(1, territory.radius - district.radius - 0.2);
+      return Math.hypot(district.x - territory.x, district.z - territory.z) > limit;
+    })) throw new Error("District placement territory is invalid.");
     const depositIds = new Set();
     if (normalized.world.resourceNodes.length > 24 || normalized.world.resourceNodes.some(node => {
       if (!node || typeof node.id !== "string" || !node.id || node.id.length > 64 || depositIds.has(node.id) ||
@@ -572,7 +595,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -850,31 +873,96 @@
   }
   function districtEffects(state) {
     const counts = { residential: 0, commercial: 0, industrial: 0, agricultural: 0 };
-    for (const district of state.world?.placedDistricts || []) if (district && Object.hasOwn(counts, district.type)) counts[district.type]++;
+    const regionalGrowth = {};
+    const territories = new Map((state.world?.territories || []).map(item => [item.id, item]));
+    for (const district of state.world?.placedDistricts || []) {
+      if (!district || !Object.hasOwn(counts, district.type)) continue;
+      const territoryId = district.territoryId || "home";
+      if (territories.get(territoryId)?.owner !== "player") continue;
+      counts[district.type]++;
+      if (district.type === "residential") regionalGrowth[territoryId] = (regionalGrowth[territoryId] || 0) + 1;
+    }
     return { counts, production: {
       food: counts.agricultural * 3,
       materials: counts.industrial * 2,
       credits: counts.commercial * 4
-    }, populationGrowth: counts.residential };
+    }, populationGrowth: regionalGrowth.home || 0, regionalGrowth };
   }
   function roadEffects(state) {
     const roads = state.world?.placedRoads || [];
     const districts = state.world?.placedDistricts || [];
+    const territories = new Map((state.world?.territories || []).map(item => [item.id, item]));
     const connected = new Set();
     for (const road of roads) {
       if (!road?.from || !road?.to) continue;
+      const territoryId = road.territoryId || "home";
+      if (territories.get(territoryId)?.owner !== "player") continue;
       const dx = road.to.x - road.from.x, dz = road.to.z - road.from.z;
       const lengthSq = dx * dx + dz * dz;
       for (let i = 0; i < districts.length; i++) {
         const d = districts[i];
-        if (!d || !Number.isFinite(d.x) || !Number.isFinite(d.z)) continue;
+        if (!d || !Number.isFinite(d.x) || !Number.isFinite(d.z) || (d.territoryId || "home") !== territoryId) continue;
         const t = Math.max(0, Math.min(1, ((d.x - road.from.x) * dx + (d.z - road.from.z) * dz) / lengthSq));
         const px = road.from.x + t * dx, pz = road.from.z + t * dz;
-        if (Math.hypot(d.x - px, d.z - pz) <= (d.radius || 2.6) + 0.8) connected.add(i);
+        if (Math.hypot(d.x - px, d.z - pz) <= (d.radius || 2.6) + 0.8) connected.add(territoryId + ":" + i);
       }
     }
     const count = connected.size;
     return { connectedDistricts: count, logistics: Math.min(5, count), production: { credits: count * 2 } };
+  }
+  function worldPlacementTerritory(state, territoryId, x, z, margin = 0.75) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (!Number.isFinite(x) || !Number.isFinite(z)) throw new Error("Placement coordinates are invalid.");
+    const territory = (state.world?.territories || []).find(item => item.id === (territoryId || "home"));
+    if (!territory || territory.owner !== "player") throw new Error("You must control this island before building there.");
+    const limit = territory.id === "home" ? 13.2 : Math.max(1, territory.radius - margin);
+    if (Math.hypot(x - territory.x, z - territory.z) > limit) throw new Error("That position is outside your buildable territory.");
+    return territory;
+  }
+  function placeWorldBuilding(state, type, placement) {
+    if (!BUILDINGS[type]) throw new Error("Unknown building.");
+    const x = Number(placement?.x), z = Number(placement?.z), territoryId = placement?.territoryId || "home";
+    const territory = worldPlacementTerritory(state, territoryId, x, z, 0.8);
+    const occupied = (state.world.placedBuildings || []).some(item =>
+      (item.territoryId || "home") === territory.id && Math.hypot(item.x - x, item.z - z) < 1.25
+    );
+    if (occupied) throw new Error("Choose a clear building site.");
+    build(state, type);
+    state.world.placedBuildings.push({ type, x: Number(x.toFixed(2)), z: Number(z.toFixed(2)), territoryId: territory.id });
+    territory.development = Math.min(100, territory.development + 1);
+    return state.world.placedBuildings[state.world.placedBuildings.length - 1];
+  }
+  function placeWorldDistrict(state, type, placement) {
+    if (!["residential", "commercial", "industrial", "agricultural"].includes(type)) throw new Error("District type is invalid.");
+    const x = Number(placement?.x), z = Number(placement?.z), radius = Number(placement?.radius ?? 2.6), territoryId = placement?.territoryId || "home";
+    const territory = worldPlacementTerritory(state, territoryId, x, z, radius + 0.2);
+    if (!Number.isFinite(radius) || radius < 1.5 || radius > 3.5) throw new Error("District radius is invalid.");
+    if (territory.id !== "home" && Math.hypot(x - territory.x, z - territory.z) > territory.radius - radius - 0.2) throw new Error("The district is too close to the island shore.");
+    if (state.world.placedDistricts.length >= 1000) throw new Error("Your nation has reached its district limit.");
+    if (state.resources.materials < 20 || state.resources.credits < 30) throw new Error("A district requires 20 materials and 30 credits.");
+    state.resources.materials -= 20;
+    state.resources.credits -= 30;
+    const district = { type, x: Number(x.toFixed(2)), z: Number(z.toFixed(2)), radius, territoryId: territory.id };
+    state.world.placedDistricts.push(district);
+    territory.development = Math.min(100, territory.development + 1);
+    addEvent(state, "Established a " + type + " district in " + territory.name + ".", "economy");
+    return district;
+  }
+  function placeWorldRoad(state, from, to, territoryId = "home") {
+    const territory = worldPlacementTerritory(state, territoryId, Number(from?.x), Number(from?.z), 0.35);
+    worldPlacementTerritory(state, territory.id, Number(to?.x), Number(to?.z), 0.35);
+    const length = Math.hypot(Number(to.x) - Number(from.x), Number(to.z) - Number(from.z));
+    if (length < 1 || length > territory.radius * 2) throw new Error("Road length is invalid for this island.");
+    if (state.world.placedRoads.length >= 10000) throw new Error("Your road network has reached its construction limit.");
+    if (state.resources.materials < 8 || state.resources.credits < 12) throw new Error("A road segment requires 8 materials and 12 credits.");
+    state.resources.materials -= 8;
+    state.resources.credits -= 12;
+    const road = { from: { x: Number(Number(from.x).toFixed(2)), z: Number(Number(from.z).toFixed(2)) },
+      to: { x: Number(Number(to.x).toFixed(2)), z: Number(Number(to.z).toFixed(2)) }, territoryId: territory.id };
+    state.world.placedRoads.push(road);
+    territory.development = Math.min(100, territory.development + 1);
+    addEvent(state, "Extended the road network on " + territory.name + ".", "economy");
+    return road;
   }
   function resourceSiteEffects(state, consume = false) {
     const output = { food: 0, materials: 0, ore: 0, science: 0, power: 0 };
@@ -1635,6 +1723,11 @@
         state.nation.population = Math.min(populationCap, state.nation.population + 2 + (hasTech(state, "medicine") ? 1 : 0) + Math.floor((state.buildings.housing || 0) / 2) + districts.populationGrowth);
       }
     }
+    for (const territory of state.world.territories || []) {
+      if (territory.id === "home" || territory.owner !== "player") continue;
+      const growth = districts.regionalGrowth[territory.id] || 0;
+      if (growth > 0) territory.population = Math.min(RESOURCE_LIMIT, territory.population + growth);
+    }
     if (jobs < Math.ceil(state.nation.population / 10)) state.nation.stability = Math.max(0, state.nation.stability - 1);
     if (phase === "recession") state.nation.stability = Math.max(0, state.nation.stability - 2);
     else if (phase === "recovery") state.nation.stability = Math.min(100, state.nation.stability + 1);
@@ -1750,7 +1843,7 @@
   return {
     SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, RENEWABLE_POWER_OUTPUT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, productionFor, build, trade,
+    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
