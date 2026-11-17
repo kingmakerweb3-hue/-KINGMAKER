@@ -93,6 +93,14 @@ test('mobile command deck and navigation do not create horizontal overflow', asy
 
 
 test('a claimed outer island accepts construction and preserves it after reload', async ({ page }) => {
+  await page.evaluate(() => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    save.resources.materials = 1000;
+    save.resources.credits = 1000;
+    save.resources.influence = 100;
+    localStorage.setItem('kingmaker_save_v1', JSON.stringify(save));
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await page.locator('[data-tab="world3d"]').click();
   const target = await page.evaluate(() => {
     const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
