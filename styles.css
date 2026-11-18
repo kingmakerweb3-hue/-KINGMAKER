@@ -163,3 +163,21 @@ button{min-height:40px}
 
 .territory-infrastructure{display:flex;flex-wrap:wrap;gap:8px}
 .territory-infrastructure span{padding:5px 9px;border:1px solid #496a72;border-radius:999px;background:#ffffff08;color:var(--muted);font-size:.75rem}
+
+
+.shipping-panel{display:grid;gap:10px;margin-top:14px;padding:13px;border:1px solid #3a566c;border-radius:12px;background:linear-gradient(145deg,#14283a,#101d30)}
+.shipping-panel h4{margin:0;color:var(--gold);font-size:.9rem;letter-spacing:.08em;text-transform:uppercase}
+.shipping-stockpile{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:6px;padding:10px;border:1px solid var(--line);border-radius:9px;background:#07132155}
+.shipping-stockpile b{grid-column:1/-1;font-size:.8rem}
+.shipping-stockpile span{color:var(--muted);font-size:.76rem;font-variant-numeric:tabular-nums}
+.shipping-routes{display:grid;gap:7px}
+.shipping-routes> b{font-size:.8rem}
+.shipping-route-list{display:grid;gap:7px}
+.shipping-route-list>span{display:grid;gap:2px;padding:8px 10px;border:1px solid #365568;border-radius:8px;background:#0a1825}
+.shipping-route-list b{font-size:.8rem;color:var(--text)}
+.shipping-route-list small{font-size:.72rem;color:var(--muted);line-height:1.4}
+.shipping-route-form{display:grid;grid-template-columns:1fr;gap:7px;padding-top:8px;border-top:1px solid var(--line)}
+.shipping-route-form label{font-size:.75rem;color:var(--muted);font-weight:700}
+.shipping-route-form select{width:100%;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#0b1727;color:var(--text)}
+.shipping-route-form small{line-height:1.45}
+@media(max-width:640px){.shipping-panel{padding:10px}.shipping-stockpile{grid-template-columns:repeat(2,minmax(0,1fr))}.shipping-route-form button{width:100%}}
