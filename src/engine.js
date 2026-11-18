@@ -1033,6 +1033,7 @@
     if (state.status !== "playing") throw new Error("This campaign has ended.");
     const territory = (state.world?.territories || []).find(item => item.id === territoryId);
     if (!territory || territory.owner !== "player") throw new Error("You must control this island before developing its harbor.");
+    if (territory.id === "home") throw new Error("The national harbor is already operational; develop an outer-island harbor instead.");
     if (territory.harborLevel >= 3) throw new Error("This harbor is already at its maximum level.");
     const nextLevel = territory.harborLevel + 1;
     const cost = { materials: 30 + nextLevel * 10, credits: 45 + nextLevel * 20 };
