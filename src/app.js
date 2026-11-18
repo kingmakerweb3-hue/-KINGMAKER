@@ -218,7 +218,26 @@
       const buildings = (state.world.placedBuildings || []).filter(item => (item.territoryId || "home") === territory.id).length;
       const districts = (state.world.placedDistricts || []).filter(item => (item.territoryId || "home") === territory.id).length;
       const roads = (state.world.placedRoads || []).filter(item => (item.territoryId || "home") === territory.id).length;
-      action = '<p class="muted">Under your control. Each claimed outer island adds 3 credits and 1 influence per turn. You can construct buildings, districts and roads here, and develop its mapped resource deposits.</p><div class="territory-infrastructure"><span>' + buildings + ' buildings</span><span>' + districts + ' districts</span><span>' + roads + ' road segments</span></div>';
+      const harborCost = { materials: 30 + (territory.harborLevel + 1) * 10, credits: 45 + (territory.harborLevel + 1) * 20 };
+      const harborAction = territory.harborLevel < 3
+        ? '<button type="button" data-action="upgrade-harbor" data-id="' + esc(territory.id) + '">Upgrade harbor to level ' + (territory.harborLevel + 1) + ' · ' + harborCost.materials + ' materials / ' + harborCost.credits + ' credits</button>'
+        : '<small class="muted">Harbor fully upgraded · route capacity is at maximum.</small>';
+      const stockpile = territory.id === "home" ? '<p class="muted">Home harbor receives delivered cargo directly into the national treasury.</p>' :
+        '<div class="shipping-stockpile"><b>Island stockpile</b>' + E.SHIPPING_RESOURCES.map(resource => '<span>' + esc(resource) + ': ' + num(territory.stockpile[resource] || 0) + '</span>').join("") + '</div>';
+      const routes = (state.world.shippingRoutes || []).filter(route => route.sourceId === territory.id || route.destinationId === territory.id);
+      const routeList = routes.length ? '<div class="shipping-route-list">' + routes.map(route => {
+        const source = state.world.territories.find(item => item.id === route.sourceId);
+        const destination = state.world.territories.find(item => item.id === route.destinationId);
+        const cargo = route.inTransit ? ' · ' + route.inTransit.amount + ' in transit · ' + route.inTransit.remainingTurns + ' turns remaining' : ' · awaiting cargo';
+        return '<span><b>' + esc(source?.name || route.sourceId) + ' → ' + esc(destination?.name || route.destinationId) + '</b><small>' + esc(route.resource) + ' · capacity ' + route.capacity + ' · ' + esc(route.status) + cargo + ' · delivered ' + num(route.deliveredTotal) + '</small></span>';
+      }).join("") + '</div>' : '<small class="muted">No shipping routes touch this island yet.</small>';
+      const destinations = state.world.territories.filter(item => item.id !== territory.id && item.owner === "player" && item.harborLevel > 0);
+      const routeForm = territory.id !== "home" && territory.harborLevel > 0
+        ? destinations.length
+          ? '<div class="shipping-route-form"><label for="shipping-destination">Destination port</label><select id="shipping-destination">' + destinations.map(item => '<option value="' + esc(item.id) + '">' + esc(item.name) + ' · level ' + item.harborLevel + '</option>').join("") + '</select><label for="shipping-resource">Cargo resource</label><select id="shipping-resource">' + E.SHIPPING_RESOURCES.map(resource => '<option value="' + esc(resource) + '">' + esc(resource) + '</option>').join("") + '</select><button type="button" data-action="create-shipping-route" data-id="' + esc(territory.id) + '">Open shipping route · 20 materials / 35 credits</button><small class="muted">Convoys load local stockpiles, then deliver after the route's travel time. Logistics research shortens journeys and halves upkeep.</small></div>'
+          : '<small class="muted">Claim another island and build its harbor to open a shipping route.</small>'
+        : territory.id === "home" ? '<small class="muted">Home is the national receiving port. Build harbors on claimed outer islands to export their local resources here.</small>' : '<small class="muted">Build a harbor before opening a shipping route.</small>';
+      action = '<p class="muted">Under your control. Each claimed outer island adds 3 credits and 1 influence per turn. Buildings, districts, roads and extraction sites operate here.</p><div class="territory-infrastructure"><span>' + buildings + ' buildings</span><span>' + districts + ' districts</span><span>' + roads + ' road segments</span><span>Harbor level ' + territory.harborLevel + '</span></div><div class="shipping-panel"><h4>Harbor & shipping</h4>' + harborAction + stockpile + '<div class="shipping-routes"><b>Connected routes</b>' + routeList + '</div>' + routeForm + '</div>';
     } else {
       const rival = state.rivals[territory.owner];
       const alliance = state.diplomacy.treaties.some(treaty => treaty.rivalId === territory.owner && treaty.kind === "alliance" && treaty.status === "active");
@@ -262,6 +281,8 @@
       if(action==="build")E.build(state,id);
       if(action==="develop-resource"){E.developResourceSite(state,id);toast("Extraction site established. Production begins next turn.","success");}
       if(action==="claim-territory"){const territory=E.claimTerritory(state,id);toast(territory.name+" claimed. Regional income begins next turn.","success");}
+      if(action==="upgrade-harbor"){const territory=E.upgradeHarbor(state,id);toast(territory.name+" harbor upgraded to level "+territory.harborLevel+".","success");}
+      if(action==="create-shipping-route"){const route=E.createShippingRoute(state,id,$("shipping-destination")?.value,$("shipping-resource")?.value);toast("Shipping route opened. First cargo will load when local stock is available.","success");}
       if(action==="view-territory-diplomacy"){tab("diplomacy");toast("Diplomatic relations with "+(state.rivals[id]?.name||id)+".");}
       if(action==="trade")E.trade(state,resource,Number(amount));
       if(action==="research"){E.research(state,id);if(!state.achievements.includes("first-research"))state.achievements.push("first-research");}
