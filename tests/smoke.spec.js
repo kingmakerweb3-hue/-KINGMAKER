@@ -149,3 +149,54 @@ test('a claimed outer island accepts construction and preserves it after reload'
   }, target.id);
   expect(restored).toBe(true);
 });
+
+
+test('a claimed island builds a harbor and ships local extraction into national reserves', async ({ page }) => {
+  const setup = await page.evaluate(() => {
+    const engine = window.KingmakerEngine;
+    const state = engine.createInitialState({ seed: 72006 });
+    state.resources.materials = 2000;
+    state.resources.credits = 2000;
+    state.resources.influence = 100;
+    const island = state.world.territories.find(item => item.owner === 'unclaimed');
+    const deposit = state.world.resourceNodes.find(item => item.territoryId === island.id);
+    deposit.resource = 'Timber';
+    deposit.quantity = 200;
+    localStorage.setItem('kingmaker_save_v1', engine.exportSave(state));
+    return { islandId: island.id, islandName: island.name, depositId: deposit.id };
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="world3d"]').click();
+  await page.evaluate(id => window.dispatchEvent(new CustomEvent('kingmaker:inspect-territory', { detail: { id } })), setup.islandId);
+  await expect(page.locator('#world3d-territory-inspector')).toContainText(setup.islandName);
+  await page.locator('#world3d-territory-inspector [data-action="claim-territory"]').click();
+  await page.locator('#world3d-territory-inspector [data-action="upgrade-harbor"]').click();
+  await expect(page.locator('#world3d-territory-inspector')).toContainText('Harbor level 1');
+
+  await page.evaluate(id => window.dispatchEvent(new CustomEvent('kingmaker:inspect-resource', { detail: { id } })), setup.depositId);
+  await page.locator('#world3d-resource-inspector [data-action="develop-resource"]').click();
+  await expect(page.locator('#world3d-territory-inspector #shipping-destination')).toBeVisible();
+  await page.locator('#shipping-destination').selectOption('home');
+  await page.locator('#shipping-resource').selectOption('materials');
+  await page.locator('#world3d-territory-inspector [data-action="create-shipping-route"]').click();
+
+  const route = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.shippingRoutes[0]);
+  expect(route.sourceId).toBe(setup.islandId);
+  expect(route.destinationId).toBe('home');
+  expect(route.capacity).toBe(10);
+  expect(route.status).toBe('active');
+
+  await page.locator('#advance-turn').click();
+  const loaded = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.shippingRoutes[0]);
+  expect(loaded.inTransit.amount).toBeGreaterThan(0);
+  expect(loaded.loadedTotal).toBeGreaterThan(0);
+  for (let i = 0; i < route.travelTurns; i++) await page.locator('#advance-turn').click();
+
+  const delivered = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.shippingRoutes[0]);
+  expect(delivered.deliveredTotal).toBeGreaterThan(0);
+  expect(delivered.lastDeliveredTurn).toBeGreaterThan(delivered.createdTurn);
+  await expect(page.locator('#world3d-stats')).toContainText('Shipping');
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  const restored = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.shippingRoutes[0]);
+  expect(restored.deliveredTotal).toBe(delivered.deliveredTotal);
+});
