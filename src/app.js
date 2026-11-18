@@ -219,9 +219,11 @@
       const districts = (state.world.placedDistricts || []).filter(item => (item.territoryId || "home") === territory.id).length;
       const roads = (state.world.placedRoads || []).filter(item => (item.territoryId || "home") === territory.id).length;
       const harborCost = { materials: 30 + (territory.harborLevel + 1) * 10, credits: 45 + (territory.harborLevel + 1) * 20 };
-      const harborAction = territory.harborLevel < 3
-        ? '<button type="button" data-action="upgrade-harbor" data-id="' + esc(territory.id) + '">Upgrade harbor to level ' + (territory.harborLevel + 1) + ' · ' + harborCost.materials + ' materials / ' + harborCost.credits + ' credits</button>'
-        : '<small class="muted">Harbor fully upgraded · route capacity is at maximum.</small>';
+      const harborAction = territory.id === "home"
+        ? '<small class="muted">National receiving harbor · operational at level 1.</small>'
+        : territory.harborLevel < 3
+          ? '<button type="button" data-action="upgrade-harbor" data-id="' + esc(territory.id) + '">Upgrade harbor to level ' + (territory.harborLevel + 1) + ' · ' + harborCost.materials + ' materials / ' + harborCost.credits + ' credits</button>'
+          : '<small class="muted">Harbor fully upgraded · route capacity is at maximum.</small>';
       const stockpile = territory.id === "home" ? '<p class="muted">Home harbor receives delivered cargo directly into the national treasury.</p>' :
         '<div class="shipping-stockpile"><b>Island stockpile</b>' + E.SHIPPING_RESOURCES.map(resource => '<span>' + esc(resource) + ': ' + num(territory.stockpile[resource] || 0) + '</span>').join("") + '</div>';
       const routes = (state.world.shippingRoutes || []).filter(route => route.sourceId === territory.id || route.destinationId === territory.id);
