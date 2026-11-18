@@ -1406,3 +1406,41 @@ test("shipping pauses without losing cargo when a port leaves player control", (
   assert.deepEqual(route.inTransit, { amount: 5, remainingTurns: 2 });
   assert.equal(Engine.economicSnapshot(state).shipping.activeRoutes, 0);
 });
+
+
+test("Integrated Logistics shortens existing shipping voyages and halves route upkeep", () => {
+  const state = Engine.createInitialState({ seed: 72007 });
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1000;
+  state.resources.credits = 1000;
+  state.resources.influence = 100;
+  state.resources.science = 100;
+  Engine.claimTerritory(state, island.id);
+  Engine.upgradeHarbor(state, island.id);
+  const route = Engine.createShippingRoute(state, island.id, "home", "ore");
+  const beforeTravel = route.travelTurns;
+  route.inTransit = { amount: 4, remainingTurns: beforeTravel };
+  state.technologies.push("commerce");
+  Engine.research(state, "logistics");
+  assert.equal(route.travelTurns, Math.max(1, beforeTravel - 1));
+  assert.equal(route.inTransit.remainingTurns, Math.max(1, beforeTravel - 1));
+  assert.equal(Engine.shippingEffects(state).upkeep, 1);
+});
+
+test("a full remote stockpile pauses extraction without consuming the finite deposit", () => {
+  const state = Engine.createInitialState({ seed: 72008 });
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1000;
+  state.resources.credits = 1000;
+  state.resources.influence = 100;
+  Engine.claimTerritory(state, island.id);
+  const node = state.world.resourceNodes.find(item => item.territoryId === island.id);
+  node.resource = "Timber";
+  node.quantity = 40;
+  node.operational = true;
+  node.operatedSinceTurn = state.turn;
+  island.stockpile.materials = Engine.STOCKPILE_LIMIT;
+  Engine.advanceTurn(state);
+  assert.equal(node.quantity, 40);
+  assert.equal(island.stockpile.materials, Engine.STOCKPILE_LIMIT);
+});
