@@ -1303,6 +1303,12 @@
     if (state.resources.science < technology.cost) throw new Error("Not enough science.");
     state.resources.science -= technology.cost;
     state.technologies.push(id);
+    if (id === "logistics") {
+      for (const route of state.world.shippingRoutes || []) {
+        route.travelTurns = Math.max(1, route.travelTurns - 1);
+        if (route.inTransit) route.inTransit.remainingTurns = Math.max(1, route.inTransit.remainingTurns - 1);
+      }
+    }
     if (id === "governance") state.nation.stability = Math.min(100, state.nation.stability + 10);
     addEvent(state, "Researched " + technology.name + ".", "research");
     for (const rival of Object.values(state.rivals)) rememberRival(rival, state.turn, "player-research", "The player researched " + technology.name);
