@@ -1444,3 +1444,30 @@ test("a full remote stockpile pauses extraction without consuming the finite dep
   assert.equal(node.quantity, 40);
   assert.equal(island.stockpile.materials, Engine.STOCKPILE_LIMIT);
 });
+
+
+test("shipping retains undelivered cargo until a remote destination has stockpile room", () => {
+  const state = Engine.createInitialState({ seed: 72009 });
+  const islands = state.world.territories.filter(item => item.owner === "unclaimed");
+  state.resources.materials = 2000;
+  state.resources.credits = 2000;
+  state.resources.influence = 100;
+  for (const island of islands) {
+    Engine.claimTerritory(state, island.id);
+    Engine.upgradeHarbor(state, island.id);
+  }
+  const [source, destination] = islands;
+  const route = Engine.createShippingRoute(state, source.id, destination.id, "materials");
+  source.stockpile.materials = 10;
+  destination.stockpile.materials = Engine.STOCKPILE_LIMIT;
+  route.inTransit = { amount: 10, remainingTurns: 1 };
+
+  Engine.advanceTurn(state);
+  assert.deepEqual(route.inTransit, { amount: 10, remainingTurns: 1 });
+  assert.equal(route.deliveredTotal, 0);
+  destination.stockpile.materials -= 10;
+  Engine.advanceTurn(state);
+  assert.equal(route.inTransit, null);
+  assert.equal(route.deliveredTotal, 10);
+  assert.equal(destination.stockpile.materials, Engine.STOCKPILE_LIMIT);
+});
