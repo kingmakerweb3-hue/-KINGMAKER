@@ -5,11 +5,12 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   "use strict";
   const host=document.getElementById("world3d-viewport");
   if(!host)return;
-  let scene,camera,renderer,controls,sunLight,starField,moonObject,auroraMesh,landGroup,buildingGroup,peopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup,resourceGroup,territoryGroup,cloudGroup,harborGroup,cargoShip,lighthouseBeacon,windFarmGroup,solarFarmGroup,waterMesh,waterPositions,terrainMesh;
+  let scene,camera,renderer,controls,sunLight,starField,moonObject,auroraMesh,landGroup,buildingGroup,peopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup,resourceGroup,territoryGroup,shippingGroup,cloudGroup,harborGroup,cargoShip,lighthouseBeacon,windFarmGroup,solarFarmGroup,waterMesh,waterPositions,terrainMesh;
   const trafficVehicles=[];
+  const shippingVessels=[];
   const windTurbineRotors=[];
   const solarTrackers=[];
-  let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,raycaster,groundPlane,previewMarker,placementPointer=null,territorySignature="",worldFitted=false;
+  let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,raycaster,groundPlane,previewMarker,placementPointer=null,territorySignature="",shippingSignature="",worldFitted=false;
   const COLORS={farm:0xc6a35d,mine:0x78838d,workshop:0x9c7652,factory:0x697b8e,transport:0x9b9b8b,market:0xc49b52,academy:0x8b80b8,power:0x75b9c9,housing:0xd6c5a3};
   const material=(color,roughness=.86)=>new THREE.MeshStandardMaterial({color,roughness});
   const boxGeo=new THREE.BoxGeometry(1,1,1);
@@ -150,15 +151,57 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     cloth.position.set(.4,1.72,0);flag.add(cloth);
     const beacon=new THREE.Mesh(new THREE.SphereGeometry(.13,10,8),new THREE.MeshStandardMaterial({color:ownerColor,emissive:ownerColor,emissiveIntensity:.7}));
     beacon.position.y=2.16;flag.add(beacon);group.add(flag);
+    if(territory.harborLevel>0){
+      const angle=territory.phase+Math.PI/2,dx=Math.cos(angle),dz=Math.sin(angle);
+      const dockX=territory.x+dx*(territory.radius-.35),dockZ=territory.z+dz*(territory.radius-.35);
+      const harbor=new THREE.Group();harbor.position.set(dockX,islandHeightAt(dockX,dockZ,territory)+.04,dockZ);harbor.rotation.y=-angle;
+      const timber=material(0x76583d),metal=material(0x56636a,.55),cranePaint=material(0xd5a43e,.58);
+      const pier=new THREE.Mesh(new THREE.BoxGeometry(.72,.18,2.65),timber);pier.position.set(0,.08,1.05);pier.castShadow=true;harbor.add(pier);
+      for(let plank=0;plank<6;plank++){const board=new THREE.Mesh(new THREE.BoxGeometry(.75,.035,.38),material(plank%2?0x9a7650:0x806044));board.position.set(0,.19,.05+plank*.42);harbor.add(board);}
+      for(const side of [-1,1])for(let postIndex=0;postIndex<3;postIndex++){const post=new THREE.Mesh(new THREE.CylinderGeometry(.075,.095,.72,7),timber);post.position.set(side*.28,-.13,.2+postIndex*.86);harbor.add(post);}
+      const warehouse=new THREE.Mesh(new THREE.BoxGeometry(1.05,.72,.82),material(0xb8aa8b));warehouse.position.set(0,.42,-.78);harbor.add(warehouse);
+      const roof=new THREE.Mesh(new THREE.BoxGeometry(1.2,.12,.95),metal);roof.position.set(0,.84,-.78);harbor.add(roof);
+      if(territory.harborLevel>=2){const crane=new THREE.Group();const leg=new THREE.Mesh(new THREE.BoxGeometry(.12,1.25,.12),cranePaint);leg.position.y=.62;crane.add(leg);const boom=new THREE.Mesh(new THREE.BoxGeometry(.12,.12,1.2),cranePaint);boom.position.set(0,1.22,.42);crane.add(boom);const cable=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,.5,5),metal);cable.position.set(0,.94,.86);crane.add(cable);harbor.add(crane);}
+      if(territory.harborLevel>=3){const beacon=new THREE.Mesh(new THREE.SphereGeometry(.13,10,8),new THREE.MeshStandardMaterial({color:0x8be1d8,emissive:0x43bdb3,emissiveIntensity:1.3}));beacon.position.set(0,1.3,1.25);harbor.add(beacon);}
+      group.add(harbor);
+    }
     territoryGroup.add(group);
   }
   function syncTerritories(territories){
     if(!territoryGroup||!Array.isArray(territories))return;
-    const signature=territories.map(t=>[t.id,t.owner,t.x,t.z,t.radius,t.phase].join(":")).join("|");
+    const signature=territories.map(t=>[t.id,t.owner,t.x,t.z,t.radius,t.phase,t.harborLevel].join(":")).join("|");
     if(signature===territorySignature)return;
     clearGroup(territoryGroup);territorySignature=signature;
     territories.filter(t=>t.id!=="home").forEach(makeTerritoryIsland);
     if(!worldFitted){fitWorldView();worldFitted=true;}
+  }
+  function syncShippingRoutes(routes,territories){
+    if(!shippingGroup||!Array.isArray(routes))return;
+    const signature=routes.map(route=>[route.id,route.sourceId,route.destinationId,route.resource,route.status,route.capacity,route.travelTurns].join(":")).join("|");
+    if(signature===shippingSignature)return;
+    clearGroup(shippingGroup);shippingVessels.length=0;shippingSignature=signature;
+    const byId=new Map((territories||[]).map(territory=>[territory.id,territory]));
+    const routeColors={food:0x78c88b,materials:0xd4b06a,ore:0x9caab8,power:0x7fc8e8,science:0xb99ce8};
+    routes.filter(route=>route.status==="active").forEach((route,index)=>{
+      const source=byId.get(route.sourceId),destination=byId.get(route.destinationId);
+      if(!source||!destination||source.owner!=="player"||destination.owner!=="player")return;
+      const distance=Math.hypot(destination.x-source.x,destination.z-source.z);
+      const curve=new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(source.x,.45,source.z),
+        new THREE.Vector3((source.x+destination.x)/2,1.7+distance*.055,(source.z+destination.z)/2),
+        new THREE.Vector3(destination.x,.45,destination.z)
+      );
+      const color=routeColors[route.resource]||0x80d4d0;
+      const line=new THREE.Mesh(new THREE.TubeGeometry(curve,48,.065,6,false),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.28,transparent:true,opacity:.82,roughness:.4}));
+      line.userData.shippingRouteId=route.id;shippingGroup.add(line);
+      const vessel=new THREE.Group();
+      const hull=new THREE.Mesh(new THREE.BoxGeometry(.48,.2,.95),material(0x29495b,.5));vessel.add(hull);
+      const deck=new THREE.Mesh(new THREE.BoxGeometry(.42,.12,.78),material(0x9a7650));deck.position.y=.14;vessel.add(deck);
+      const cargo=new THREE.Mesh(new THREE.BoxGeometry(.27,.25,.3),material(color));cargo.position.set(0,.31,-.08);vessel.add(cargo);
+      const bridge=new THREE.Mesh(new THREE.BoxGeometry(.22,.22,.2),material(0xd9d5c6));bridge.position.set(0,.3,-.34);vessel.add(bridge);
+      shippingGroup.add(vessel);
+      shippingVessels.push({mesh:vessel,curve,phase:index*.31,speed:.018+Math.min(.012,1/Math.max(1,route.travelTurns)*.012)});
+    });
   }
   function makeDistrict(d){
     const surface=(x,z)=>heightAtWorld(x,z,d.territoryId||"home");
@@ -414,7 +457,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     for(let ring=0;ring<=waterRings;ring++){const radius=42*ring/waterRings;for(let seg=0;seg<=waterSegments;seg++){const angle=seg/waterSegments*Math.PI*2;waterVerts.push(Math.cos(angle)*radius,-.5,Math.sin(angle)*radius);if(ring<waterRings&&seg<waterSegments){const a=ring*(waterSegments+1)+seg,b=a+1,c=a+waterSegments+1,d=c+1;waterIndices.push(a,c,b,b,c,d);}}}
     waterGeo.setAttribute("position",new THREE.Float32BufferAttribute(waterVerts,3));waterGeo.setIndex(waterIndices);waterGeo.computeVertexNormals();
     waterMesh=new THREE.Mesh(waterGeo,new THREE.MeshPhysicalMaterial({color:0x286b80,roughness:.23,metalness:.12,clearcoat:.8,clearcoatRoughness:.16,transparent:true,opacity:.94,side:THREE.DoubleSide}));scene.add(waterMesh);waterPositions=waterMesh.geometry.attributes.position.array.slice();
-    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();territoryGroup=new THREE.Group();cloudGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,territoryGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup);createHarbor();createCoastalLighthouse();createWindFarm();createSolarFarm();createPowerNetwork();
+    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();territoryGroup=new THREE.Group();shippingGroup=new THREE.Group();cloudGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,territoryGroup,shippingGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup);createHarbor();createCoastalLighthouse();createWindFarm();createSolarFarm();createPowerNetwork();
     const n=176,verts=[],indices=[],colors=[];
     for(let iz=0;iz<=n;iz++)for(let ix=0;ix<=n;ix++){
       const x=(ix/n-.5)*30,z=(iz/n-.5)*30,d=Math.hypot(x,z),y=heightAt(x,z);verts.push(x,y,z);
@@ -582,6 +625,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     peopleGroup.children.forEach((p,i)=>{const a=t*(.12+.05*p.userData.walkFactor)+p.userData.phase,step=t*(2.1+1.2*p.userData.walkFactor)+p.userData.phase;p.position.x=Math.cos(a)*p.userData.radius;p.position.z=Math.sin(a)*p.userData.radius;p.position.y=heightAt(p.position.x,p.position.z);p.rotation.y=-a;for(const limb of p.userData.limbs){const swing=Math.sin(step)*.42*limb.side;limb.arm.rotation.x=-swing;limb.leg.rotation.x=swing;}});
     trafficVehicles.forEach(v=>{const p=(t*v.speed+v.phase)%1;const x=v.a.x+(v.b.x-v.a.x)*p,z=v.a.z+(v.b.z-v.a.z)*p;v.mesh.position.set(x,heightAt(x,z)+.055,z);v.mesh.rotation.y=Math.atan2(v.b.x-v.a.x,v.b.z-v.a.z);});
     if(cargoShip){cargoShip.position.x=12.1+Math.sin(t*.12)*.42;cargoShip.position.z=12.4+Math.cos(t*.12)*.32;cargoShip.position.y=-.13+Math.sin(t*1.35)*.045;cargoShip.rotation.y=.75+Math.sin(t*.12)*.035;}
+    shippingVessels.forEach(vessel=>{const progress=(t*vessel.speed+vessel.phase)%1,point=vessel.curve.getPointAt(progress),tangent=vessel.curve.getTangentAt(progress);vessel.mesh.position.copy(point);vessel.mesh.position.y+=Math.sin(t*1.8+vessel.phase)*.035;vessel.mesh.rotation.y=Math.atan2(tangent.x,tangent.z);});
     if(lighthouseBeacon)lighthouseBeacon.rotation.y=-t*.42;
     windTurbineRotors.forEach(({rotor,phase,speed})=>{rotor.rotation.z=t*speed+phase;});
     solarTrackers.forEach(({rack,phase})=>{rack.rotation.z=Math.sin(t*.025+phase)*.018;});
@@ -597,6 +641,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const averageMood=residents.length?Math.round(residents.reduce((sum,c)=>sum+(Number(c.mood)||0),0)/residents.length):0;
     const zones=state.world?.placedDistricts||[];const zoneCount=zones.length;const territories=state.world?.territories||[];const unclaimed=territories.filter(t=>t.owner==="unclaimed").length;const deposits=state.world?.resourceNodes||[];const activeSites=deposits.filter(n=>n.operational&&!n.depleted).length;const undevelopedSites=deposits.filter(n=>!n.operational&&!n.depleted).length;const exhaustedSites=deposits.filter(n=>n.depleted).length;if(stats)stats.innerHTML=[["Citizens",state.nation.population],["3D Agents",residents.length+" · "+averageMood+"% mood"],["Infrastructure",total+" levels"],["Districts",zoneCount+" zones"],["Resource sites",activeSites+" active · "+undevelopedSites+" undeveloped"],["Exhausted deposits",exhaustedSites+" · "+deposits.length+" total"],["Traffic",trafficVehicles.length+" vehicles"],["Stability",state.nation.stability+"%"],["Archipelago",territories.length+" islands · "+unclaimed+" unclaimed"]].map(([label,value])=>'<div class="world3d-stat"><b>'+String(value).replace(/[&<>]/g,"") +'</b><small>'+label+'</small></div>').join("");
     syncTerritories(territories);
+    syncShippingRoutes(state.world?.shippingRoutes||[],territories);
     if(!buildingGroup)return;
     clearGroup(buildingGroup);clearGroup(playerRoadGroup);clearGroup(districtGroup);clearGroup(trafficGroup);clearGroup(resourceGroup);trafficVehicles.length=0;
     const roads=state.world?.placedRoads||[];roads.forEach((road,i)=>{const territoryId=road.territoryId||"home";makePlayerRoad(road.from,road.to,territoryId);if(territoryId==="home"&&i<30){makeTrafficVehicle(road.from,road.to,i*2);makeTrafficVehicle(road.to,road.from,i*2+1);}});
