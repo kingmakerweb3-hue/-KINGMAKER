@@ -474,7 +474,7 @@
       return false;
     })) throw new Error("Territory data is invalid.");
     const homeTerritory = normalized.world.territories.find(territory => territory.id === "home");
-    if (!homeTerritory || homeTerritory.owner !== "player" || homeTerritory.x !== 0 || homeTerritory.z !== 0) throw new Error("Home territory data is invalid.");
+    if (!homeTerritory || homeTerritory.owner !== "player" || homeTerritory.x !== 0 || homeTerritory.z !== 0 || homeTerritory.harborLevel < 1) throw new Error("Home territory data is invalid.");
     const territoryById = new Map(normalized.world.territories.map(territory => [territory.id, territory]));
     const routeIds = new Set();
     if (normalized.world.shippingRoutes.length > 50 || normalized.world.shippingRoutes.some(route => {
@@ -1092,7 +1092,7 @@
     const territories = new Map((state.world?.territories || []).map(item => [item.id, item]));
     const active = (state.world?.shippingRoutes || []).filter(route => {
       const source = territories.get(route.sourceId), destination = territories.get(route.destinationId);
-      return source?.owner === "player" && destination?.owner === "player" && source.harborLevel > 0 && destination.harborLevel > 0;
+      return route.status === "active" && source?.owner === "player" && destination?.owner === "player" && source.harborLevel > 0 && destination.harborLevel > 0;
     });
     return {
       activeRoutes: active.length,
