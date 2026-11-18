@@ -1377,7 +1377,7 @@ test("shipping routes reject unowned ports, invalid cargo and duplicate lanes", 
   state.resources.materials = 1000;
   state.resources.credits = 1000;
   state.resources.influence = 100;
-  assert.throws(() => Engine.createShippingRoute(state, island.id, "home", "materials"), /both shipping ports/);
+  assert.throws(() => Engine.createShippingRoute(state, island.id, "home", "materials"), /Both shipping ports/);
   Engine.claimTerritory(state, island.id);
   assert.throws(() => Engine.createShippingRoute(state, island.id, "home", "materials"), /Build a harbor/);
   Engine.upgradeHarbor(state, island.id);
