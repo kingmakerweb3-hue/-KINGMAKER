@@ -1119,18 +1119,18 @@
       route.inTransit.remainingTurns = Math.max(0, route.inTransit.remainingTurns - 1);
       if (route.inTransit.remainingTurns > 0) continue;
       const amount = route.inTransit.amount;
-      let delivered = amount;
+      let delivered = amount, waiting = 0;
       if (destination.id === "home") {
         production[route.resource] += amount;
       } else {
         const stored = destination.stockpile[route.resource] || 0;
         delivered = Math.min(amount, STOCKPILE_LIMIT - stored);
         destination.stockpile[route.resource] = stored + delivered;
-        if (delivered < amount) source.stockpile[route.resource] = Math.min(STOCKPILE_LIMIT, source.stockpile[route.resource] + amount - delivered);
+        waiting = amount - delivered;
       }
       route.deliveredTotal += delivered;
-      route.lastDeliveredTurn = state.turn;
-      route.inTransit = null;
+      if (delivered > 0) route.lastDeliveredTurn = state.turn;
+      route.inTransit = waiting > 0 ? { amount: waiting, remainingTurns: 1 } : null;
       deliveredThisTurn.add(route.id);
       if (delivered > 0) addEvent(state, "A convoy delivered " + delivered + " " + route.resource + " from " + source.name + " to " + destination.name + ".", "economy");
     }
