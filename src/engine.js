@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 12;
+  const SAVE_VERSION = 13;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -407,6 +407,9 @@
     if (!Array.isArray(normalized.world.territories)) throw new Error("Territory data is invalid.");
     if (normalized.world.shippingRoutes === undefined) normalized.world.shippingRoutes = [];
     if (!Array.isArray(normalized.world.shippingRoutes)) throw new Error("Shipping route data is invalid.");
+    normalized.world.shippingRoutes.forEach(route => {
+      if (route && route.ownerId === undefined) route.ownerId = "player";
+    });
     for (const territory of normalized.world.territories) {
       if (!territory || typeof territory !== "object") continue;
       if (territory.harborLevel === undefined) territory.harborLevel = territory.id === "home" ? 1 : 0;
@@ -480,6 +483,8 @@
     if (normalized.world.shippingRoutes.length > 50 || normalized.world.shippingRoutes.some(route => {
       if (!route || typeof route.id !== "string" || !route.id || route.id.length > 64 || routeIds.has(route.id) ||
           !territoryIds.has(route.sourceId) || !territoryIds.has(route.destinationId) || route.sourceId === route.destinationId || route.sourceId === "home" ||
+          typeof route.ownerId !== "string" || (route.ownerId !== "player" && !Object.hasOwn(normalized.rivals, route.ownerId)) ||
+          territoryById.get(route.sourceId).owner !== route.ownerId || territoryById.get(route.destinationId).owner !== route.ownerId ||
           !SHIPPING_RESOURCES.includes(route.resource) || !Number.isInteger(route.capacity) || route.capacity < 10 || route.capacity > 30 ||
           !Number.isInteger(route.travelTurns) || route.travelTurns < 1 || route.travelTurns > 5 ||
           !["active", "paused"].includes(route.status) ||
@@ -628,7 +633,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -1079,7 +1084,7 @@
     const travelTurns = clamp(Math.ceil(distance / 18) - (hasTech(state, "logistics") ? 1 : 0), 1, 5);
     const route = {
       id: "shipping-" + state.turn + "-" + (routes.length + 1),
-      sourceId: source.id, destinationId: destination.id, resource,
+      ownerId: "player", sourceId: source.id, destinationId: destination.id, resource,
       capacity: shippingRouteCapacity(source, destination), travelTurns,
       status: "active", inTransit: null, createdTurn: state.turn,
       loadedTotal: 0, deliveredTotal: 0, lastLoadedTurn: null, lastDeliveredTurn: null
@@ -1092,7 +1097,8 @@
     const territories = new Map((state.world?.territories || []).map(item => [item.id, item]));
     const active = (state.world?.shippingRoutes || []).filter(route => {
       const source = territories.get(route.sourceId), destination = territories.get(route.destinationId);
-      return route.status === "active" && source?.owner === "player" && destination?.owner === "player" && source.harborLevel > 0 && destination.harborLevel > 0;
+      return (route.ownerId || "player") === "player" && route.status === "active" &&
+        source?.owner === "player" && destination?.owner === "player" && source.harborLevel > 0 && destination.harborLevel > 0;
     });
     return {
       activeRoutes: active.length,
@@ -1106,11 +1112,26 @@
     const territories = new Map((state.world?.territories || []).map(item => [item.id, item]));
     const available = new Map([...territories].map(([id, territory]) => [id, { ...(territory.stockpile || createStockpile()) }]));
     const active = [], deliveredThisTurn = new Set();
+    let playerActiveRoutes = 0, rivalActiveRoutes = 0;
     for (const route of state.world.shippingRoutes || []) {
+      const ownerId = route.ownerId || "player";
       const source = territories.get(route.sourceId), destination = territories.get(route.destinationId);
-      if (source?.owner !== "player" || destination?.owner !== "player" || source.harborLevel < 1 || destination.harborLevel < 1) {
+      const rival = ownerId === "player" ? null : state.rivals[ownerId];
+      if (!source || !destination || !rival && ownerId !== "player" ||
+          source.owner !== ownerId || destination.owner !== ownerId || source.harborLevel < 1 || destination.harborLevel < 1) {
         route.status = "paused";
         continue;
+      }
+      if (rival) {
+        const upkeep = rival.technologies.includes("logistics") ? 1 : 2;
+        if (rival.resources.credits < upkeep) {
+          route.status = "paused";
+          continue;
+        }
+        rival.resources.credits -= upkeep;
+        rivalActiveRoutes++;
+      } else {
+        playerActiveRoutes++;
       }
       route.status = "active";
       route.capacity = shippingRouteCapacity(source, destination);
@@ -1120,8 +1141,13 @@
       if (route.inTransit.remainingTurns > 0) continue;
       const amount = route.inTransit.amount;
       let delivered = amount, waiting = 0;
-      if (destination.id === "home") {
+      if (ownerId === "player" && destination.id === "home") {
         production[route.resource] += amount;
+      } else if (rival) {
+        const stored = rival.resources[route.resource] || 0;
+        delivered = Math.min(amount, RESOURCE_LIMIT - stored);
+        rival.resources[route.resource] = stored + delivered;
+        waiting = amount - delivered;
       } else {
         const stored = destination.stockpile[route.resource] || 0;
         delivered = Math.min(amount, STOCKPILE_LIMIT - stored);
@@ -1132,7 +1158,10 @@
       if (delivered > 0) route.lastDeliveredTurn = state.turn;
       route.inTransit = waiting > 0 ? { amount: waiting, remainingTurns: 1 } : null;
       deliveredThisTurn.add(route.id);
-      if (delivered > 0) addEvent(state, "A convoy delivered " + delivered + " " + route.resource + " from " + source.name + " to " + destination.name + ".", "economy");
+      if (delivered > 0) {
+        const carrier = rival ? rival.name + "'s convoy" : "A convoy";
+        addEvent(state, carrier + " delivered " + delivered + " " + route.resource + " from " + source.name + " to " + destination.name + ".", "economy");
+      }
     }
     for (const route of active) {
       if (route.inTransit || deliveredThisTurn.has(route.id)) continue;
@@ -1145,7 +1174,113 @@
       route.loadedTotal += amount;
       route.lastLoadedTurn = state.turn;
     }
-    return { production, activeRoutes: active.length, upkeep: active.length * (hasTech(state, "logistics") ? 1 : 2) };
+    return {
+      production, activeRoutes: playerActiveRoutes, rivalActiveRoutes,
+      upkeep: playerActiveRoutes * (hasTech(state, "logistics") ? 1 : 2)
+    };
+  }
+  function processRivalResourceSites(state) {
+    const territories = new Map((state.world?.territories || []).map(territory => [territory.id, territory]));
+    for (const node of state.world?.resourceNodes || []) {
+      if (!node || node.operational !== true || node.depleted === true || node.quantity <= 0) continue;
+      const territory = territories.get(node.territoryId || "home");
+      if (!territory || !Object.hasOwn(state.rivals || {}, territory.owner)) continue;
+      const yields = RESOURCE_SITE_OUTPUT[node.resource];
+      if (!yields) continue;
+      const [resource, rate] = Object.entries(yields)[0];
+      if (!SHIPPING_RESOURCES.includes(resource)) continue;
+      territory.stockpile = territory.stockpile || createStockpile();
+      const stored = territory.stockpile[resource] || 0;
+      const amount = Math.min(rate, node.quantity, STOCKPILE_LIMIT - stored);
+      if (amount <= 0) continue;
+      territory.stockpile[resource] = stored + amount;
+      node.quantity -= amount;
+      if (node.quantity === 0) node.depleted = true;
+    }
+  }
+  function developRivalTerritories(state) {
+    const routes = state.world.shippingRoutes || (state.world.shippingRoutes = []);
+    const summary = { harborsBuilt: 0, extractionSitesOpened: 0, routesOpened: 0 };
+    for (const rival of Object.values(state.rivals || {})) {
+      const owned = (state.world.territories || []).filter(territory => territory.owner === rival.id);
+      if (!owned.length) continue;
+      const unservedPort = owned.find(territory => territory.harborLevel < 1);
+      if (unservedPort && rival.resources.materials >= 40 && rival.resources.credits >= 65) {
+        rival.resources.materials -= 40;
+        rival.resources.credits -= 65;
+        unservedPort.harborLevel = 1;
+        summary.harborsBuilt++;
+        rival.activity = "Built a harbor on " + unservedPort.name;
+        rememberRival(rival, state.turn, "harbor-construction", rival.activity);
+        addEvent(state, rival.name + " established a harbor on " + unservedPort.name + ".", "economy");
+      }
+      const activeSites = (state.world.resourceNodes || []).filter(node =>
+        node.operational && !node.depleted && owned.some(territory => territory.id === node.territoryId)
+      ).length;
+      const siteLimit = Math.min(owned.length, 2);
+      if (activeSites < siteLimit && rival.resources.materials >= 35 && rival.resources.credits >= 55) {
+        const candidate = (state.world.resourceNodes || [])
+          .filter(node => !node.operational && !node.depleted && node.quantity > 0 &&
+            owned.some(territory => territory.id === node.territoryId && territory.harborLevel > 0))
+          .sort((a, b) => b.quantity - a.quantity || a.id.localeCompare(b.id))[0];
+        if (candidate) {
+          rival.resources.materials -= 35;
+          rival.resources.credits -= 55;
+          candidate.operational = true;
+          candidate.operatedSinceTurn = state.turn;
+          summary.extractionSitesOpened++;
+          rival.activity = "Opened a " + candidate.resource.toLowerCase() + " site on " + owned.find(t => t.id === candidate.territoryId).name;
+          rememberRival(rival, state.turn, "resource-extraction", rival.activity);
+          addEvent(state, rival.name + " opened a " + candidate.resource.toLowerCase() + " extraction site.", "economy");
+        }
+      }
+      const ports = owned.filter(territory => territory.harborLevel > 0);
+      const rivalRoutes = routes.filter(route => (route.ownerId || "player") === rival.id);
+      if (ports.length < 2 || rivalRoutes.length >= 3 || routes.length >= 50 ||
+          rival.resources.materials < 20 || rival.resources.credits < 35) continue;
+      const sourceNodes = (state.world.resourceNodes || [])
+        .filter(node => node.operational && !node.depleted && node.quantity > 0 &&
+          ports.some(territory => territory.id === node.territoryId))
+        .sort((a, b) => {
+          const aTerritory = ports.find(item => item.id === a.territoryId);
+          const bTerritory = ports.find(item => item.id === b.territoryId);
+          const aStock = aTerritory?.stockpile?.[Object.keys(RESOURCE_SITE_OUTPUT[a.resource] || {})[0]] || 0;
+          const bStock = bTerritory?.stockpile?.[Object.keys(RESOURCE_SITE_OUTPUT[b.resource] || {})[0]] || 0;
+          return bStock - aStock || b.quantity - a.quantity || a.id.localeCompare(b.id);
+        });
+      let opened = false;
+      for (const node of sourceNodes) {
+        const source = ports.find(territory => territory.id === node.territoryId);
+        const resource = Object.keys(RESOURCE_SITE_OUTPUT[node.resource] || {})[0];
+        if (!source || !SHIPPING_RESOURCES.includes(resource)) continue;
+        const destinations = ports.filter(territory => territory.id !== source.id)
+          .sort((a, b) => Math.hypot(a.x - source.x, a.z - source.z) - Math.hypot(b.x - source.x, b.z - source.z) || a.id.localeCompare(b.id));
+        for (const destination of destinations) {
+          if (routes.some(route => (route.ownerId || "player") === rival.id &&
+              route.sourceId === source.id && route.destinationId === destination.id && route.resource === resource)) continue;
+          const distance = Math.hypot(destination.x - source.x, destination.z - source.z);
+          const travelTurns = clamp(Math.ceil(distance / 18) - (rival.technologies.includes("logistics") ? 1 : 0), 1, 5);
+          rival.resources.materials -= 20;
+          rival.resources.credits -= 35;
+          const route = {
+            id: "rival-" + rival.id + "-" + state.turn + "-" + (routes.length + 1),
+            ownerId: rival.id, sourceId: source.id, destinationId: destination.id, resource,
+            capacity: shippingRouteCapacity(source, destination), travelTurns,
+            status: "active", inTransit: null, createdTurn: state.turn,
+            loadedTotal: 0, deliveredTotal: 0, lastLoadedTurn: null, lastDeliveredTurn: null
+          };
+          routes.push(route);
+          summary.routesOpened++;
+          rival.activity = "Opened a " + resource + " shipping lane from " + source.name + " to " + destination.name;
+          rememberRival(rival, state.turn, "maritime-trade", rival.activity);
+          addEvent(state, rival.name + " opened a " + resource + " shipping lane between its islands.", "economy");
+          opened = true;
+          break;
+        }
+        if (opened) break;
+      }
+    }
+    return summary;
   }
   function territoryClaimCost(state) {
     return {
@@ -1844,6 +1979,7 @@
     output.logistics += roads.logistics;
     for (const [resource, amount] of Object.entries(roads.production)) output[resource] += amount;
     for (const [resource, amount] of Object.entries(resourceSiteEffects(state, true))) output[resource] += amount;
+    processRivalResourceSites(state);
     const shipping = processShippingRoutes(state);
     for (const [resource, amount] of Object.entries(shipping.production)) output[resource] += amount;
     output.logistics += shipping.activeRoutes;
@@ -1915,6 +2051,7 @@
     const royaltiesBeforeRivals = state.creatorEconomy.lastTurnRoyalties;
     developRivals(state, flow);
     expandRivals(state);
+    developRivalTerritories(state);
     const creatorRoyalties = state.creatorEconomy.lastTurnRoyalties - royaltiesBeforeRivals;
     if (creatorRoyalties > 0) {
       state.economy.lastIncome = Math.min(RESOURCE_LIMIT, state.economy.lastIncome + creatorRoyalties);
@@ -2022,7 +2159,7 @@
   return {
     SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, SHIPPING_RESOURCES, STOCKPILE_LIMIT, RENEWABLE_POWER_OUTPUT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, upgradeHarbor, createShippingRoute, shippingRouteCapacity, shippingEffects, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
+    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, createShippingRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
