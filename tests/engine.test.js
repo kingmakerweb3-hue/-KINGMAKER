@@ -1471,3 +1471,122 @@ test("shipping retains undelivered cargo until a remote destination has stockpil
   assert.equal(route.deliveredTotal, 10);
   assert.equal(destination.stockpile.materials, Engine.STOCKPILE_LIMIT);
 });
+
+
+test("rival nations build island harbors and operate finite local extraction sites", () => {
+  const state = Engine.createInitialState({ seed: 73001 });
+  const rival = state.rivals.northreach;
+  const territory = state.world.territories.find(item => item.owner === rival.id);
+  const nodes = state.world.resourceNodes.filter(item => item.territoryId === territory.id);
+  const node = nodes[0];
+  for (const deposit of nodes) {
+    deposit.quantity = 0;
+    deposit.depleted = true;
+    deposit.operational = false;
+    deposit.operatedSinceTurn = null;
+  }
+  node.resource = "Iron";
+  node.quantity = 12;
+  node.depleted = false;
+  rival.resources.materials = 1000;
+  rival.resources.credits = 1000;
+
+  const built = Engine.developRivalTerritories(state);
+  assert.equal(territory.harborLevel, 1);
+  assert.equal(node.operational, true);
+  assert.equal(node.operatedSinceTurn, state.turn);
+  assert.ok(built.harborsBuilt >= 1);
+  assert.ok(built.extractionSitesOpened >= 1);
+
+  territory.stockpile.ore = Engine.STOCKPILE_LIMIT - 1;
+  Engine.processRivalResourceSites(state);
+  assert.equal(territory.stockpile.ore, Engine.STOCKPILE_LIMIT);
+  assert.equal(node.quantity, 11);
+  Engine.processRivalResourceSites(state);
+  assert.equal(node.quantity, 11);
+
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.equal(restored.world.territories.find(item => item.id === territory.id).harborLevel, 1);
+  assert.equal(restored.world.resourceNodes.find(item => item.id === node.id).quantity, 11);
+});
+
+test("autonomous rival shipping delivers cargo to rival reserves and is excluded from player upkeep", () => {
+  const state = Engine.createInitialState({ seed: 73002 });
+  const rival = state.rivals.duneward;
+  const source = state.world.territories.find(item => item.owner === rival.id);
+  const destination = state.world.territories.find(item => item.owner === "unclaimed");
+  destination.owner = rival.id;
+  destination.claimedTurn = state.turn;
+  source.harborLevel = 1;
+  destination.harborLevel = 1;
+  const ownedIds = new Set([source.id, destination.id]);
+  const nodes = state.world.resourceNodes.filter(node => ownedIds.has(node.territoryId));
+  for (const deposit of nodes) {
+    deposit.quantity = 0;
+    deposit.depleted = true;
+    deposit.operational = false;
+    deposit.operatedSinceTurn = null;
+  }
+  const node = nodes.find(item => item.territoryId === source.id);
+  node.resource = "Iron";
+  node.quantity = 80;
+  node.depleted = false;
+  node.operational = true;
+  node.operatedSinceTurn = state.turn;
+  source.stockpile.ore = 20;
+  rival.resources.materials = 1000;
+  rival.resources.credits = 1000;
+  rival.resources.ore = 100;
+
+  const built = Engine.developRivalTerritories(state);
+  const route = state.world.shippingRoutes.find(item => item.ownerId === rival.id);
+  assert.ok(built.routesOpened >= 1);
+  assert.ok(route);
+  assert.equal(route.sourceId, source.id);
+  assert.equal(route.destinationId, destination.id);
+  assert.equal(route.resource, "ore");
+
+  route.inTransit = { amount: 5, remainingTurns: 1 };
+  route.loadedTotal = 5;
+  route.lastLoadedTurn = state.turn;
+  const rivalOreBefore = rival.resources.ore;
+  const shipping = Engine.processShippingRoutes(state);
+  assert.equal(route.status, "active");
+  assert.equal(route.deliveredTotal, 5);
+  assert.equal(route.inTransit, null);
+  assert.equal(rival.resources.ore, rivalOreBefore + 5);
+  assert.equal(shipping.activeRoutes, 0);
+  assert.equal(shipping.rivalActiveRoutes, 1);
+  assert.equal(shipping.upkeep, 0);
+  assert.equal(Engine.shippingEffects(state).activeRoutes, 0);
+  assert.equal(Engine.shippingEffects(state).upkeep, 0);
+
+  const saved = JSON.parse(Engine.exportSave(state));
+  assert.equal(saved.world.shippingRoutes[0].ownerId, rival.id);
+  const invalid = structuredClone(saved);
+  invalid.world.shippingRoutes[0].ownerId = "northreach";
+  assert.throws(() => Engine.validateSave(invalid), /Shipping route data is invalid/);
+
+  route.inTransit = { amount: 3, remainingTurns: 1 };
+  source.owner = "northreach";
+  Engine.processShippingRoutes(state);
+  assert.equal(route.status, "paused");
+  assert.deepEqual(route.inTransit, { amount: 3, remainingTurns: 1 });
+});
+
+test("schema 12 player shipping routes migrate with explicit player ownership", () => {
+  const state = Engine.createInitialState({ seed: 73003 });
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1000;
+  state.resources.credits = 1000;
+  state.resources.influence = 100;
+  Engine.claimTerritory(state, island.id);
+  Engine.upgradeHarbor(state, island.id);
+  Engine.createShippingRoute(state, island.id, "home", "materials");
+  const legacy = JSON.parse(Engine.exportSave(state));
+  legacy.schemaVersion = 12;
+  delete legacy.world.shippingRoutes[0].ownerId;
+  const migrated = Engine.migrateSave(legacy);
+  assert.equal(migrated.schemaVersion, 13);
+  assert.equal(migrated.world.shippingRoutes[0].ownerId, "player");
+});
