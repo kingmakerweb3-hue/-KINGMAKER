@@ -243,7 +243,19 @@
     } else {
       const rival = state.rivals[territory.owner];
       const alliance = state.diplomacy.treaties.some(treaty => treaty.rivalId === territory.owner && treaty.kind === "alliance" && treaty.status === "active");
-      action = '<p class="muted">Controlled by ' + esc(owner) + (rival ? ' · Relations ' + rival.relation + ' · ' + esc(rival.stance) : '') + (alliance ? ' · Active alliance' : '') + '. Territorial transfer is not available yet; use diplomacy to shape this relationship.</p><button type="button" data-action="view-territory-diplomacy" data-id="' + esc(territory.owner) + '">Open diplomacy</button>';
+      const routes = (state.world.shippingRoutes || []).filter(route =>
+        (route.ownerId || "player") === territory.owner && (route.sourceId === territory.id || route.destinationId === territory.id)
+      );
+      const routeList = routes.length ? '<div class="shipping-route-list">' + routes.map(route => {
+        const source = state.world.territories.find(item => item.id === route.sourceId);
+        const destination = state.world.territories.find(item => item.id === route.destinationId);
+        const cargo = route.inTransit ? ' · ' + route.inTransit.amount + ' in transit · ' + route.inTransit.remainingTurns + ' turns remaining' : ' · awaiting cargo';
+        return '<span><b>' + esc(source?.name || route.sourceId) + ' → ' + esc(destination?.name || route.destinationId) + '</b><small>' + esc(route.resource) + ' · capacity ' + route.capacity + ' · ' + esc(route.status) + cargo + ' · delivered ' + num(route.deliveredTotal) + '</small></span>';
+      }).join("") + '</div>' : '<small class="muted">No active rival shipping lanes touch this island.</small>';
+      const activeSites = deposits.filter(node => node.operational && !node.depleted).length;
+      const stockpile = '<div class="shipping-stockpile"><b>Local port stockpile</b>' + E.SHIPPING_RESOURCES.map(resource => '<span>' + esc(resource) + ': ' + num(territory.stockpile?.[resource] || 0) + '</span>').join("") + '</div>';
+      const maritime = '<div class="shipping-panel"><h4>Rival maritime infrastructure</h4><div class="territory-infrastructure"><span>Harbor level ' + territory.harborLevel + '</span><span>' + activeSites + ' operating extraction sites</span><span>' + routes.length + ' connected routes</span></div>' + stockpile + '<div class="shipping-routes"><b>Fleet activity</b>' + routeList + '</div></div>';
+      action = '<p class="muted">Controlled by ' + esc(owner) + (rival ? ' · Relations ' + rival.relation + ' · ' + esc(rival.stance) : '') + (alliance ? ' · Active alliance' : '') + '. Rival infrastructure produces resources locally and sends cargo along autonomous shipping lanes.</p>' + maritime + '<button type="button" data-action="view-territory-diplomacy" data-id="' + esc(territory.owner) + '">Open diplomacy</button>';
     }
     panel.innerHTML = '<div class="world3d-territory-heading"><div><span class="eyebrow">SELECTED ISLAND</span><h3>' + esc(territory.name) + '</h3><p>' + esc(territory.biome) + ' · ' + num(territory.population) + ' residents · Development ' + territory.development + '/100</p></div><span class="tag">' + esc(owner) + '</span></div><p class="territory-deposits"><b>Mapped resources:</b> ' + depositText + '</p>' + action;
   }
