@@ -2,7 +2,7 @@
 
 ## Turn order
 
-Each world turn resolves an unchosen event with its conservative default, applies active world modifiers, expires agreements, collects production and taxes, pays wages, consumes food, simulates rival industries and market decisions, resolves conflicts, refreshes commodity supply and prices, then may introduce one new event. The game stores its random seed, so a save continues the same world sequence. Players can respond to a pending event before advancing; if they leave it unanswered, a safe default response is recorded on the next turn.
+Each world turn resolves an unchosen event with its conservative default, applies active world modifiers, expires agreements, collects national and local production, advances shipping convoys, charges wages and route upkeep, consumes food, simulates rival industries and market decisions, resolves conflicts, refreshes commodity supply and prices, then may introduce one new event. The game stores its random seed, so a save continues the same world sequence. Players can respond to a pending event before advancing; if they leave it unanswered, a safe default response is recorded on the next turn.
 
 ## National economy
 
@@ -25,6 +25,18 @@ Mines, workshops, factories, and power grids form an input chain: mines extract 
 National income includes market building output, citizen taxes, and trade-agreement income. Wages scale with employed industrial jobs. The last turn's income, wage costs, balance, production, and consumption appear in the World and Economy panels. Two consecutive negative-balance turns cause a recession, which reduces stability and stops population growth. Positive cash flow after a recession starts a three-turn recovery period.
 
 Six rivals use the same production chains and shared commodity market: Aurelia, Northreach, Meridian, Solenne, Ironmarch, and Duneward. Each has a distinct economic, political, and military priority, risk tolerance, and long-term objective. Rivals consume food and factory inputs, trade against finite shared stock, and maintain a three-turn investment or research plan. They compare food, energy, ore, materials, technology, and faction priorities before choosing what to develop. Their reports show the current action, plan, objective, employed workforce, treasury, and recent interaction history. Player investment, trade, research, aid, agreements, and conflict are remembered; recent aggression can block an alliance. Diplomatic rivals may form strategic alliances when relations are high and their current priorities permit it.
+
+## Archipelago, harbors and shipping
+
+The home island begins with a level-1 national receiving harbor. A player must claim an outer island before building its harbor. Harbor level 1 costs 40 materials and 65 credits; upgrades to level 2 cost 50 materials and 85 credits, and level 3 costs 60 materials and 105 credits. The national receiving harbor is fixed at level 1.
+
+Remote resource extraction is stored locally instead of appearing immediately in the national treasury. Each island holds up to 500 units of each shippable resource. Home-island extraction continues to feed national production directly. The shipping resource list is food, materials, ore, power and science.
+
+Open a one-way route from a claimed outer island to another player-controlled island with an operational harbor. A route costs 20 materials and 35 credits. It loads up to 10 units per convoy at level-1 ports; each additional harbor level above 1 at either endpoint adds 5 capacity, up to 30. Travel time is based on island distance (one to five turns); Integrated Logistics reduces the journey by one turn, to a minimum of one. Each active route adds one logistics and costs 2 credits per turn; Integrated Logistics reduces route upkeep to 1 credit.
+
+Convoys load from the source stockpile, then deliver after the travel timer. Delivery to the home port enters national reserves; delivery to another outer island enters that island's stockpile and can be forwarded on a separate route. If either port is no longer player-controlled or loses its harbor, the route pauses and cargo remains in transit. Route state, cargo, stockpiles and harbor levels persist in schema-13 saves.
+
+Rival nations also develop their own maritime infrastructure. They build level-1 harbors on controlled islands, open finite resource extraction sites, store output in local island stockpiles, and establish up to three autonomous shipping lanes between their own ports. Rival convoys deliver cargo into that rival's national reserves, pay upkeep from the rival treasury (reduced by its Logistics research), and pause without losing cargo when a port changes ownership or the rival cannot afford upkeep. Rival routes are rendered in the 3D world using their nation's route color and appear in the selected island's maritime intelligence panel. Rival shipping never charges the player's treasury or contributes to the player's logistics ledger.
 
 ## Living world events
 

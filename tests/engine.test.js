@@ -874,7 +874,7 @@ test("district zoning is persisted, bounded, and rejects malformed district reco
   const state = Engine.createInitialState({ seed: 101 });
   state.world.placedDistricts.push({ type: "residential", x: 2.5, z: -3, radius: 2.6 });
   const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
-  assert.deepEqual(restored.world.placedDistricts, state.world.placedDistricts);
+  assert.deepEqual(restored.world.placedDistricts, state.world.placedDistricts.map(district => ({ ...district, territoryId: "home" })));
   restored.world.placedDistricts[0].type = "volcano";
   assert.throws(() => Engine.validateSave(restored), /District placement data is invalid/);
   restored.world.placedDistricts[0] = { type: "industrial", x: 12, z: 0, radius: 2.6 };
@@ -1002,14 +1002,16 @@ test("new worlds generate stable finite resource deposits across seeded campaign
   const first = Engine.createInitialState({ seed: 42001 });
   const repeat = Engine.createInitialState({ seed: 42001 });
   const alternate = Engine.createInitialState({ seed: 42002 });
-  assert.equal(first.world.resourceNodes.length, 8);
+  assert.equal(first.world.resourceNodes.length, 16);
   assert.deepEqual(first.world.resourceNodes, repeat.world.resourceNodes);
   assert.notDeepEqual(first.world.resourceNodes, alternate.world.resourceNodes);
-  assert.equal(new Set(first.world.resourceNodes.map(node => node.id)).size, 8);
+  assert.equal(new Set(first.world.resourceNodes.map(node => node.id)).size, 16);
   for (const node of first.world.resourceNodes) {
     assert.ok(Engine.RESOURCE_SITE_TYPES.includes(node.resource));
-    assert.ok(node.quantity >= 80 && node.quantity <= 200);
-    assert.ok(Math.hypot(node.x, node.z) >= 4.5 && Math.hypot(node.x, node.z) <= 11.7);
+    assert.ok(node.quantity >= 80 && node.quantity <= 250);
+    const territory = first.world.territories.find(item => item.id === node.territoryId);
+    assert.ok(territory);
+    assert.ok(Math.hypot(node.x - territory.x, node.z - territory.z) <= territory.radius);
     assert.equal(node.operational, false);
     assert.equal(node.depleted, false);
   }
@@ -1050,13 +1052,13 @@ test("rare-crystal extraction contributes science and finite deposits deplete", 
   assert.equal(Engine.resourceSiteEffects(state).science, 0);
 });
 
-test("schema 8 saves migrate to version 9 with deterministic island deposits", () => {
+test("schema 8 saves migrate to version 13 with deterministic archipelago deposits", () => {
   const state = Engine.createInitialState({ seed: 42005 });
   state.schemaVersion = 8;
   delete state.world.resourceNodes;
   const migrated = Engine.migrateSave(state);
-  assert.equal(migrated.schemaVersion, 9);
-  assert.deepEqual(migrated.world.resourceNodes, Engine.createResourceDeposits(state.seed));
+  assert.equal(migrated.schemaVersion, 13);
+  assert.deepEqual(migrated.world.resourceNodes, Engine.createResourceDeposits(state.seed, state.world.territories));
   const roundTrip = Engine.migrateSave(JSON.parse(Engine.exportSave(migrated)));
   assert.deepEqual(roundTrip.world.resourceNodes, migrated.world.resourceNodes);
 });
@@ -1085,4 +1087,506 @@ test("depleted operational extraction sites remain valid in saves and produce no
   const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
   assert.equal(saved.world.resourceNodes.find(item => item.id === node.id).depleted, true);
   assert.doesNotThrow(() => Engine.validateSave(saved));
+});
+
+
+test("seeded archipelagos contain a home island, six rival holdings and two neutral islands", () => {
+  const first = Engine.createInitialState({ seed: 52001 });
+  const repeat = Engine.createInitialState({ seed: 52001 });
+  const alternate = Engine.createInitialState({ seed: 52002 });
+  assert.equal(first.world.territories.length, 9);
+  assert.deepEqual(first.world.territories, repeat.world.territories);
+  assert.notDeepEqual(first.world.territories, alternate.world.territories);
+  assert.equal(first.world.territories.find(item => item.id === "home").owner, "player");
+  assert.equal(first.world.territories.filter(item => item.owner === "unclaimed").length, 2);
+  assert.equal(first.world.territories.filter(item => Object.hasOwn(first.rivals, item.owner)).length, 6);
+  assert.equal(new Set(first.world.territories.map(item => item.id)).size, 9);
+});
+
+test("claiming a neutral island charges resources and adds recurring regional income", () => {
+  const state = Engine.createInitialState({ seed: 52003 });
+  const territory = state.world.territories.find(item => item.owner === "unclaimed");
+  const cost = Engine.territoryClaimCost(state);
+  const before = { ...state.resources };
+  const beforeDevelopment = territory.development;
+  const baselineCredits = Engine.economicSnapshot(state).production.credits;
+  const claimed = Engine.claimTerritory(state, territory.id);
+  assert.equal(claimed.owner, "player");
+  assert.equal(claimed.claimedTurn, state.turn);
+  assert.equal(claimed.development, Math.min(100, beforeDevelopment + 5));
+  assert.equal(state.resources.materials, before.materials - cost.materials);
+  assert.equal(state.resources.credits, before.credits - cost.credits);
+  assert.equal(state.resources.influence, before.influence - cost.influence);
+  assert.equal(Engine.territoryEffects(state).controlled, 1);
+  assert.equal(Engine.economicSnapshot(state).production.credits, baselineCredits + 3);
+  assert.equal(Engine.economicSnapshot(state).territoryInfluence, 1);
+  assert.throws(() => Engine.claimTerritory(state, territory.id), /already controlled/);
+});
+
+test("Logistics and Commerce research reduce territorial claim costs", () => {
+  const state = Engine.createInitialState({ seed: 52004 });
+  assert.deepEqual(Engine.territoryClaimCost(state), { materials: 60, credits: 100, influence: 12 });
+  state.technologies.push("logistics", "commerce");
+  assert.deepEqual(Engine.territoryClaimCost(state), { materials: 50, credits: 85, influence: 12 });
+});
+
+test("Duneward expands into a neutral island unless an active alliance protects the relationship", () => {
+  const state = Engine.createInitialState({ seed: 52005 });
+  const rival = state.rivals.duneward;
+  const targetBefore = state.world.territories.filter(item => item.owner === "unclaimed");
+  rival.resources.materials = 100;
+  rival.resources.credits = 150;
+  rival.resources.influence = 15;
+  const claimed = Engine.expandRivals(state);
+  assert.ok(claimed);
+  assert.equal(claimed.owner, "duneward");
+  assert.equal(state.world.territories.filter(item => item.owner === "unclaimed").length, targetBefore.length - 1);
+  assert.match(rival.activity, /Expanded into/);
+
+  const protectedState = Engine.createInitialState({ seed: 52006 });
+  protectedState.rivals.duneward.relation = 80;
+  protectedState.diplomacy.treaties.push({ id: "duneward:alliance", rivalId: "duneward", kind: "alliance", status: "active", startedTurn: 1, duration: 12 });
+  assert.equal(Engine.expandRivals(protectedState), null);
+  assert.equal(protectedState.world.territories.filter(item => item.owner === "unclaimed").length, 2);
+});
+
+test("version 9 saves migrate to schema 13 without losing existing extraction progress", () => {
+  const legacy = Engine.createInitialState({ seed: 52007 });
+  legacy.schemaVersion = 9;
+  delete legacy.world.territories;
+  legacy.world.resourceNodes = legacy.world.resourceNodes.filter(node => node.territoryId === "home").map(node => {
+    const copy = { ...node };
+    delete copy.territoryId;
+    return copy;
+  });
+  legacy.world.resourceNodes[0].operational = true;
+  legacy.world.resourceNodes[0].operatedSinceTurn = 1;
+  const migrated = Engine.migrateSave(legacy);
+  assert.equal(migrated.schemaVersion, 13);
+  assert.equal(migrated.world.territories.length, 9);
+  assert.equal(migrated.world.resourceNodes.length, 16);
+  assert.equal(migrated.world.resourceNodes[0].operational, true);
+  assert.equal(migrated.world.resourceNodes[0].territoryId, "home");
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(migrated)));
+  assert.deepEqual(restored.world.territories, migrated.world.territories);
+  assert.deepEqual(restored.world.resourceNodes, migrated.world.resourceNodes);
+});
+
+test("territory save validation rejects unknown owners and invalid coordinates", () => {
+  const state = Engine.createInitialState({ seed: 52008 });
+  const invalidOwner = JSON.parse(JSON.stringify(state));
+  invalidOwner.world.territories[1].owner = "unknown-empire";
+  assert.throws(() => Engine.validateSave(invalidOwner), /Territory data is invalid/);
+  invalidOwner.world.territories[1].owner = "__proto__";
+  assert.throws(() => Engine.validateSave(invalidOwner), /Territory data is invalid/);
+  const invalidDeposit = JSON.parse(JSON.stringify(state));
+  invalidDeposit.world.resourceNodes[8].x = 90;
+  assert.throws(() => Engine.validateSave(invalidDeposit), /Resource deposit data is invalid/);
+});
+
+
+test("resource extraction on a remote island requires player territorial control", () => {
+  const state = Engine.createInitialState({ seed: 52009 });
+  const territory = state.world.territories.find(item => item.owner === "unclaimed");
+  const deposit = state.world.resourceNodes.find(node => node.territoryId === territory.id);
+  assert.ok(deposit);
+  assert.throws(() => Engine.developResourceSite(state, deposit.id), /must control this island/);
+  Engine.claimTerritory(state, territory.id);
+  Engine.developResourceSite(state, deposit.id);
+  assert.equal(deposit.operational, true);
+  assert.equal(deposit.territoryId, territory.id);
+});
+
+
+test("the normal world turn runs rival territorial expansion", () => {
+  const state = Engine.createInitialState({ seed: 52010 });
+  Engine.advanceTurn(state);
+  assert.ok(state.world.territories.some(territory => territory.owner === "duneward" && territory.id !== "isle-duneward"));
+  assert.ok(state.events.some(event => event.text.includes("Duneward expanded into")));
+});
+
+
+test("claimed outer islands support saved buildings, districts, roads and local production", () => {
+  const state = Engine.createInitialState({ seed: 62001 });
+  const territory = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1200;
+  state.resources.credits = 1800;
+  state.resources.influence = 120;
+  Engine.claimTerritory(state, territory.id);
+
+  const beforeFarm = state.buildings.farm;
+  const building = Engine.placeWorldBuilding(state, "farm", {
+    territoryId: territory.id, x: territory.x, z: territory.z
+  });
+  assert.equal(building.territoryId, territory.id);
+  assert.equal(state.buildings.farm, beforeFarm + 1);
+
+  const foodBefore = Engine.districtEffects(state).production.food;
+  const agriculture = Engine.placeWorldDistrict(state, "agricultural", {
+    territoryId: territory.id, x: territory.x, z: territory.z, radius: 2.6
+  });
+  assert.equal(agriculture.territoryId, territory.id);
+  assert.equal(Engine.districtEffects(state).production.food, foodBefore + 3);
+
+  const residential = Engine.placeWorldDistrict(state, "residential", {
+    territoryId: territory.id, x: territory.x + 0.25, z: territory.z, radius: 2.6
+  });
+  const populationBefore = territory.population;
+  const road = Engine.placeWorldRoad(state,
+    { x: territory.x - 1.8, z: territory.z },
+    { x: territory.x + 1.8, z: territory.z },
+    territory.id
+  );
+  assert.equal(road.territoryId, territory.id);
+  assert.equal(Engine.roadEffects(state).logistics, 2);
+  assert.equal(Engine.roadEffects(state).production.credits, 4);
+  assert.equal(Engine.districtEffects(state).regionalGrowth[territory.id], 1);
+  assert.equal(residential.territoryId, territory.id);
+
+  Engine.advanceTurn(state);
+  assert.equal(territory.population, populationBefore + 1);
+  const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(saved.world.placedBuildings, state.world.placedBuildings);
+  assert.deepEqual(saved.world.placedDistricts, state.world.placedDistricts);
+  assert.deepEqual(saved.world.placedRoads, state.world.placedRoads);
+});
+
+test("outer-island construction rejects unowned land and positions outside its coast", () => {
+  const state = Engine.createInitialState({ seed: 62002 });
+  const neutral = state.world.territories.find(item => item.owner === "unclaimed");
+  assert.throws(() => Engine.placeWorldBuilding(state, "farm", {
+    territoryId: neutral.id, x: neutral.x, z: neutral.z
+  }), /must control this island/);
+
+  state.resources.materials = 1000;
+  state.resources.credits = 1000;
+  state.resources.influence = 100;
+  Engine.claimTerritory(state, neutral.id);
+  assert.throws(() => Engine.placeWorldBuilding(state, "farm", {
+    territoryId: neutral.id, x: neutral.x + neutral.radius, z: neutral.z
+  }), /outside your buildable territory/);
+  assert.throws(() => Engine.placeWorldRoad(state,
+    { x: neutral.x - 1, z: neutral.z },
+    { x: neutral.x + 1, z: neutral.z },
+    "home"
+  ), /outside your buildable territory/);
+  assert.throws(() => Engine.placeWorldDistrict(state, "residential", {
+    territoryId: neutral.id, x: neutral.x + 3, z: neutral.z, radius: 2.6
+  }), /shore/);
+});
+
+test("version 10 home placements migrate into schema 13 without changing their location", () => {
+  const legacy = Engine.createInitialState({ seed: 62003 });
+  legacy.schemaVersion = 10;
+  legacy.world.placedBuildings.push({ type: "farm", x: 3, z: 4 });
+  legacy.world.placedRoads.push({ from: { x: -2, z: 0 }, to: { x: 2, z: 0 } });
+  legacy.world.placedDistricts.push({ type: "residential", x: 1, z: 1, radius: 2.6 });
+  const migrated = Engine.migrateSave(legacy);
+  assert.equal(migrated.schemaVersion, 13);
+  assert.equal(migrated.world.placedBuildings[0].territoryId, "home");
+  assert.equal(migrated.world.placedRoads[0].territoryId, "home");
+  assert.equal(migrated.world.placedDistricts[0].territoryId, "home");
+  assert.deepEqual(Engine.migrateSave(JSON.parse(Engine.exportSave(migrated))).world.placedBuildings, migrated.world.placedBuildings);
+});
+
+
+test("version 11 saves migrate with default harbor levels, local stockpiles and no shipping routes", () => {
+  const legacy = Engine.createInitialState({ seed: 72001 });
+  legacy.schemaVersion = 11;
+  delete legacy.world.shippingRoutes;
+  for (const territory of legacy.world.territories) {
+    delete territory.harborLevel;
+    delete territory.stockpile;
+  }
+  const migrated = Engine.migrateSave(legacy);
+  assert.equal(migrated.schemaVersion, 13);
+  assert.equal(migrated.world.shippingRoutes.length, 0);
+  assert.equal(migrated.world.territories.find(item => item.id === "home").harborLevel, 1);
+  assert.ok(migrated.world.territories.filter(item => item.id !== "home").every(item => item.harborLevel === 0));
+  for (const territory of migrated.world.territories) {
+    assert.deepEqual(Object.keys(territory.stockpile).sort(), Engine.SHIPPING_RESOURCES.slice().sort());
+    assert.ok(Object.values(territory.stockpile).every(amount => amount === 0));
+  }
+  assert.deepEqual(Engine.migrateSave(JSON.parse(Engine.exportSave(migrated))).world.territories, migrated.world.territories);
+});
+
+test("harbor upgrades increase route capacity and require a controlled island", () => {
+  const state = Engine.createInitialState({ seed: 72002 });
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  assert.throws(() => Engine.upgradeHarbor(state, island.id), /must control this island/);
+  state.resources.materials = 1000;
+  state.resources.credits = 1000;
+  state.resources.influence = 100;
+  Engine.claimTerritory(state, island.id);
+  const beforeMaterials = state.resources.materials;
+  const beforeCredits = state.resources.credits;
+  const harbor = Engine.upgradeHarbor(state, island.id);
+  assert.equal(harbor.harborLevel, 1);
+  assert.equal(state.resources.materials, beforeMaterials - 40);
+  assert.equal(state.resources.credits, beforeCredits - 65);
+  const route = Engine.createShippingRoute(state, island.id, "home", "materials");
+  assert.equal(route.capacity, 10);
+  assert.equal(route.travelTurns, Math.max(1, Math.min(5, Math.ceil(Math.hypot(island.x, island.z) / 18))));
+  Engine.upgradeHarbor(state, island.id);
+  assert.equal(harbor.harborLevel, 2);
+  assert.equal(route.capacity, 15);
+  Engine.upgradeHarbor(state, island.id);
+  assert.equal(harbor.harborLevel, 3);
+  assert.equal(route.capacity, 20);
+  assert.throws(() => Engine.upgradeHarbor(state, island.id), /maximum level/);
+});
+
+test("remote extraction is stored locally and shipping convoys deliver cargo to the national economy", () => {
+  const state = Engine.createInitialState({ seed: 72003 });
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1500;
+  state.resources.credits = 1500;
+  state.resources.influence = 100;
+  Engine.claimTerritory(state, island.id);
+  Engine.upgradeHarbor(state, island.id);
+  const node = state.world.resourceNodes.find(item => item.territoryId === island.id);
+  node.resource = "Timber";
+  node.quantity = 100;
+  Engine.developResourceSite(state, node.id);
+  const route = Engine.createShippingRoute(state, island.id, "home", "materials");
+  const nationalBefore = state.resources.materials;
+
+  Engine.advanceTurn(state);
+  assert.equal(island.stockpile.materials, 0);
+  assert.equal(route.inTransit.amount, 3);
+  assert.equal(route.loadedTotal, 3);
+  assert.equal(route.status, "active");
+  const snapshot = Engine.economicSnapshot(state);
+  assert.equal(snapshot.shipping.activeRoutes, 1);
+  assert.equal(snapshot.shipping.upkeep, 2);
+  assert.equal(snapshot.shipping.cargoInTransit, 3);
+
+  for (let i = 0; i < route.travelTurns; i++) Engine.advanceTurn(state);
+  assert.equal(route.deliveredTotal, 3);
+  assert.ok(route.lastDeliveredTurn > route.createdTurn);
+  assert.ok(state.resources.materials > nationalBefore);
+  assert.equal(route.inTransit, null);
+  const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(saved.world.shippingRoutes, state.world.shippingRoutes);
+  assert.deepEqual(saved.world.territories.find(item => item.id === island.id).stockpile, island.stockpile);
+});
+
+test("shipping routes reject unowned ports, invalid cargo and duplicate lanes", () => {
+  const state = Engine.createInitialState({ seed: 72004 });
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1000;
+  state.resources.credits = 1000;
+  state.resources.influence = 100;
+  assert.throws(() => Engine.createShippingRoute(state, island.id, "home", "materials"), /Both shipping ports/);
+  Engine.claimTerritory(state, island.id);
+  assert.throws(() => Engine.createShippingRoute(state, island.id, "home", "materials"), /Build a harbor/);
+  Engine.upgradeHarbor(state, island.id);
+  const route = Engine.createShippingRoute(state, island.id, "home", "materials");
+  assert.throws(() => Engine.createShippingRoute(state, island.id, "home", "materials"), /already exists/);
+  assert.throws(() => Engine.createShippingRoute(state, island.id, "home", "credits"), /cannot be shipped/);
+  const invalid = JSON.parse(Engine.exportSave(state));
+  invalid.world.shippingRoutes[0].inTransit = { amount: 11, remainingTurns: 1 };
+  assert.throws(() => Engine.validateSave(invalid), /Shipping route data is invalid/);
+  assert.equal(route.status, "active");
+});
+
+test("shipping pauses without losing cargo when a port leaves player control", () => {
+  const state = Engine.createInitialState({ seed: 72005 });
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1000;
+  state.resources.credits = 1000;
+  state.resources.influence = 100;
+  Engine.claimTerritory(state, island.id);
+  Engine.upgradeHarbor(state, island.id);
+  const route = Engine.createShippingRoute(state, island.id, "home", "food");
+  route.inTransit = { amount: 5, remainingTurns: 2 };
+  island.owner = "duneward";
+  Engine.advanceTurn(state);
+  assert.equal(route.status, "paused");
+  assert.deepEqual(route.inTransit, { amount: 5, remainingTurns: 2 });
+  assert.equal(Engine.economicSnapshot(state).shipping.activeRoutes, 0);
+});
+
+
+test("Integrated Logistics shortens existing shipping voyages and halves route upkeep", () => {
+  const state = Engine.createInitialState({ seed: 72007 });
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1000;
+  state.resources.credits = 1000;
+  state.resources.influence = 100;
+  state.resources.science = 100;
+  Engine.claimTerritory(state, island.id);
+  Engine.upgradeHarbor(state, island.id);
+  const route = Engine.createShippingRoute(state, island.id, "home", "ore");
+  const beforeTravel = route.travelTurns;
+  route.inTransit = { amount: 4, remainingTurns: beforeTravel };
+  state.technologies.push("commerce");
+  Engine.research(state, "logistics");
+  assert.equal(route.travelTurns, Math.max(1, beforeTravel - 1));
+  assert.equal(route.inTransit.remainingTurns, Math.max(1, beforeTravel - 1));
+  assert.equal(Engine.shippingEffects(state).upkeep, 1);
+});
+
+test("a full remote stockpile pauses extraction without consuming the finite deposit", () => {
+  const state = Engine.createInitialState({ seed: 72008 });
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1000;
+  state.resources.credits = 1000;
+  state.resources.influence = 100;
+  Engine.claimTerritory(state, island.id);
+  const node = state.world.resourceNodes.find(item => item.territoryId === island.id);
+  node.resource = "Timber";
+  node.quantity = 40;
+  node.operational = true;
+  node.operatedSinceTurn = state.turn;
+  island.stockpile.materials = Engine.STOCKPILE_LIMIT;
+  Engine.advanceTurn(state);
+  assert.equal(node.quantity, 40);
+  assert.equal(island.stockpile.materials, Engine.STOCKPILE_LIMIT);
+});
+
+
+test("shipping retains undelivered cargo until a remote destination has stockpile room", () => {
+  const state = Engine.createInitialState({ seed: 72009 });
+  const islands = state.world.territories.filter(item => item.owner === "unclaimed");
+  state.resources.materials = 2000;
+  state.resources.credits = 2000;
+  state.resources.influence = 100;
+  for (const island of islands) {
+    Engine.claimTerritory(state, island.id);
+    Engine.upgradeHarbor(state, island.id);
+  }
+  const [source, destination] = islands;
+  const route = Engine.createShippingRoute(state, source.id, destination.id, "materials");
+  source.stockpile.materials = 10;
+  destination.stockpile.materials = Engine.STOCKPILE_LIMIT;
+  route.inTransit = { amount: 10, remainingTurns: 1 };
+
+  Engine.advanceTurn(state);
+  assert.deepEqual(route.inTransit, { amount: 10, remainingTurns: 1 });
+  assert.equal(route.deliveredTotal, 0);
+  destination.stockpile.materials -= 10;
+  Engine.advanceTurn(state);
+  assert.equal(route.inTransit, null);
+  assert.equal(route.deliveredTotal, 10);
+  assert.equal(destination.stockpile.materials, Engine.STOCKPILE_LIMIT);
+});
+
+
+test("rival nations build island harbors and operate finite local extraction sites", () => {
+  const state = Engine.createInitialState({ seed: 73001 });
+  const rival = state.rivals.northreach;
+  const territory = state.world.territories.find(item => item.owner === rival.id);
+  const nodes = state.world.resourceNodes.filter(item => item.territoryId === territory.id);
+  const node = nodes[0];
+  for (const deposit of nodes) {
+    deposit.quantity = 0;
+    deposit.depleted = true;
+    deposit.operational = false;
+    deposit.operatedSinceTurn = null;
+  }
+  node.resource = "Iron";
+  node.quantity = 12;
+  node.depleted = false;
+  rival.resources.materials = 1000;
+  rival.resources.credits = 1000;
+
+  const built = Engine.developRivalTerritories(state);
+  assert.equal(territory.harborLevel, 1);
+  assert.equal(node.operational, true);
+  assert.equal(node.operatedSinceTurn, state.turn);
+  assert.ok(built.harborsBuilt >= 1);
+  assert.ok(built.extractionSitesOpened >= 1);
+
+  territory.stockpile.ore = Engine.STOCKPILE_LIMIT - 1;
+  Engine.processRivalResourceSites(state);
+  assert.equal(territory.stockpile.ore, Engine.STOCKPILE_LIMIT);
+  assert.equal(node.quantity, 11);
+  Engine.processRivalResourceSites(state);
+  assert.equal(node.quantity, 11);
+
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.equal(restored.world.territories.find(item => item.id === territory.id).harborLevel, 1);
+  assert.equal(restored.world.resourceNodes.find(item => item.id === node.id).quantity, 11);
+});
+
+test("autonomous rival shipping delivers cargo to rival reserves and is excluded from player upkeep", () => {
+  const state = Engine.createInitialState({ seed: 73002 });
+  const rival = state.rivals.duneward;
+  const source = state.world.territories.find(item => item.owner === rival.id);
+  const destination = state.world.territories.find(item => item.owner === "unclaimed");
+  destination.owner = rival.id;
+  destination.claimedTurn = state.turn;
+  source.harborLevel = 1;
+  destination.harborLevel = 1;
+  const ownedIds = new Set([source.id, destination.id]);
+  const nodes = state.world.resourceNodes.filter(node => ownedIds.has(node.territoryId));
+  for (const deposit of nodes) {
+    deposit.quantity = 0;
+    deposit.depleted = true;
+    deposit.operational = false;
+    deposit.operatedSinceTurn = null;
+  }
+  const node = nodes.find(item => item.territoryId === source.id);
+  node.resource = "Iron";
+  node.quantity = 80;
+  node.depleted = false;
+  node.operational = true;
+  node.operatedSinceTurn = state.turn;
+  source.stockpile.ore = 20;
+  rival.resources.materials = 1000;
+  rival.resources.credits = 1000;
+  rival.resources.ore = 100;
+
+  const built = Engine.developRivalTerritories(state);
+  const route = state.world.shippingRoutes.find(item => item.ownerId === rival.id);
+  assert.ok(built.routesOpened >= 1);
+  assert.ok(route);
+  assert.equal(route.sourceId, source.id);
+  assert.equal(route.destinationId, destination.id);
+  assert.equal(route.resource, "ore");
+
+  route.inTransit = { amount: 5, remainingTurns: 1 };
+  route.loadedTotal = 5;
+  route.lastLoadedTurn = state.turn;
+  const rivalOreBefore = rival.resources.ore;
+  const shipping = Engine.processShippingRoutes(state);
+  assert.equal(route.status, "active");
+  assert.equal(route.deliveredTotal, 5);
+  assert.equal(route.inTransit, null);
+  assert.equal(rival.resources.ore, rivalOreBefore + 5);
+  assert.equal(shipping.activeRoutes, 0);
+  assert.equal(shipping.rivalActiveRoutes, 1);
+  assert.equal(shipping.upkeep, 0);
+  assert.equal(Engine.shippingEffects(state).activeRoutes, 0);
+  assert.equal(Engine.shippingEffects(state).upkeep, 0);
+
+  const saved = JSON.parse(Engine.exportSave(state));
+  assert.equal(saved.world.shippingRoutes[0].ownerId, rival.id);
+  const invalid = structuredClone(saved);
+  invalid.world.shippingRoutes[0].ownerId = "northreach";
+  assert.throws(() => Engine.validateSave(invalid), /Shipping route data is invalid/);
+
+  route.inTransit = { amount: 3, remainingTurns: 1 };
+  source.owner = "northreach";
+  Engine.processShippingRoutes(state);
+  assert.equal(route.status, "paused");
+  assert.deepEqual(route.inTransit, { amount: 3, remainingTurns: 1 });
+});
+
+test("schema 12 player shipping routes migrate with explicit player ownership", () => {
+  const state = Engine.createInitialState({ seed: 73003 });
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1000;
+  state.resources.credits = 1000;
+  state.resources.influence = 100;
+  Engine.claimTerritory(state, island.id);
+  Engine.upgradeHarbor(state, island.id);
+  Engine.createShippingRoute(state, island.id, "home", "materials");
+  const legacy = JSON.parse(Engine.exportSave(state));
+  legacy.schemaVersion = 12;
+  delete legacy.world.shippingRoutes[0].ownerId;
+  const migrated = Engine.migrateSave(legacy);
+  assert.equal(migrated.schemaVersion, 13);
+  assert.equal(migrated.world.shippingRoutes[0].ownerId, "player");
 });

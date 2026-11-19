@@ -2,7 +2,7 @@
   "use strict";
   const E = window.KingmakerEngine, KEY = "kingmaker_save_v1", BACKUP = "kingmaker_save_recovery", OLD = "kingmaker_save";
   const $ = id => document.getElementById(id);
-  let state, soundOn = false, activeTab = "overview", selectedResourceId = null;
+  let state, soundOn = false, activeTab = "overview", selectedResourceId = null, selectedTerritoryId = null;
   const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const num = v => Math.floor(Number(v) || 0).toLocaleString();
   function toast(message, kind="info") {
@@ -193,8 +193,74 @@
       cost + '<button type="button" data-action="develop-resource" data-id="' + esc(node.id) + '" ' + (affordable ? "" : "disabled") + '>Establish extraction site</button>' + (missing.length ? '<small class="muted">Requires ' + esc(missing.join(" and ")) + '.</small>' : '<small class="muted">Ready to develop. Production starts on the next world turn.</small>');
     panel.innerHTML = '<div class="world3d-resource-heading"><div><span class="eyebrow">SELECTED DEPOSIT</span><h3>' + esc(node.resource) + '</h3><p>' + num(node.quantity) + ' units remaining · ' + esc(rate) + '</p></div><span class="tag">' + status + '</span></div>' + action;
   }
+  function renderTerritoryInspector() {
+    const panel = $("world3d-territory-inspector");
+    if (!panel || !state) return;
+    const territory = (state.world?.territories || []).find(item => item.id === selectedTerritoryId);
+    if (!territory) {
+      panel.innerHTML = '<p class="muted">Select an outer island in the 3D archipelago to inspect its nation, population, resources and territorial status.</p>';
+      return;
+    }
+    const owner = territory.owner === "player" ? state.nation.name :
+      territory.owner === "unclaimed" ? "Unclaimed" : (state.rivals[territory.owner]?.name || "Unknown nation");
+    const deposits = (state.world?.resourceNodes || []).filter(node => node.territoryId === territory.id);
+    const depositText = deposits.length ? deposits.map(node => esc(node.resource) + " · " + num(node.quantity) + " units" + (node.depleted ? " · depleted" : node.operational ? " · extracting" : " · undeveloped")).join(" / ") : "No mapped deposits";
+    let action = "";
+    if (territory.owner === "unclaimed") {
+      const cost = E.territoryClaimCost(state);
+      const missing = [];
+      if (state.status !== "playing") missing.push("an active campaign");
+      if (state.resources.materials < cost.materials) missing.push((cost.materials - state.resources.materials) + " materials");
+      if (state.resources.credits < cost.credits) missing.push((cost.credits - state.resources.credits) + " credits");
+      if (state.resources.influence < cost.influence) missing.push((cost.influence - state.resources.influence) + " influence");
+      action = '<div class="territory-claim-cost"><span>Territorial claim cost</span><b>' + cost.materials + ' materials · ' + cost.credits + ' credits · ' + cost.influence + ' influence</b><small>Your reserves: ' + num(state.resources.materials) + ' materials · ' + num(state.resources.credits) + ' credits · ' + num(state.resources.influence) + ' influence</small></div><button type="button" data-action="claim-territory" data-id="' + esc(territory.id) + '" ' + (missing.length ? "disabled" : "") + '>Claim this island</button>' + (missing.length ? '<small class="muted">Requires ' + esc(missing.join(", ")) + ' more.</small>' : '<small class="muted">Claiming adds 3 credits and 1 influence per turn. Logistics and Commerce research reduce the claim cost.</small>');
+    } else if (territory.owner === "player") {
+      const buildings = (state.world.placedBuildings || []).filter(item => (item.territoryId || "home") === territory.id).length;
+      const districts = (state.world.placedDistricts || []).filter(item => (item.territoryId || "home") === territory.id).length;
+      const roads = (state.world.placedRoads || []).filter(item => (item.territoryId || "home") === territory.id).length;
+      const harborCost = { materials: 30 + (territory.harborLevel + 1) * 10, credits: 45 + (territory.harborLevel + 1) * 20 };
+      const harborAction = territory.id === "home"
+        ? '<small class="muted">National receiving harbor · operational at level 1.</small>'
+        : territory.harborLevel < 3
+          ? '<button type="button" data-action="upgrade-harbor" data-id="' + esc(territory.id) + '">Upgrade harbor to level ' + (territory.harborLevel + 1) + ' · ' + harborCost.materials + ' materials / ' + harborCost.credits + ' credits</button>'
+          : '<small class="muted">Harbor fully upgraded · route capacity is at maximum.</small>';
+      const stockpile = territory.id === "home" ? '<p class="muted">Home harbor receives delivered cargo directly into the national treasury.</p>' :
+        '<div class="shipping-stockpile"><b>Island stockpile</b>' + E.SHIPPING_RESOURCES.map(resource => '<span>' + esc(resource) + ': ' + num(territory.stockpile[resource] || 0) + '</span>').join("") + '</div>';
+      const routes = (state.world.shippingRoutes || []).filter(route => route.sourceId === territory.id || route.destinationId === territory.id);
+      const routeList = routes.length ? '<div class="shipping-route-list">' + routes.map(route => {
+        const source = state.world.territories.find(item => item.id === route.sourceId);
+        const destination = state.world.territories.find(item => item.id === route.destinationId);
+        const cargo = route.inTransit ? ' · ' + route.inTransit.amount + ' in transit · ' + route.inTransit.remainingTurns + ' turns remaining' : ' · awaiting cargo';
+        return '<span><b>' + esc(source?.name || route.sourceId) + ' → ' + esc(destination?.name || route.destinationId) + '</b><small>' + esc(route.resource) + ' · capacity ' + route.capacity + ' · ' + esc(route.status) + cargo + ' · delivered ' + num(route.deliveredTotal) + '</small></span>';
+      }).join("") + '</div>' : '<small class="muted">No shipping routes touch this island yet.</small>';
+      const destinations = state.world.territories.filter(item => item.id !== territory.id && item.owner === "player" && item.harborLevel > 0);
+      const routeForm = territory.id !== "home" && territory.harborLevel > 0
+        ? destinations.length
+          ? '<div class="shipping-route-form"><label for="shipping-destination">Destination port</label><select id="shipping-destination">' + destinations.map(item => '<option value="' + esc(item.id) + '">' + esc(item.name) + ' · level ' + item.harborLevel + '</option>').join("") + '</select><label for="shipping-resource">Cargo resource</label><select id="shipping-resource">' + E.SHIPPING_RESOURCES.map(resource => '<option value="' + esc(resource) + '">' + esc(resource) + '</option>').join("") + '</select><button type="button" data-action="create-shipping-route" data-id="' + esc(territory.id) + '">Open shipping route · 20 materials / 35 credits</button><small class="muted">Convoys load local stockpiles, then deliver after the route travel time. Logistics research shortens journeys and halves upkeep.</small></div>'
+          : '<small class="muted">Claim another island and build its harbor to open a shipping route.</small>'
+        : territory.id === "home" ? '<small class="muted">Home is the national receiving port. Build harbors on claimed outer islands to export their local resources here.</small>' : '<small class="muted">Build a harbor before opening a shipping route.</small>';
+      action = '<p class="muted">Under your control. Each claimed outer island adds 3 credits and 1 influence per turn. Buildings, districts, roads and extraction sites operate here.</p><div class="territory-infrastructure"><span>' + buildings + ' buildings</span><span>' + districts + ' districts</span><span>' + roads + ' road segments</span><span>Harbor level ' + territory.harborLevel + '</span></div><div class="shipping-panel"><h4>Harbor & shipping</h4>' + harborAction + stockpile + '<div class="shipping-routes"><b>Connected routes</b>' + routeList + '</div>' + routeForm + '</div>';
+    } else {
+      const rival = state.rivals[territory.owner];
+      const alliance = state.diplomacy.treaties.some(treaty => treaty.rivalId === territory.owner && treaty.kind === "alliance" && treaty.status === "active");
+      const routes = (state.world.shippingRoutes || []).filter(route =>
+        (route.ownerId || "player") === territory.owner && (route.sourceId === territory.id || route.destinationId === territory.id)
+      );
+      const routeList = routes.length ? '<div class="shipping-route-list">' + routes.map(route => {
+        const source = state.world.territories.find(item => item.id === route.sourceId);
+        const destination = state.world.territories.find(item => item.id === route.destinationId);
+        const cargo = route.inTransit ? ' · ' + route.inTransit.amount + ' in transit · ' + route.inTransit.remainingTurns + ' turns remaining' : ' · awaiting cargo';
+        return '<span><b>' + esc(source?.name || route.sourceId) + ' → ' + esc(destination?.name || route.destinationId) + '</b><small>' + esc(route.resource) + ' · capacity ' + route.capacity + ' · ' + esc(route.status) + cargo + ' · delivered ' + num(route.deliveredTotal) + '</small></span>';
+      }).join("") + '</div>' : '<small class="muted">No active rival shipping lanes touch this island.</small>';
+      const activeSites = deposits.filter(node => node.operational && !node.depleted).length;
+      const stockpile = '<div class="shipping-stockpile"><b>Local port stockpile</b>' + E.SHIPPING_RESOURCES.map(resource => '<span>' + esc(resource) + ': ' + num(territory.stockpile?.[resource] || 0) + '</span>').join("") + '</div>';
+      const maritime = '<div class="shipping-panel"><h4>Rival maritime infrastructure</h4><div class="territory-infrastructure"><span>Harbor level ' + territory.harborLevel + '</span><span>' + activeSites + ' operating extraction sites</span><span>' + routes.length + ' connected routes</span></div>' + stockpile + '<div class="shipping-routes"><b>Fleet activity</b>' + routeList + '</div></div>';
+      action = '<p class="muted">Controlled by ' + esc(owner) + (rival ? ' · Relations ' + rival.relation + ' · ' + esc(rival.stance) : '') + (alliance ? ' · Active alliance' : '') + '. Rival infrastructure produces resources locally and sends cargo along autonomous shipping lanes.</p>' + maritime + '<button type="button" data-action="view-territory-diplomacy" data-id="' + esc(territory.owner) + '">Open diplomacy</button>';
+    }
+    panel.innerHTML = '<div class="world3d-territory-heading"><div><span class="eyebrow">SELECTED ISLAND</span><h3>' + esc(territory.name) + '</h3><p>' + esc(territory.biome) + ' · ' + num(territory.population) + ' residents · Development ' + territory.development + '/100</p></div><span class="tag">' + esc(owner) + '</span></div><p class="territory-deposits"><b>Mapped resources:</b> ' + depositText + '</p>' + action;
+  }
   function render() {
-    renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderWorldEvents();renderResearch();renderCampaign();renderCreator();renderAdvice();renderDirectorIntelligence();renderDirectorCitizens();renderHistory();renderResourceInspector();document.querySelectorAll("[data-world-build]").forEach(button=>{const id=button.dataset.worldBuild;const label=E.BUILDINGS[id]?.name||id;button.innerHTML=esc(label)+' <small>Lv '+(state.buildings[id]||0)+'</small>';});if(window.KingmakerWorld3D)window.KingmakerWorld3D.update(state);
+    renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderWorldEvents();renderResearch();renderCampaign();renderCreator();renderAdvice();renderDirectorIntelligence();renderDirectorCitizens();renderHistory();renderResourceInspector();renderTerritoryInspector();document.querySelectorAll("[data-world-build]").forEach(button=>{const id=button.dataset.worldBuild;const label=E.BUILDINGS[id]?.name||id;button.innerHTML=esc(label)+' <small>Lv '+(state.buildings[id]||0)+'</small>';});if(window.KingmakerWorld3D)window.KingmakerWorld3D.update(state);
     $("turn-label").textContent="TURN "+state.turn;$("game-banner").textContent=state.status==="playing"?state.nation.name+" · "+state.nation.government:"Campaign "+state.status;
     $("game-banner").className="game-banner "+state.status;$("advance-turn").disabled=state.status!=="playing";tab(activeTab);
   }
@@ -215,10 +281,11 @@
   if(worldBuildPalette)worldBuildPalette.innerHTML=Object.entries(E.BUILDINGS).map(([id,b])=>'<button type="button" data-world-build="'+id+'" title="'+esc(b.name)+' · '+Object.entries(b.cost).map(([r,n])=>n+" "+r).join(" + ")+'">'+esc(b.name)+' <small>Lv '+((state&&state.buildings[id])||0)+'</small></button>').join("");
   worldBuildPalette?.addEventListener("click",event=>{const button=event.target.closest("[data-world-build]");if(!button)return;window.KingmakerWorld3D?.selectBuilding(button.dataset.worldBuild);});
   window.addEventListener("kingmaker:inspect-resource",event=>{selectedResourceId=String(event.detail?.id||"");renderResourceInspector();});
+  window.addEventListener("kingmaker:inspect-territory",event=>{selectedTerritoryId=String(event.detail?.id||"");renderTerritoryInspector();});
   window.addEventListener("kingmaker:world3d-ready",()=>{if(state){renderResourceInspector();window.KingmakerWorld3D?.update(state);}});
-  window.addEventListener("kingmaker:place-building",event=>{const type=event.detail?.type;if(!E.BUILDINGS[type])return;let built=false;act(()=>{E.build(state,type);state.world.placedBuildings=state.world.placedBuildings||[];state.world.placedBuildings.push({type,x:Number(event.detail.x),z:Number(event.detail.z)});if(totalBuildings()>=10&&!state.achievements.includes("builder"))state.achievements.push("builder");built=true;});if(built)toast(E.BUILDINGS[type].name+" constructed in your nation.","success");});
-  window.addEventListener("kingmaker:place-road",event=>{const {from,to}=event.detail||{};if(!from||!to)return;act(()=>{state.world.placedRoads=state.world.placedRoads||[];if(state.world.placedRoads.length>=10000)throw Error("Your road network has reached its construction limit.");state.world.placedRoads.push({from:{x:Number(from.x),z:Number(from.z)},to:{x:Number(to.x),z:Number(to.z)}});});toast("Road segment added to your nation.","success");});
-  window.addEventListener("kingmaker:place-district",event=>{const {type,x,z,radius}=event.detail||{};if(!["residential","commercial","industrial","agricultural"].includes(type)||![x,z,radius].every(Number.isFinite)||Math.abs(x)>10.5||Math.abs(z)>10.5||radius<1.5||radius>3.5)return;let placed=false;act(()=>{state.world.placedDistricts=state.world.placedDistricts||[];if(state.world.placedDistricts.length>=100)throw Error("Your nation has reached its district limit.");state.world.placedDistricts.push({type,x,z,radius});placed=true;});if(placed)toast(type[0].toUpperCase()+type.slice(1)+" district zoned.","success");});
+  window.addEventListener("kingmaker:place-building",event=>{const type=event.detail?.type;if(!E.BUILDINGS[type])return;let built=false;act(()=>{E.placeWorldBuilding(state,type,{x:Number(event.detail.x),z:Number(event.detail.z),territoryId:event.detail.territoryId||"home"});if(totalBuildings()>=10&&!state.achievements.includes("builder"))state.achievements.push("builder");built=true;});if(built)toast(E.BUILDINGS[type].name+" constructed in "+(state.world.territories.find(t=>t.id===(event.detail.territoryId||"home"))?.name||"your nation")+".","success");});
+  window.addEventListener("kingmaker:place-road",event=>{const {from,to,territoryId}=event.detail||{};if(!from||!to)return;let placed=false;act(()=>{E.placeWorldRoad(state,from,to,territoryId||"home");placed=true;});if(placed)toast("Road segment added to "+(state.world.territories.find(t=>t.id===(territoryId||"home"))?.name||"your nation")+".","success");});
+  window.addEventListener("kingmaker:place-district",event=>{const {type,x,z,radius,territoryId}=event.detail||{};if(!["residential","commercial","industrial","agricultural"].includes(type)||![x,z,radius].every(Number.isFinite)||radius<1.5||radius>3.5)return;let placed=false;act(()=>{E.placeWorldDistrict(state,type,{x,z,radius,territoryId:territoryId||"home"});placed=true;});if(placed)toast(type[0].toUpperCase()+type.slice(1)+" district established.","success");});
   document.addEventListener("click",event=>{
     const t=event.target.closest("[data-tab]");if(t)return tab(t.dataset.tab);
     const node=event.target.closest("[data-focus]");if(node){const id=node.dataset.focus;if(id!=="player"){tab("diplomacy");toast(state.rivals[id].name+" · Relations "+state.rivals[id].relation+" · "+state.rivals[id].stance);}return;}
@@ -227,6 +294,10 @@
     act(()=>{
       if(action==="build")E.build(state,id);
       if(action==="develop-resource"){E.developResourceSite(state,id);toast("Extraction site established. Production begins next turn.","success");}
+      if(action==="claim-territory"){const territory=E.claimTerritory(state,id);toast(territory.name+" claimed. Regional income begins next turn.","success");}
+      if(action==="upgrade-harbor"){const territory=E.upgradeHarbor(state,id);toast(territory.name+" harbor upgraded to level "+territory.harborLevel+".","success");}
+      if(action==="create-shipping-route"){const route=E.createShippingRoute(state,id,$("shipping-destination")?.value,$("shipping-resource")?.value);toast("Shipping route opened. First cargo will load when local stock is available.","success");}
+      if(action==="view-territory-diplomacy"){tab("diplomacy");toast("Diplomatic relations with "+(state.rivals[id]?.name||id)+".");}
       if(action==="trade")E.trade(state,resource,Number(amount));
       if(action==="research"){E.research(state,id);if(!state.achievements.includes("first-research"))state.achievements.push("first-research");}
       if(action==="gift"){E.sendGift(state,id,20);if(state.rivals[id].relation>=50&&!state.achievements.includes("good-neighbor"))state.achievements.push("good-neighbor");}
