@@ -200,3 +200,49 @@ test('a claimed island builds a harbor and ships local extraction into national 
   const restored = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.shippingRoutes[0]);
   expect(restored.deliveredTotal).toBe(delivered.deliveredTotal);
 });
+
+
+test('rival ports, extraction and autonomous shipping appear in the 3D world inspector', async ({ page }) => {
+  const setup = await page.evaluate(() => {
+    const engine = window.KingmakerEngine;
+    const state = engine.createInitialState({ seed: 73004 });
+    const rival = state.rivals.duneward;
+    const source = state.world.territories.find(item => item.owner === rival.id);
+    const destination = state.world.territories.find(item => item.owner === 'unclaimed');
+    destination.owner = rival.id;
+    destination.claimedTurn = state.turn;
+    source.harborLevel = 1;
+    destination.harborLevel = 1;
+    const owned = new Set([source.id, destination.id]);
+    const deposits = state.world.resourceNodes.filter(node => owned.has(node.territoryId));
+    for (const node of deposits) {
+      node.quantity = 0;
+      node.depleted = true;
+      node.operational = false;
+      node.operatedSinceTurn = null;
+    }
+    const deposit = deposits.find(node => node.territoryId === source.id);
+    deposit.resource = 'Iron';
+    deposit.quantity = 100;
+    deposit.depleted = false;
+    deposit.operational = true;
+    deposit.operatedSinceTurn = state.turn;
+    source.stockpile.ore = 20;
+    rival.resources.materials = 1000;
+    rival.resources.credits = 1000;
+    engine.developRivalTerritories(state);
+    const route = state.world.shippingRoutes.find(item => item.ownerId === rival.id);
+    localStorage.setItem('kingmaker_save_v1', engine.exportSave(state));
+    return { sourceId: source.id, sourceName: source.name, routeId: route.id };
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="world3d"]').click();
+  await page.evaluate(id => window.dispatchEvent(new CustomEvent('kingmaker:inspect-territory', { detail: { id } })), setup.sourceId);
+  await expect(page.locator('#world3d-territory-inspector')).toContainText('Rival maritime infrastructure');
+  await expect(page.locator('#world3d-territory-inspector')).toContainText('Harbor level 1');
+  await expect(page.locator('#world3d-territory-inspector')).toContainText('Fleet activity');
+  await expect(page.locator('#world3d-stats')).toContainText('Shipping');
+  const route = await page.evaluate(id => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.shippingRoutes.find(item => item.id === id), setup.routeId);
+  expect(route.ownerId).toBe('duneward');
+  expect(route.status).toBe('active');
+});
