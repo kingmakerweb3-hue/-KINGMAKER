@@ -483,7 +483,7 @@
     if (normalized.world.shippingRoutes.length > 50 || normalized.world.shippingRoutes.some(route => {
       if (!route || typeof route.id !== "string" || !route.id || route.id.length > 64 || routeIds.has(route.id) ||
           !territoryIds.has(route.sourceId) || !territoryIds.has(route.destinationId) || route.sourceId === route.destinationId || route.sourceId === "home" ||
-          typeof route.ownerId !== "string" || (route.ownerId !== "player" && !Object.hasOwn(normalized.rivals, route.ownerId)) ||
+          typeof route.ownerId !== "string" || (route.ownerId !== "player" && (!normalized.rivals || !Object.hasOwn(normalized.rivals, route.ownerId))) ||
           territoryById.get(route.sourceId).owner !== route.ownerId || territoryById.get(route.destinationId).owner !== route.ownerId ||
           !SHIPPING_RESOURCES.includes(route.resource) || !Number.isInteger(route.capacity) || route.capacity < 10 || route.capacity > 30 ||
           !Number.isInteger(route.travelTurns) || route.travelTurns < 1 || route.travelTurns > 5 ||
