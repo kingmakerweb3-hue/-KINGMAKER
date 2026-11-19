@@ -1210,7 +1210,6 @@
         rival.resources.credits -= 65;
         unservedPort.harborLevel = 1;
         summary.harborsBuilt++;
-        rival.activity = "Built a harbor on " + unservedPort.name;
         rememberRival(rival, state.turn, "harbor-construction", rival.activity);
         addEvent(state, rival.name + " established a harbor on " + unservedPort.name + ".", "economy");
       }
@@ -1229,7 +1228,6 @@
           candidate.operational = true;
           candidate.operatedSinceTurn = state.turn;
           summary.extractionSitesOpened++;
-          rival.activity = "Opened a " + candidate.resource.toLowerCase() + " site on " + owned.find(t => t.id === candidate.territoryId).name;
           rememberRival(rival, state.turn, "resource-extraction", rival.activity);
           addEvent(state, rival.name + " opened a " + candidate.resource.toLowerCase() + " extraction site.", "economy");
         }
@@ -1271,7 +1269,6 @@
           };
           routes.push(route);
           summary.routesOpened++;
-          rival.activity = "Opened a " + resource + " shipping lane from " + source.name + " to " + destination.name;
           rememberRival(rival, state.turn, "maritime-trade", rival.activity);
           addEvent(state, rival.name + " opened a " + resource + " shipping lane between its islands.", "economy");
           opened = true;
