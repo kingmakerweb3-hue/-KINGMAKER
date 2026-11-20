@@ -2295,7 +2295,8 @@
           if (conflict.targetTerritoryId) {
             const captured = (state.world.territories || []).find(territory => territory.id === conflict.targetTerritoryId);
             if (captured && captured.owner === rival.id) {
-              const populationTransferred = Math.min(Math.max(0, rival.population - 1), captured.population);
+              const populationTransferred = Math.min(captured.population, Math.max(0, rival.population - 1));
+              captured.population = populationTransferred;
               rival.population = Math.max(1, rival.population - populationTransferred);
               captured.owner = "player";
               captured.claimedTurn = state.turn;
