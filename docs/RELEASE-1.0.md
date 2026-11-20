@@ -64,7 +64,7 @@ Do not simulate these capabilities in marketing or imply they are live.
 - [ ] **Gameplay:** a new campaign can be played through its main objectives; victory/defeat and restart work.
 - [ ] **Economy:** deterministic tests cover production, staffing, renewable power, factory throttling, market trades, shortages and crises.
 - [ ] **Save safety:** save/export/import/recovery and legacy migration tests pass; malformed or oversized input is rejected safely.
-- [ ] **3D smoke test:** supported desktop browser loads the scene; camera, island selection and claims, home- and claimed-outer-island placement, local roads, resource extraction, harbor construction, shipping route creation and delivery, save/reload and turn updates work; no fatal WebGL errors.
+- [ ] **3D smoke test:** supported desktop browser loads the scene; camera, island selection and claims, home- and claimed-outer-island placement, local roads, resource extraction, harbor construction, domestic and international shipping, targeted territorial conflict victory/defeat, population transfer, save/reload and turn updates work; no fatal WebGL errors.
 - [ ] **Performance:** representative target hardware sustains a usable frame rate in the populated archipelago scene; memory does not grow continuously during a 20-minute play session.
 - [ ] **Security:** server routes, input validation, dependencies, headers, secrets and any wallet code receive a documented review; no unreviewed real-money flow.
 - [ ] **Accessibility/usability:** core actions have labels, visible focus, readable contrast and a usable onboarding/tutorial path.
