@@ -1968,6 +1968,7 @@ test("winning a territorial campaign transfers the island, residents and infrast
   target.stockpile.materials = 17;
   const secondPort = state.world.territories.find(territory => territory.owner === "unclaimed");
   secondPort.owner = rival.id;
+  secondPort.claimedTurn = state.turn;
   secondPort.harborLevel = 1;
   const rivalRoute = {
     id: "rival-aurelia-campaign-test", ownerId: rival.id, sourceId: target.id, destinationId: secondPort.id,
