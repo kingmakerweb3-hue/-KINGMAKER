@@ -199,7 +199,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
         new THREE.Vector3(destination.x,.45,destination.z)
       );
       const color=international?0xe4bd65:rivalOwned?(nationColors[ownerId]||0x8b9cae):(routeColors[route.resource]||0x80d4d0);
-      const line=new THREE.Mesh(new THREE.TubeGeometry(curve,48,.065,6,false),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:international?.34:rivalOwned?.18:.28,transparent:true,opacity:international?.9:rivalOwned?.58:.82,roughness:.4}));
+      const line=new THREE.Mesh(new THREE.TubeGeometry(curve,48,.065,6,false),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:international ? .34 : rivalOwned ? .18 : .28,transparent:true,opacity:international ? .9 : rivalOwned ? .58 : .82,roughness:.4}));
       line.userData.shippingRouteId=route.id;line.userData.ownerId=ownerId;line.userData.partnerId=route.partnerId||null;shippingGroup.add(line);
       const vessel=new THREE.Group();
       const hull=new THREE.Mesh(new THREE.BoxGeometry(.48,.2,.95),material(international?0x9a7c42:rivalOwned?color:0x29495b,.5));vessel.add(hull);
