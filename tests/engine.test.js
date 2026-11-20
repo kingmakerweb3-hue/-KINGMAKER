@@ -1737,6 +1737,9 @@ test("international route validation rejects malformed contracts but retains pau
   const invalidTariff = JSON.parse(Engine.exportSave(state));
   invalidTariff.world.shippingRoutes[0].tariffPercent = 7;
   assert.throws(() => Engine.validateSave(invalidTariff), /Shipping route data is invalid/);
+  const invalidPrototypePartner = JSON.parse(Engine.exportSave(state));
+  invalidPrototypePartner.world.shippingRoutes[0].partnerId = "__proto__";
+  assert.throws(() => Engine.validateSave(invalidPrototypePartner), /Shipping route data is invalid/);
   const invalidPrice = JSON.parse(Engine.exportSave(state));
   invalidPrice.world.shippingRoutes[0].unitPrice = 0;
   assert.throws(() => Engine.validateSave(invalidPrice), /Shipping route data is invalid/);
