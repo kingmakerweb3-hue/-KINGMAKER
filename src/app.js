@@ -109,17 +109,25 @@
       form = '<p class="muted">Both nations need at least one operational harbor before a trade lane can open.</p>';
     } else {
       const id = esc(rival.id);
-      form = '<div class="international-trade-form">' +
-        '<label for="international-source-' + id + '">Your port</label><select id="international-source-' + id + '">' +
+      const resourceSelect = '<label for="international-resource-' + id + '">Cargo</label><select id="international-resource-' + id + '">' +
+        E.INTERNATIONAL_TRADE_RESOURCES.map(resource => '<option value="' + esc(resource) + '">' + esc(resource) + '</option>').join("") + '</select>';
+      const tariffSelect = '<label for="international-tariff-' + id + '">Tariff</label><select id="international-tariff-' + id + '">' +
+        E.INTERNATIONAL_TRADE_TARIFFS.map(rate => '<option value="' + rate + '">' + rate + '%</option>').join("") + '</select>';
+      form = '<div class="international-trade-form"><h5>Export to partner</h5>' +
+        '<label for="international-export-source-' + id + '">Your export port</label><select id="international-export-source-' + id + '">' +
         playerPorts.map(port => '<option value="' + esc(port.id) + '">' + esc(port.name) + ' · level ' + port.harborLevel + '</option>').join("") +
-        '</select><label for="international-destination-' + id + '">Partner port</label><select id="international-destination-' + id + '">' +
+        '</select><label for="international-export-destination-' + id + '">Partner import port</label><select id="international-export-destination-' + id + '">' +
         rivalPorts.map(port => '<option value="' + esc(port.id) + '">' + esc(port.name) + ' · level ' + port.harborLevel + '</option>').join("") +
-        '</select><label for="international-resource-' + id + '">Cargo</label><select id="international-resource-' + id + '">' +
-        E.INTERNATIONAL_TRADE_RESOURCES.map(resource => '<option value="' + esc(resource) + '">' + esc(resource) + '</option>').join("") +
-        '</select><label for="international-tariff-' + id + '">Tariff</label><select id="international-tariff-' + id + '">' +
-        E.INTERNATIONAL_TRADE_TARIFFS.map(rate => '<option value="' + rate + '">' + rate + '%</option>').join("") +
-        '</select><button type="button" data-action="create-international-trade-route" data-id="' + id + '">Open international route · 20 materials / 35 credits</button>' +
-        '<small class="muted">Choose either direction by swapping the ports. The buyer pays on delivery; cargo waits if funds or storage are insufficient. Tariffs lock the contract price. 0% improves relations; 15–20% tariffs strain them.</small></div>';
+        '</select>' + resourceSelect + tariffSelect +
+        '<button type="button" data-action="create-international-export-route" data-id="' + id + '">Open export route · 20 materials / 35 credits</button>' +
+        '<h5>Import from partner</h5><label for="international-import-source-' + id + '">Partner export port</label><select id="international-import-source-' + id + '">' +
+        rivalPorts.map(port => '<option value="' + esc(port.id) + '">' + esc(port.name) + ' · level ' + port.harborLevel + '</option>').join("") +
+        '</select><label for="international-import-destination-' + id + '">Your import port</label><select id="international-import-destination-' + id + '">' +
+        playerPorts.map(port => '<option value="' + esc(port.id) + '">' + esc(port.name) + ' · level ' + port.harborLevel + '</option>').join("") +
+        '</select>' + resourceSelect + tariffSelect +
+        '<button type="button" data-action="create-international-import-route" data-id="' + id + '">Open import route · 20 materials / 35 credits</button>' +
+        '<small class="muted">The buyer pays the seller on delivery. Cargo waits if funds or destination storage are insufficient. Tariffs lock the contract price. 0% improves relations; 15–20% tariffs strain them.</small></div>';
+
     }
     return '<section class="international-trade-panel"><h4>International shipping · ' + esc(rival.name) + '</h4>' + routeList + form + '</section>';
   }
@@ -340,9 +348,12 @@
       if(action==="claim-territory"){const territory=E.claimTerritory(state,id);toast(territory.name+" claimed. Regional income begins next turn.","success");}
       if(action==="upgrade-harbor"){const territory=E.upgradeHarbor(state,id);toast(territory.name+" harbor upgraded to level "+territory.harborLevel+".","success");}
       if(action==="create-shipping-route"){const route=E.createShippingRoute(state,id,$("shipping-destination")?.value,$("shipping-resource")?.value);toast("Shipping route opened. First cargo will load when local stock is available.","success");}
-      if(action==="create-international-trade-route"){
-        const route=E.createInternationalTradeRoute(state,id,$("international-source-"+id)?.value,$("international-destination-"+id)?.value,$("international-resource-"+id)?.value,Number($("international-tariff-"+id)?.value ?? 10));
-        toast("International route opened at "+route.tariffPercent+"% tariff. Cargo will load from the selected port.","success");
+      if(action==="create-international-export-route"||action==="create-international-import-route"){
+        const exporting=action==="create-international-export-route";
+        const sourceId=$("international-"+(exporting?"export":"import")+"-source-"+id)?.value;
+        const destinationId=$("international-"+(exporting?"export":"import")+"-destination-"+id)?.value;
+        const route=E.createInternationalTradeRoute(state,id,sourceId,destinationId,$("international-resource-"+id)?.value,Number($("international-tariff-"+id)?.value ?? 10));
+        toast((exporting?"Export":"Import")+" route opened at "+route.tariffPercent+"% tariff. Cargo will load from "+(exporting?"your":"partner")+" port.","success");
       }
       if(action==="view-territory-diplomacy"){tab("diplomacy");toast("Diplomatic relations with "+(state.rivals[id]?.name||id)+".");}
       if(action==="trade")E.trade(state,resource,Number(amount));
