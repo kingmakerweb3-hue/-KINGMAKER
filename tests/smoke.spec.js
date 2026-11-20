@@ -61,15 +61,22 @@ test('a neutral archipelago island can be inspected and claimed through the worl
     const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
     const island = save.world.territories.find(territory => territory.owner === 'unclaimed');
     window.dispatchEvent(new CustomEvent('kingmaker:inspect-territory', { detail: { id: island.id } }));
-    return { id: island.id, name: island.name };
+    return { id: island.id, name: island.name, localPopulation: island.population, nationalPopulation: save.nation.population };
   });
   await expect(page.locator('#world3d-territory-inspector')).toContainText(target.name);
   const claim = page.locator('#world3d-territory-inspector [data-action="claim-territory"]');
   await expect(claim).toBeEnabled();
   await claim.click();
   await expect(page.locator('#world3d-territory-inspector')).toContainText('Under your control');
-  const saved = await page.evaluate(id => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.territories.find(territory => territory.id === id), target.id);
-  expect(saved.owner).toBe('player');
+  await expect(page.locator('#world3d-territory-inspector')).toContainText('National population');
+  const saved = await page.evaluate(id => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    return { territory: save.world.territories.find(territory => territory.id === id), population: save.nation.population,
+      metric: document.querySelector('#metrics .metric-card')?.innerText || '' };
+  }, target.id);
+  expect(saved.territory.owner).toBe('player');
+  expect(saved.population).toBe(target.nationalPopulation + target.localPopulation);
+  expect(saved.metric.replace(/,/g, '')).toContain(String(saved.population));
 });
 
 test('CROWN mining connects to its configured backend but stays closed until operator launch', async ({ page }) => {
