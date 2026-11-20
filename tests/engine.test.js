@@ -1947,9 +1947,8 @@ test("winning a territorial campaign transfers the island, residents and infrast
   const state = Engine.createInitialState({ seed: 74202 });
   const rival = state.rivals.aurelia;
   const target = state.world.territories.find(territory => territory.owner === rival.id);
-  const homePopulation = state.nation.population;
   const targetPopulation = target.population;
-  const rivalPopulation = rival.population;
+  const rivalPopulation = 750;
   state.resources.credits = 1000;
   state.resources.food = 1000;
   state.resources.materials = 1000;
@@ -1962,6 +1961,8 @@ test("winning a territorial campaign transfers the island, residents and infrast
   rival.relation = -20;
   rival.resources = { food: 1000, materials: 0, ore: 0, goods: 0, credits: 1000, science: 0, power: 0, influence: 0 };
   for (const id of Object.keys(rival.buildings)) rival.buildings[id] = 0;
+  rival.population = rivalPopulation;
+  rival.buildings.housing = 10;
   rival.technologies = [];
   target.harborLevel = 1;
   target.stockpile.materials = 17;
