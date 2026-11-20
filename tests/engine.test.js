@@ -1052,7 +1052,7 @@ test("rare-crystal extraction contributes science and finite deposits deplete", 
   assert.equal(Engine.resourceSiteEffects(state).science, 0);
 });
 
-test("schema 8 saves migrate to version 13 with deterministic archipelago deposits", () => {
+test("schema 8 saves migrate to version 14 with deterministic archipelago deposits", () => {
   const state = Engine.createInitialState({ seed: 42005 });
   state.schemaVersion = 8;
   delete state.world.resourceNodes;
@@ -1150,7 +1150,7 @@ test("Duneward expands into a neutral island unless an active alliance protects 
   assert.equal(protectedState.world.territories.filter(item => item.owner === "unclaimed").length, 2);
 });
 
-test("version 9 saves migrate to schema 13 without losing existing extraction progress", () => {
+test("version 9 saves migrate to schema 14 without losing existing extraction progress", () => {
   const legacy = Engine.createInitialState({ seed: 52007 });
   legacy.schemaVersion = 9;
   delete legacy.world.territories;
@@ -1275,7 +1275,7 @@ test("outer-island construction rejects unowned land and positions outside its c
   }), /shore/);
 });
 
-test("version 10 home placements migrate into schema 13 without changing their location", () => {
+test("version 10 home placements migrate into schema 14 without changing their location", () => {
   const legacy = Engine.createInitialState({ seed: 62003 });
   legacy.schemaVersion = 10;
   legacy.world.placedBuildings.push({ type: "farm", x: 3, z: 4 });
@@ -1589,4 +1589,178 @@ test("schema 12 player shipping routes migrate with explicit player ownership", 
   const migrated = Engine.migrateSave(legacy);
   assert.equal(migrated.schemaVersion, 13);
   assert.equal(migrated.world.shippingRoutes[0].ownerId, "player");
+});
+
+
+test("international shipping requires an active trade agreement and ports controlled by the two signatories", () => {
+  const state = Engine.createInitialState({ seed: 74001 });
+  const rivalId = "aurelia";
+  const rival = state.rivals[rivalId];
+  rival.relation = 35;
+  const rivalPort = state.world.territories.find(item => item.owner === rivalId);
+  rivalPort.harborLevel = 1;
+
+  assert.throws(() => Engine.createInternationalTradeRoute(state, rivalId, "home", rivalPort.id, "food", 10), /active trade agreement/);
+  Engine.offerTreaty(state, rivalId, "trade");
+  const beforeMaterials = state.resources.materials;
+  const beforeCredits = state.resources.credits;
+  const route = Engine.createInternationalTradeRoute(state, rivalId, "home", rivalPort.id, "food", 10);
+
+  assert.equal(route.ownerId, "player");
+  assert.equal(route.partnerId, rivalId);
+  assert.equal(route.sourceId, "home");
+  assert.equal(route.destinationId, rivalPort.id);
+  assert.equal(route.tariffPercent, 10);
+  assert.equal(route.unitPrice, 3);
+  assert.equal(route.status, "active");
+  assert.equal(state.resources.materials, beforeMaterials - 20);
+  assert.equal(state.resources.credits, beforeCredits - 35);
+  assert.throws(() => Engine.createInternationalTradeRoute(state, rivalId, "home", rivalPort.id, "food", 10), /already exists/);
+  const otherRivalPort = state.world.territories.find(item => item.owner === "northreach");
+  otherRivalPort.harborLevel = 1;
+  assert.throws(() => Engine.createInternationalTradeRoute(state, rivalId, "home", otherRivalPort.id, "food", 10), /one player port/);
+  assert.throws(() => Engine.createInternationalTradeRoute(state, rivalId, "home", rivalPort.id, "science", 10), /not available/);
+  assert.throws(() => Engine.createInternationalTradeRoute(state, rivalId, "home", rivalPort.id, "food", 12), /Choose a tariff/);
+  assert.doesNotThrow(() => Engine.validateSave(state));
+});
+
+test("international exports settle payment on delivery and count toward campaign trade objectives", () => {
+  const state = Engine.createInitialState({ seed: 74002 });
+  const rivalId = "aurelia";
+  const rival = state.rivals[rivalId];
+  rival.relation = 35;
+  const rivalPort = state.world.territories.find(item => item.owner === rivalId);
+  rivalPort.harborLevel = 1;
+  Engine.offerTreaty(state, rivalId, "trade");
+  const route = Engine.createInternationalTradeRoute(state, rivalId, "home", rivalPort.id, "food", 10);
+
+  state.resources.food = 50;
+  state.resources.food -= 5;
+  rival.resources.credits = 1000;
+  const playerCreditsBefore = state.resources.credits;
+  const rivalCreditsBefore = rival.resources.credits;
+  const rivalFoodBefore = rival.resources.food;
+  route.inTransit = { amount: 5, remainingTurns: 1 };
+  route.loadedTotal = 5;
+  route.lastLoadedTurn = state.turn;
+
+  const shipping = Engine.processShippingRoutes(state);
+  assert.equal(route.status, "active");
+  assert.equal(route.inTransit, null);
+  assert.equal(route.deliveredTotal, 5);
+  assert.equal(rival.resources.food, rivalFoodBefore + 5);
+  assert.equal(rival.resources.credits, rivalCreditsBefore - 15);
+  assert.equal(state.resources.credits, playerCreditsBefore + 15);
+  assert.equal(rival.relation, 35);
+  assert.equal(state.campaign.progress.tradeVolume, 5);
+  assert.equal(shipping.activeRoutes, 1);
+  assert.equal(Engine.shippingEffects(state).activeRoutes, 1);
+
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(restored.world.shippingRoutes, state.world.shippingRoutes);
+  assert.equal(restored.world.shippingRoutes[0].unitPrice, 3);
+});
+
+test("international imports debit the player, pay the rival and apply high-tariff diplomatic consequences", () => {
+  const state = Engine.createInitialState({ seed: 74003 });
+  const rivalId = "northreach";
+  const rival = state.rivals[rivalId];
+  rival.relation = 35;
+  const rivalPort = state.world.territories.find(item => item.owner === rivalId);
+  rivalPort.harborLevel = 1;
+  rivalPort.stockpile.ore = 4;
+  Engine.offerTreaty(state, rivalId, "trade");
+  const route = Engine.createInternationalTradeRoute(state, rivalId, rivalPort.id, "home", "ore", 20);
+
+  assert.equal(route.unitPrice, 6);
+  const playerCreditsBefore = state.resources.credits;
+  const playerOreBefore = state.resources.ore;
+  const rivalCreditsBefore = rival.resources.credits;
+  rivalPort.stockpile.ore -= 4;
+  route.inTransit = { amount: 4, remainingTurns: 1 };
+  route.loadedTotal = 4;
+  route.lastLoadedTurn = state.turn;
+
+  Engine.processShippingRoutes(state);
+  assert.equal(state.resources.ore, playerOreBefore + 4);
+  assert.equal(state.resources.credits, playerCreditsBefore - 24);
+  assert.equal(rival.resources.credits, rivalCreditsBefore + 24);
+  assert.equal(rival.relation, 34);
+  assert.equal(route.deliveredTotal, 4);
+  assert.equal(route.inTransit, null);
+  assert.ok(rival.memory.some(item => item.kind === "tariff" && item.relationDelta === -1));
+});
+
+test("international routes pause with cargo preserved when a trade agreement expires and resume when renewed", () => {
+  const state = Engine.createInitialState({ seed: 74004 });
+  const rivalId = "aurelia";
+  const rival = state.rivals[rivalId];
+  rival.relation = 35;
+  const rivalPort = state.world.territories.find(item => item.owner === rivalId);
+  rivalPort.harborLevel = 1;
+  state.turn = 5;
+  Engine.offerTreaty(state, rivalId, "trade");
+  const treaty = state.diplomacy.treaties.find(item => item.rivalId === rivalId && item.kind === "trade" && item.status === "active");
+  treaty.startedTurn = 1;
+  const route = Engine.createInternationalTradeRoute(state, rivalId, "home", rivalPort.id, "materials", 5);
+  route.inTransit = { amount: 7, remainingTurns: 2 };
+  route.loadedTotal = 7;
+  route.lastLoadedTurn = state.turn;
+  state.resources.materials -= 7;
+
+  Engine.advanceTurn(state);
+  assert.equal(treaty.status, "expired");
+  assert.equal(route.status, "paused");
+  assert.deepEqual(route.inTransit, { amount: 7, remainingTurns: 2 });
+  const pausedSave = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(pausedSave.world.shippingRoutes[0].inTransit, route.inTransit);
+
+  Engine.offerTreaty(state, rivalId, "trade");
+  const resumed = Engine.processShippingRoutes(state);
+  assert.equal(route.status, "active");
+  assert.deepEqual(route.inTransit, { amount: 7, remainingTurns: 1 });
+  assert.equal(resumed.activeRoutes, 1);
+});
+
+test("international route validation rejects malformed contracts but retains paused routes after port ownership changes", () => {
+  const state = Engine.createInitialState({ seed: 74005 });
+  const rivalId = "solenne";
+  state.rivals[rivalId].relation = 35;
+  const rivalPort = state.world.territories.find(item => item.owner === rivalId);
+  rivalPort.harborLevel = 1;
+  Engine.offerTreaty(state, rivalId, "trade");
+  const route = Engine.createInternationalTradeRoute(state, rivalId, "home", rivalPort.id, "power", 15);
+
+  const invalidPartner = JSON.parse(Engine.exportSave(state));
+  invalidPartner.world.shippingRoutes[0].partnerId = "unknown";
+  assert.throws(() => Engine.validateSave(invalidPartner), /Shipping route data is invalid/);
+  const invalidTariff = JSON.parse(Engine.exportSave(state));
+  invalidTariff.world.shippingRoutes[0].tariffPercent = 7;
+  assert.throws(() => Engine.validateSave(invalidTariff), /Shipping route data is invalid/);
+  const invalidPrice = JSON.parse(Engine.exportSave(state));
+  invalidPrice.world.shippingRoutes[0].unitPrice = 0;
+  assert.throws(() => Engine.validateSave(invalidPrice), /Shipping route data is invalid/);
+
+  rivalPort.owner = "northreach";
+  Engine.processShippingRoutes(state);
+  assert.equal(route.status, "paused");
+  assert.doesNotThrow(() => Engine.validateSave(state));
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.equal(restored.world.shippingRoutes[0].status, "paused");
+});
+
+test("schema 13 saves migrate to version 14 while preserving domestic shipping routes", () => {
+  const state = Engine.createInitialState({ seed: 74006 });
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1000;
+  state.resources.credits = 1000;
+  state.resources.influence = 100;
+  Engine.claimTerritory(state, island.id);
+  Engine.upgradeHarbor(state, island.id);
+  Engine.createShippingRoute(state, island.id, "home", "materials");
+  const legacy = JSON.parse(Engine.exportSave(state));
+  legacy.schemaVersion = 13;
+  const migrated = Engine.migrateSave(legacy);
+  assert.equal(migrated.schemaVersion, 14);
+  assert.deepEqual(migrated.world.shippingRoutes, legacy.world.shippingRoutes);
 });
