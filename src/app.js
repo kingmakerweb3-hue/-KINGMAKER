@@ -52,8 +52,8 @@
   }
   const totalBuildings=()=>Object.values(state.buildings).reduce((a,b)=>a+b,0);
   function renderMetrics() {
-    $("metrics").innerHTML=[["Population",state.nation.population],["Food",state.resources.food],["Materials",state.resources.materials],["Ore",state.resources.ore],["Goods",state.resources.goods],["Credits",state.resources.credits],["Power",state.resources.power],["Science",state.resources.science]]
-      .map(([n,v])=>'<article class="metric-card"><span class="metric-label">'+n+'</span><strong>'+num(v)+'</strong><span class="metric-hint">national reserve</span></article>').join("");
+    $("metrics").innerHTML=[["Population",state.nation.population,"citizens across owned islands"],["Food",state.resources.food],["Materials",state.resources.materials],["Ore",state.resources.ore],["Goods",state.resources.goods],["Credits",state.resources.credits],["Power",state.resources.power],["Science",state.resources.science]]
+      .map(([n,v,hint])=>'<article class="metric-card"><span class="metric-label">'+n+'</span><strong>'+num(v)+'</strong><span class="metric-hint">'+(hint||"national reserve")+'</span></article>').join("");
     $("science-reserve").textContent=num(state.resources.science);
     const deck={population:$("deck-population"),stability:$("deck-stability"),stabilityBar:$("deck-stability-bar"),power:$("deck-power"),science:$("deck-science")};
     if(deck.population) deck.population.textContent=num(state.nation.population);
@@ -308,7 +308,10 @@
       const maritime = '<div class="shipping-panel"><h4>Rival maritime infrastructure</h4><div class="territory-infrastructure"><span>Harbor level ' + territory.harborLevel + '</span><span>' + activeSites + ' operating extraction sites</span><span>' + routes.length + ' connected routes</span></div>' + stockpile + '<div class="shipping-routes"><b>Fleet activity</b>' + routeList + '</div></div>';
       action = '<p class="muted">Controlled by ' + esc(owner) + (rival ? ' · Relations ' + rival.relation + ' · ' + esc(rival.stance) : '') + (alliance ? ' · Active alliance' : '') + '. Rival infrastructure produces resources locally and sends cargo along autonomous shipping lanes.</p>' + maritime + '<button type="button" data-action="view-territory-diplomacy" data-id="' + esc(territory.owner) + '">Open diplomacy</button>';
     }
-    panel.innerHTML = '<div class="world3d-territory-heading"><div><span class="eyebrow">SELECTED ISLAND</span><h3>' + esc(territory.name) + '</h3><p>' + esc(territory.biome) + ' · ' + num(territory.population) + ' residents · Development ' + territory.development + '/100</p></div><span class="tag">' + esc(owner) + '</span></div><p class="territory-deposits"><b>Mapped resources:</b> ' + depositText + '</p>' + action;
+    const populationScope = territory.owner === "player"
+      ? ' · National population: ' + num(state.nation.population)
+      : territory.owner === "unclaimed" ? ' · Not yet in your national total' : ' · Rival national population';
+    panel.innerHTML = '<div class="world3d-territory-heading"><div><span class="eyebrow">SELECTED ISLAND</span><h3>' + esc(territory.name) + '</h3><p>' + esc(territory.biome) + ' · ' + num(territory.population) + ' local residents' + populationScope + ' · Development ' + territory.development + '/100</p></div><span class="tag">' + esc(owner) + '</span></div><p class="territory-deposits"><b>Mapped resources:</b> ' + depositText + '</p>' + action;
   }
   function render() {
     renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderWorldEvents();renderResearch();renderCampaign();renderCreator();renderAdvice();renderDirectorIntelligence();renderDirectorCitizens();renderHistory();renderResourceInspector();renderTerritoryInspector();document.querySelectorAll("[data-world-build]").forEach(button=>{const id=button.dataset.worldBuild;const label=E.BUILDINGS[id]?.name||id;button.innerHTML=esc(label)+' <small>Lv '+(state.buildings[id]||0)+'</small>';});if(window.KingmakerWorld3D)window.KingmakerWorld3D.update(state);
