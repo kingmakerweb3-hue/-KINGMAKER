@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 13;
+  const SAVE_VERSION = 14;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -36,6 +36,8 @@
   });
   const RESOURCE_SITE_TYPES = Object.freeze(Object.keys(RESOURCE_SITE_OUTPUT));
   const SHIPPING_RESOURCES = Object.freeze(["food", "materials", "ore", "power", "science"]);
+  const INTERNATIONAL_TRADE_RESOURCES = Object.freeze(["food", "materials", "ore", "power"]);
+  const INTERNATIONAL_TRADE_TARIFFS = Object.freeze([0, 5, 10, 15, 20]);
   const STOCKPILE_LIMIT = 500;
   // Permanent island wind and solar installations contribute power each turn.
   const RENEWABLE_POWER_OUTPUT = Object.freeze({ wind: 2, solar: 2 });
@@ -481,13 +483,29 @@
     const territoryById = new Map(normalized.world.territories.map(territory => [territory.id, territory]));
     const routeIds = new Set();
     if (normalized.world.shippingRoutes.length > 50 || normalized.world.shippingRoutes.some(route => {
+      const source = route && territoryById.get(route.sourceId);
+      const destination = route && territoryById.get(route.destinationId);
+      const international = !!(route && route.partnerId);
+      const partner = international ? normalized.rivals[route.partnerId] : null;
+      const ownershipValid = international
+        ? route.ownerId === "player" && !!partner &&
+          ((source?.owner === "player" && destination?.owner === route.partnerId) ||
+           (source?.owner === route.partnerId && destination?.owner === "player"))
+        : source?.owner === route.ownerId && destination?.owner === route.ownerId;
       if (!route || typeof route.id !== "string" || !route.id || route.id.length > 64 || routeIds.has(route.id) ||
-          !territoryIds.has(route.sourceId) || !territoryIds.has(route.destinationId) || route.sourceId === route.destinationId || route.sourceId === "home" ||
+          !source || !destination || route.sourceId === route.destinationId ||
+          (!international && route.sourceId === "home") ||
           typeof route.ownerId !== "string" || (route.ownerId !== "player" && (!normalized.rivals || !Object.hasOwn(normalized.rivals, route.ownerId))) ||
-          territoryById.get(route.sourceId).owner !== route.ownerId || territoryById.get(route.destinationId).owner !== route.ownerId ||
+          (international && (!partner || route.ownerId !== "player" ||
+            !INTERNATIONAL_TRADE_RESOURCES.includes(route.resource) ||
+            !INTERNATIONAL_TRADE_TARIFFS.includes(route.tariffPercent) ||
+            !Number.isInteger(route.unitPrice) || route.unitPrice < 1 || route.unitPrice > 120)) ||
+          (!international && (route.partnerId !== undefined || route.tariffPercent !== undefined || route.unitPrice !== undefined)) ||
           !SHIPPING_RESOURCES.includes(route.resource) || !Number.isInteger(route.capacity) || route.capacity < 10 || route.capacity > 30 ||
           !Number.isInteger(route.travelTurns) || route.travelTurns < 1 || route.travelTurns > 5 ||
           !["active", "paused"].includes(route.status) ||
+          (route.status === "active" && (!ownershipValid || source.harborLevel < 1 || destination.harborLevel < 1 ||
+            (international && !hasActiveTradeAgreement(normalized, route.partnerId)))) ||
           !Number.isInteger(route.createdTurn) || route.createdTurn < 1 || route.createdTurn > normalized.turn ||
           !Number.isInteger(route.loadedTotal) || route.loadedTotal < 0 || route.loadedTotal > RESOURCE_LIMIT ||
           !Number.isInteger(route.deliveredTotal) || route.deliveredTotal < 0 || route.deliveredTotal > RESOURCE_LIMIT ||
@@ -633,7 +651,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -1093,12 +1111,75 @@
     addEvent(state, "Opened a " + resource + " shipping route from " + source.name + " to " + destination.name + ".", "economy");
     return route;
   }
+  function hasActiveTradeAgreement(state, rivalId) {
+    return (state.diplomacy?.treaties || []).some(treaty =>
+      treaty.rivalId === rivalId && treaty.kind === "trade" && treaty.status === "active"
+    ) && !(state.diplomacy?.conflicts || []).some(conflict =>
+      conflict.rivalId === rivalId && conflict.status === "active"
+    );
+  }
+  function internationalTradeEndpointsValid(state, route, source, destination) {
+    const partnerId = route.partnerId;
+    const partner = state.rivals?.[partnerId];
+    return route.ownerId === "player" && !!partner &&
+      ((source.owner === "player" && destination.owner === partnerId) ||
+       (source.owner === partnerId && destination.owner === "player")) &&
+      hasActiveTradeAgreement(state, partnerId);
+  }
+  function createInternationalTradeRoute(state, rivalId, sourceId, destinationId, resource, tariffPercent = 10) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const rival = state.rivals[rivalId];
+    if (!rival) throw new Error("Choose a valid trading nation.");
+    if (!hasActiveTradeAgreement(state, rivalId)) throw new Error("An active trade agreement is required for port access.");
+    const territories = state.world?.territories || [];
+    const source = territories.find(item => item.id === sourceId);
+    const destination = territories.find(item => item.id === destinationId);
+    if (!source || !destination || source.id === destination.id ||
+        !((source.owner === "player" && destination.owner === rivalId) ||
+          (source.owner === rivalId && destination.owner === "player"))) {
+      throw new Error("Choose one player port and one port controlled by " + rival.name + ".");
+    }
+    if (source.harborLevel < 1 || destination.harborLevel < 1) throw new Error("Both nations need an operational harbor at each end.");
+    if (!INTERNATIONAL_TRADE_RESOURCES.includes(resource)) throw new Error("This resource is not available for international trade.");
+    if (!INTERNATIONAL_TRADE_TARIFFS.includes(tariffPercent)) throw new Error("Choose a tariff of 0%, 5%, 10%, 15% or 20%.");
+    const routes = state.world.shippingRoutes || (state.world.shippingRoutes = []);
+    if (routes.length >= 50) throw new Error("Your shipping network has reached its 50-route limit.");
+    if (routes.some(route => route.partnerId === rivalId && route.sourceId === source.id &&
+        route.destinationId === destination.id && route.resource === resource)) {
+      throw new Error("This international trade route already exists.");
+    }
+    const cost = { materials: 20, credits: 35 };
+    if (state.resources.materials < cost.materials || state.resources.credits < cost.credits) {
+      throw new Error("Opening an international route requires 20 materials and 35 credits.");
+    }
+    const marketPrice = state.market.prices[resource];
+    const unitPrice = Math.max(1, Math.ceil(marketPrice * (100 + tariffPercent) / 100));
+    state.resources.materials -= cost.materials;
+    state.resources.credits -= cost.credits;
+    const distance = Math.hypot(destination.x - source.x, destination.z - source.z);
+    const travelTurns = clamp(Math.ceil(distance / 18) - (hasTech(state, "logistics") ? 1 : 0), 1, 5);
+    const route = {
+      id: "international-" + state.turn + "-" + (routes.length + 1),
+      ownerId: "player", partnerId: rivalId, sourceId: source.id, destinationId: destination.id,
+      resource, tariffPercent, unitPrice, capacity: shippingRouteCapacity(source, destination), travelTurns,
+      status: "active", inTransit: null, createdTurn: state.turn,
+      loadedTotal: 0, deliveredTotal: 0, lastLoadedTurn: null, lastDeliveredTurn: null
+    };
+    routes.push(route);
+    addEvent(state, "Opened an international " + resource + " route with " + rival.name +
+      " at a " + tariffPercent + "% tariff (" + unitPrice + " credits per unit).", "trade");
+    rememberRival(rival, state.turn, "trade-route", "Opened a " + resource + " maritime trade route with a " + tariffPercent + "% tariff");
+    return route;
+  }
   function shippingEffects(state) {
     const territories = new Map((state.world?.territories || []).map(item => [item.id, item]));
     const active = (state.world?.shippingRoutes || []).filter(route => {
       const source = territories.get(route.sourceId), destination = territories.get(route.destinationId);
       return (route.ownerId || "player") === "player" && route.status === "active" &&
-        source?.owner === "player" && destination?.owner === "player" && source.harborLevel > 0 && destination.harborLevel > 0;
+        source?.harborLevel > 0 && destination?.harborLevel > 0 &&
+        (route.partnerId
+          ? internationalTradeEndpointsValid(state, route, source, destination)
+          : source?.owner === "player" && destination?.owner === "player");
     });
     return {
       activeRoutes: active.length,
@@ -1116,9 +1197,13 @@
     for (const route of state.world.shippingRoutes || []) {
       const ownerId = route.ownerId || "player";
       const source = territories.get(route.sourceId), destination = territories.get(route.destinationId);
-      const rival = ownerId === "player" ? null : state.rivals[ownerId];
+      const rival = route.partnerId ? null : (ownerId === "player" ? null : state.rivals[ownerId]);
+      const international = !!route.partnerId;
+      const endpointsValid = international
+        ? source && destination && internationalTradeEndpointsValid(state, route, source, destination)
+        : source && destination && source.owner === ownerId && destination.owner === ownerId;
       if (!source || !destination || !rival && ownerId !== "player" ||
-          source.owner !== ownerId || destination.owner !== ownerId || source.harborLevel < 1 || destination.harborLevel < 1) {
+          !endpointsValid || source.harborLevel < 1 || destination.harborLevel < 1) {
         route.status = "paused";
         continue;
       }
@@ -1141,7 +1226,41 @@
       if (route.inTransit.remainingTurns > 0) continue;
       const amount = route.inTransit.amount;
       let delivered = amount, waiting = 0;
-      if (ownerId === "player" && destination.id === "home") {
+      if (international) {
+        const partner = state.rivals[route.partnerId];
+        const seller = source.owner === "player" ? state.resources : state.rivals[source.owner].resources;
+        const buyer = destination.owner === "player" ? state.resources : state.rivals[destination.owner].resources;
+        const destinationIsHome = destination.owner === "player" && destination.id === "home";
+        const stored = destination.owner === "player"
+          ? (destinationIsHome ? state.resources[route.resource] : destination.stockpile[route.resource] || 0)
+          : buyer[route.resource] || 0;
+        const room = destination.owner === "player" && !destinationIsHome
+          ? STOCKPILE_LIMIT - stored
+          : RESOURCE_LIMIT - stored;
+        const affordable = Math.floor(buyer.credits / route.unitPrice);
+        delivered = Math.min(amount, Math.max(0, room), Math.max(0, affordable));
+        const payment = delivered * route.unitPrice;
+        if (delivered > 0) {
+          buyer.credits -= payment;
+          seller.credits = clamp(seller.credits + payment, 0, RESOURCE_LIMIT);
+          if (destination.owner === "player") {
+            if (destinationIsHome) state.resources[route.resource] = stored + delivered;
+            else destination.stockpile[route.resource] = stored + delivered;
+          } else {
+            buyer[route.resource] = stored + delivered;
+          }
+          const relationDelta = route.tariffPercent === 0 ? 1 : route.tariffPercent >= 15 ? -1 : 0;
+          if (relationDelta) {
+            partner.relation = clamp(partner.relation + relationDelta, -100, 100);
+            rememberRival(partner, state.turn, "tariff", "A " + route.tariffPercent + "% trade tariff affected bilateral relations", relationDelta);
+          }
+          campaignProgress(state, "tradeVolume", delivered);
+          updateObjectives(state);
+          addEvent(state, "International convoy delivered " + delivered + " " + route.resource +
+            " to " + partner.name + " for " + payment + " credits (" + route.tariffPercent + "% tariff).", "trade");
+        }
+        waiting = amount - delivered;
+      } else if (ownerId === "player" && destination.id === "home") {
         production[route.resource] += amount;
       } else if (rival) {
         const stored = rival.resources[route.resource] || 0;
@@ -1158,18 +1277,19 @@
       if (delivered > 0) route.lastDeliveredTurn = state.turn;
       route.inTransit = waiting > 0 ? { amount: waiting, remainingTurns: 1 } : null;
       deliveredThisTurn.add(route.id);
-      if (delivered > 0) {
+      if (!international && delivered > 0) {
         const carrier = rival ? rival.name + "'s convoy" : "A convoy";
         addEvent(state, carrier + " delivered " + delivered + " " + route.resource + " from " + source.name + " to " + destination.name + ".", "economy");
       }
     }
     for (const route of active) {
       if (route.inTransit || deliveredThisTurn.has(route.id)) continue;
-      const source = territories.get(route.sourceId), stock = available.get(route.sourceId);
+      const source = territories.get(route.sourceId);
+      const stock = source.owner === "player" && source.id === "home" ? state.resources : available.get(route.sourceId);
       const amount = Math.min(route.capacity, stock?.[route.resource] || 0);
       if (amount <= 0) continue;
       stock[route.resource] -= amount;
-      source.stockpile[route.resource] = Math.max(0, source.stockpile[route.resource] - amount);
+      if (stock !== state.resources) source.stockpile[route.resource] = Math.max(0, source.stockpile[route.resource] - amount);
       route.inTransit = { amount, remainingTurns: route.travelTurns };
       route.loadedTotal += amount;
       route.lastLoadedTurn = state.turn;
@@ -2154,9 +2274,9 @@
   }
 
   return {
-    SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, SHIPPING_RESOURCES, STOCKPILE_LIMIT, RENEWABLE_POWER_OUTPUT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
+    SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, SHIPPING_RESOURCES, INTERNATIONAL_TRADE_RESOURCES, INTERNATIONAL_TRADE_TARIFFS, STOCKPILE_LIMIT, RENEWABLE_POWER_OUTPUT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, createShippingRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
+    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, createShippingRoute, createInternationalTradeRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
