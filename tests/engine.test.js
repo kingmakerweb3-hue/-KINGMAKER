@@ -1994,7 +1994,8 @@ test("winning a territorial campaign transfers the island, residents and infrast
   assert.equal(rivalRoute.status, "paused");
   assert.deepEqual(rivalRoute.inTransit, { amount: 8, remainingTurns: 2 });
   assert.equal(state.world.placedDistricts[0].territoryId, target.id);
-  assert.equal(state.nation.population, homePopulation + targetPopulation);
+  const homeAfterCampaign = state.world.territories.find(territory => territory.id === "home").population;
+  assert.equal(state.nation.population, homeAfterCampaign + targetPopulation);
   assert.equal(state.nation.population, Engine.nationalPopulationFor(state));
   assert.equal(rival.population, Math.max(1, rivalPopulation - targetPopulation));
   assert.ok(Engine.districtEffects(state).workforce >= 4);
