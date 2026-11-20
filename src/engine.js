@@ -984,17 +984,18 @@
       if (district.type === "residential") regionalGrowth[territoryId] = (regionalGrowth[territoryId] || 0) + 1;
     }
     const production = { food: 0, materials: 0, credits: 0 };
-    let workforce = 0;
+    let workforce = 0, employed = 0;
     for (const [territoryId, localCounts] of Object.entries(regionalCounts)) {
       const territory = territories.get(territoryId);
       const required = Object.entries(JOBS_PER_DISTRICT).reduce((sum, [type, jobs]) => sum + localCounts[type] * jobs, 0);
       workforce += required;
+      employed += Math.min(required, territory.population);
       const staffing = required > 0 ? Math.min(1, territory.population / required) : 1;
       production.food += Math.floor(localCounts.agricultural * 3 * staffing);
       production.materials += Math.floor(localCounts.industrial * 2 * staffing);
       production.credits += Math.floor(localCounts.commercial * 4 * staffing);
     }
-    return { counts, production, populationGrowth: regionalGrowth.home || 0, regionalGrowth, workforce };
+    return { counts, production, populationGrowth: regionalGrowth.home || 0, regionalGrowth, workforce, employed };
   }
   function roadEffects(state) {
     const roads = state.world?.placedRoads || [];
@@ -1533,10 +1534,12 @@
   }
   function economicSnapshot(state) {
     const population = nationalPopulationFor(state);
+    const homePopulation = state.world?.territories?.find(territory => territory.id === "home")?.population ?? population;
     const districts = districtEffects(state);
-    const jobs = workforceFor(state.buildings) + districts.workforce;
-    const employed = Math.min(jobs, population);
-    const staffing = jobs > 0 ? Math.min(1, population / jobs) : 1;
+    const homeJobs = workforceFor(state.buildings);
+    const jobs = homeJobs + districts.workforce;
+    const employed = Math.min(homeJobs, homePopulation) + districts.employed;
+    const staffing = homeJobs > 0 ? Math.min(1, homePopulation / homeJobs) : 1;
     const creator = creatorEffects(state);
     const base = productionFor(state.buildings, state.technologies);
     const renewablePower = worldEventActiveThisTurn(state, "energy_crisis") ? 0 : RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar;
@@ -1544,7 +1547,7 @@
       materials: clamp(state.resources.materials + Math.floor(base.materials * staffing), 0, RESOURCE_LIMIT),
       ore: clamp(state.resources.ore + Math.floor(base.ore * staffing), 0, RESOURCE_LIMIT),
       power: clamp(state.resources.power + Math.floor(base.power * staffing) + renewablePower, 0, RESOURCE_LIMIT)
-    }, state.buildings, state.technologies, population, jobs);
+    }, state.buildings, state.technologies, homePopulation, homeJobs);
     industry.production.power += renewablePower;
     for (const [resource, amount] of Object.entries(creator.production)) industry.production[resource] += amount;
     for (const [resource, amount] of Object.entries(districts.production)) industry.production[resource] += amount;
@@ -2136,15 +2139,17 @@
     applyOngoingWorldEvents(state, flow);
     const creator = creatorEffects(state);
     const districts = districtEffects(state);
+    const homePopulation = state.world.territories.find(territory => territory.id === "home")?.population ?? state.nation.population;
     const baseOutput = productionFor(state.buildings, state.technologies);
-    const jobs = workforceFor(state.buildings) + districts.workforce, employed = Math.min(jobs, state.nation.population);
-    const staffing = jobs > 0 ? Math.min(1, state.nation.population / jobs) : 1;
+    const homeJobs = workforceFor(state.buildings);
+    const jobs = homeJobs + districts.workforce, employed = Math.min(homeJobs, homePopulation) + districts.employed;
+    const staffing = homeJobs > 0 ? Math.min(1, homePopulation / homeJobs) : 1;
     const renewablePower = worldEventActiveThisTurn(state, "energy_crisis") ? 0 : RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar;
     const industry = industrialOutput({ ...state.resources,
       materials: clamp(state.resources.materials + Math.floor(baseOutput.materials * staffing), 0, RESOURCE_LIMIT),
       ore: clamp(state.resources.ore + Math.floor(baseOutput.ore * staffing), 0, RESOURCE_LIMIT),
       power: clamp(state.resources.power + Math.floor(baseOutput.power * staffing) + renewablePower, 0, RESOURCE_LIMIT)
-    }, state.buildings, state.technologies, state.nation.population, jobs);
+    }, state.buildings, state.technologies, homePopulation, homeJobs);
     const output = industry.production;
     output.power += renewablePower;
     for (const [resource, amount] of Object.entries(creator.production)) output[resource] += amount;
@@ -2207,7 +2212,7 @@
       reducePlayerPopulation(state, 5);
       addEvent(state, "Food shortages caused unrest and population loss across the nation.", "crisis");
     } else {
-      state.nation.stability = Math.min(100, state.nation.stability + (jobs >= Math.ceil(state.nation.population / 10) ? (hasTech(state, "governance") ? 2 : 1) : 0));
+      state.nation.stability = Math.min(100, state.nation.stability + (employed >= Math.ceil(state.nation.population / 10) ? (hasTech(state, "governance") ? 2 : 1) : 0));
       populationGrowthAllowed = state.resources.food > foodNeed * 3 && state.nation.stability >= 45 && phase !== "recession" && jobs >= Math.ceil(state.nation.population / 10);
       if (populationGrowthAllowed) {
         const home = state.world.territories.find(territory => territory.id === "home");
@@ -2231,7 +2236,7 @@
     }
     syncNationalPopulation(state);
     state.economy.requiredJobs = Math.ceil(state.nation.population / 10);
-    if (jobs < Math.ceil(state.nation.population / 10)) state.nation.stability = Math.max(0, state.nation.stability - 1);
+    if (employed < Math.ceil(state.nation.population / 10)) state.nation.stability = Math.max(0, state.nation.stability - 1);
     if (phase === "recession") state.nation.stability = Math.max(0, state.nation.stability - 2);
     else if (phase === "recovery") state.nation.stability = Math.min(100, state.nation.stability + 1);
     state.nation.stability = Math.min(100, state.nation.stability + creator.stability);
