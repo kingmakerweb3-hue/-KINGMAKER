@@ -1908,7 +1908,8 @@
         (technology.requires || []).every(required => rival.technologies.includes(required)) && rival.resources.science >= technology.cost);
   }
   function rememberRival(rival, turn, kind, text, relationDelta = 0) {
-    rival.memory.unshift({ turn, kind: String(kind).slice(0, 32), text: String(text).slice(0, 180), relationDelta: safeInt(relationDelta, 0, 200) * (relationDelta < 0 ? -1 : 1) });
+    const signedDelta = Number.isFinite(Number(relationDelta)) ? Math.max(-200, Math.min(200, Math.trunc(Number(relationDelta)))) : 0;
+    rival.memory.unshift({ turn, kind: String(kind).slice(0, 32), text: String(text).slice(0, 180), relationDelta: signedDelta });
     rival.memory = rival.memory.slice(0, 30);
   }
   function planRival(state, rival, foodNeed, foodTarget) {
