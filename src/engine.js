@@ -940,7 +940,15 @@
   function migrateNationalPopulation(state) {
     state.seed = safeInt(state.seed, 1, 0xffffffff) || 1;
     state.world = state.world && typeof state.world === "object" ? state.world : {};
-    if (!Array.isArray(state.world.territories)) state.world.territories = createTerritories(state.seed);
+    if (!Array.isArray(state.world.territories)) {
+      state.world.territories = createTerritories(state.seed);
+      if (Array.isArray(state.world.resourceNodes)) {
+        const knownDeposits = new Set(state.world.resourceNodes.map(node => node?.id));
+        for (const deposit of createResourceDeposits(state.seed, state.world.territories)) {
+          if (deposit.territoryId !== "home" && !knownDeposits.has(deposit.id)) state.world.resourceNodes.push(deposit);
+        }
+      }
+    }
     const home = state.world.territories.find(territory => territory?.id === "home");
     if (home) home.population = safeInt(state.nation?.population, home.population || 100, RESOURCE_LIMIT) || 1;
     state.nation.population = nationalPopulationFor(state);
@@ -2213,7 +2221,7 @@
       addEvent(state, "Food shortages caused unrest and population loss across the nation.", "crisis");
     } else {
       state.nation.stability = Math.min(100, state.nation.stability + (employed >= Math.ceil(state.nation.population / 10) ? (hasTech(state, "governance") ? 2 : 1) : 0));
-      populationGrowthAllowed = state.resources.food > foodNeed * 3 && state.nation.stability >= 45 && phase !== "recession" && jobs >= Math.ceil(state.nation.population / 10);
+      populationGrowthAllowed = state.resources.food > foodNeed * 3 && state.nation.stability >= 45 && phase !== "recession" && employed >= Math.ceil(state.nation.population / 10);
       if (populationGrowthAllowed) {
         const home = state.world.territories.find(territory => territory.id === "home");
         if (home) {
