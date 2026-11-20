@@ -54,6 +54,17 @@ International cargo is limited to food, materials, ore and power. The contract l
 A 0% tariff improves relations by one point per delivered convoy; 5% and 10% are neutral; 15% and 20% reduce relations by one point per delivered convoy. A conflict voids the trade agreement and pauses the route; an expired agreement also pauses it until renewed. Cargo remains in transit while access is suspended. International lanes are shown in gold in the 3D archipelago and in the diplomacy and island inspectors.
 
 
+
+## Territorial campaigns
+
+A hostile rival can be challenged for a specific island it controls. Relations must be -20 or lower, and declaring a campaign costs 25 credits and 10 power. Active alliances and non-aggression pacts prevent the declaration; any other active agreement with that rival expires when conflict begins. Choose the target island in the Diplomacy panel before declaring the campaign.
+
+The existing three-turn conflict simulation compares the player's power, power-grid infrastructure and researched technologies against the rival's corresponding strength. A targeted island adds a defensive bonus based on its residents, development and harbor level. Both nations pay the existing wartime power and stability costs during the campaign.
+
+If the player wins, the selected island transfers to the player nation. Its residents join national population, the rival loses those residents (without dropping below one), and the island retains its harbor, local stockpile, extraction deposits, buildings, districts and roads. Routes that touch the captured island pause immediately; cargo already in transit is preserved. Captured extraction sites continue producing into the island's local stockpile on subsequent turns. A failed campaign does not change territorial ownership. Peace negotiations can end an active campaign before its automatic resolution.
+
+Targeted conflicts are saved and validated. Older conflict records without a territorial target continue to resolve as non-territorial conflicts.
+
 ## Living world events
 
 The world can produce international energy crises, food shortages, industrial revolutions, technological breakthroughs, financial crises, trade disruptions, natural disasters, political instability, diplomatic disputes, international conflicts, resource discoveries, and infrastructure opportunities. Event effects alter power reserves and prices, factory output, market supply, treasury income, stability, diplomatic relations, research, or infrastructure. Temporary effects have a bounded duration and are applied once per turn. An event cannot be processed twice after its response is stored.
