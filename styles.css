@@ -196,3 +196,6 @@ button{min-height:40px}
 .international-trade-form button{width:100%}
 .international-trade-form small{color:var(--muted);font-size:.68rem;line-height:1.45}
 @media(max-width:640px){.international-trade-form{grid-template-columns:minmax(0,1fr)}.international-trade-form button,.international-trade-form small{grid-column:auto}}
+
+.international-trade-form h5{grid-column:1/-1;margin:8px 0 0;color:var(--gold);font-size:.75rem}
+.international-trade-form h5:not(:first-child){padding-top:9px;border-top:1px solid #5a5036}
