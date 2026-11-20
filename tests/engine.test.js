@@ -554,6 +554,7 @@ test("Sustainable Urbanism increases housing capacity and reduces national wage 
   const efficient = Engine.createInitialState({ seed: 77 });
   for (const state of [standard, efficient]) {
     state.nation.population = 300;
+    state.world.territories.find(territory => territory.id === "home").population = 300;
     state.buildings = { farm: 5, mine: 5, workshop: 5, factory: 5, transport: 5, market: 5, academy: 5, power: 5, housing: 5 };
   }
   efficient.technologies = ["agriculture", "industry", "energy", "commerce", "governance", "medicine", "logistics", "urbanism"];
@@ -673,6 +674,7 @@ test("every commissioned Creator Studio category changes its advertised game sys
   for (const category of ["City Design", "Building", "Technology", "Business", "Artwork", "World Lore"]) {
     const baseline = Engine.createInitialState({ seed: 71 });
     baseline.nation.population = 250;
+    baseline.world.territories.find(territory => territory.id === "home").population = 250;
     baseline.resources.food = 1000;
     const designed = JSON.parse(JSON.stringify(baseline));
     const creation = Engine.registerCreation(designed, { creator: "Maker", title: category, category });
@@ -826,6 +828,7 @@ test("large values are capped and campaign defeat triggers at collapse", () => {
   state.buildings.farm = 100_000;
   assert.ok(Engine.productionFor(state.buildings).food > Engine.RESOURCE_LIMIT);
   state.nation.population = 11;
+  state.world.territories.find(territory => territory.id === "home").population = 11;
   state.nation.stability = 1;
   state.resources.food = 0;
   state.buildings.farm = 0;
@@ -1052,12 +1055,12 @@ test("rare-crystal extraction contributes science and finite deposits deplete", 
   assert.equal(Engine.resourceSiteEffects(state).science, 0);
 });
 
-test("schema 8 saves migrate to version 14 with deterministic archipelago deposits", () => {
+test("schema 8 saves migrate to version 15 with deterministic archipelago deposits", () => {
   const state = Engine.createInitialState({ seed: 42005 });
   state.schemaVersion = 8;
   delete state.world.resourceNodes;
   const migrated = Engine.migrateSave(state);
-  assert.equal(migrated.schemaVersion, 14);
+  assert.equal(migrated.schemaVersion, 15);
   assert.deepEqual(migrated.world.resourceNodes, Engine.createResourceDeposits(state.seed, state.world.territories));
   const roundTrip = Engine.migrateSave(JSON.parse(Engine.exportSave(migrated)));
   assert.deepEqual(roundTrip.world.resourceNodes, migrated.world.resourceNodes);
@@ -1150,7 +1153,7 @@ test("Duneward expands into a neutral island unless an active alliance protects 
   assert.equal(protectedState.world.territories.filter(item => item.owner === "unclaimed").length, 2);
 });
 
-test("version 9 saves migrate to schema 14 without losing existing extraction progress", () => {
+test("version 9 saves migrate to schema 15 without losing existing extraction progress", () => {
   const legacy = Engine.createInitialState({ seed: 52007 });
   legacy.schemaVersion = 9;
   delete legacy.world.territories;
@@ -1162,7 +1165,7 @@ test("version 9 saves migrate to schema 14 without losing existing extraction pr
   legacy.world.resourceNodes[0].operational = true;
   legacy.world.resourceNodes[0].operatedSinceTurn = 1;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 14);
+  assert.equal(migrated.schemaVersion, 15);
   assert.equal(migrated.world.territories.length, 9);
   assert.equal(migrated.world.resourceNodes.length, 16);
   assert.equal(migrated.world.resourceNodes[0].operational, true);
@@ -1282,7 +1285,7 @@ test("version 10 home placements migrate into schema 14 without changing their l
   legacy.world.placedRoads.push({ from: { x: -2, z: 0 }, to: { x: 2, z: 0 } });
   legacy.world.placedDistricts.push({ type: "residential", x: 1, z: 1, radius: 2.6 });
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 14);
+  assert.equal(migrated.schemaVersion, 15);
   assert.equal(migrated.world.placedBuildings[0].territoryId, "home");
   assert.equal(migrated.world.placedRoads[0].territoryId, "home");
   assert.equal(migrated.world.placedDistricts[0].territoryId, "home");
@@ -1299,7 +1302,7 @@ test("version 11 saves migrate with default harbor levels, local stockpiles and 
     delete territory.stockpile;
   }
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 14);
+  assert.equal(migrated.schemaVersion, 15);
   assert.equal(migrated.world.shippingRoutes.length, 0);
   assert.equal(migrated.world.territories.find(item => item.id === "home").harborLevel, 1);
   assert.ok(migrated.world.territories.filter(item => item.id !== "home").every(item => item.harborLevel === 0));
@@ -1587,7 +1590,7 @@ test("schema 12 player shipping routes migrate with explicit player ownership", 
   legacy.schemaVersion = 12;
   delete legacy.world.shippingRoutes[0].ownerId;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 14);
+  assert.equal(migrated.schemaVersion, 15);
   assert.equal(migrated.world.shippingRoutes[0].ownerId, "player");
 });
 
@@ -1759,7 +1762,7 @@ test("international route validation rejects malformed contracts but retains pau
   assert.equal(restored.world.shippingRoutes[0].status, "paused");
 });
 
-test("schema 13 saves migrate to version 14 while preserving domestic shipping routes", () => {
+test("schema 13 saves migrate to version 15 while preserving domestic shipping routes and regional population", () => {
   const state = Engine.createInitialState({ seed: 74006 });
   const island = state.world.territories.find(item => item.owner === "unclaimed");
   state.resources.materials = 1000;
@@ -1769,10 +1772,37 @@ test("schema 13 saves migrate to version 14 while preserving domestic shipping r
   Engine.upgradeHarbor(state, island.id);
   Engine.createShippingRoute(state, island.id, "home", "materials");
   const legacy = JSON.parse(Engine.exportSave(state));
+  legacy.nation.population = legacy.world.territories.find(item => item.id === "home").population;
   legacy.schemaVersion = 13;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 14);
+  assert.equal(migrated.schemaVersion, 15);
+  assert.equal(migrated.nation.population, migrated.world.territories.filter(item => item.owner === "player").reduce((sum, item) => sum + item.population, 0));
   assert.deepEqual(migrated.world.shippingRoutes, legacy.world.shippingRoutes);
+});
+
+test("schema 14 saves add existing player-island residents to the national population", () => {
+  const state = Engine.createInitialState({ seed: 74007 });
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1000; state.resources.credits = 1000; state.resources.influence = 100;
+  Engine.claimTerritory(state, island.id);
+  const legacy = JSON.parse(Engine.exportSave(state));
+  const home = legacy.world.territories.find(item => item.id === "home");
+  legacy.nation.population = home.population;
+  legacy.schemaVersion = 14;
+  const migrated = Engine.migrateSave(legacy);
+  assert.equal(migrated.schemaVersion, 15);
+  assert.equal(migrated.nation.population, home.population + island.population);
+  assert.equal(migrated.world.territories.find(item => item.id === island.id).population, island.population);
+});
+
+test("national population save validation rejects totals that omit or double-count owned residents", () => {
+  const state = Engine.createInitialState({ seed: 74009 });
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1000; state.resources.credits = 1000; state.resources.influence = 100;
+  Engine.claimTerritory(state, island.id);
+  const invalid = JSON.parse(Engine.exportSave(state));
+  invalid.nation.population -= 1;
+  assert.throws(() => Engine.validateSave(invalid), /National population does not match/);
 });
 
 
@@ -1812,4 +1842,61 @@ test("international cargo waits safely for buyer funds and destination storage",
   assert.equal(rival.resources.food, Engine.RESOURCE_LIMIT);
   assert.equal(rival.resources.credits, 85);
   assert.equal(state.resources.credits, sellerCreditsBefore + 15);
+});
+
+
+test("claimed island residents join national workforce, food demand and saved population", () => {
+  const state = Engine.createInitialState({ seed: 74101 });
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  const localResidents = island.population;
+  state.resources.materials = 1000; state.resources.credits = 1000; state.resources.influence = 100;
+  Engine.claimTerritory(state, island.id);
+  assert.equal(state.nation.population, 100 + localResidents);
+  const snapshot = Engine.economicSnapshot(state);
+  assert.equal(snapshot.population, state.nation.population);
+  assert.equal(snapshot.requiredJobs, Math.ceil(state.nation.population / 10));
+  assert.equal(snapshot.consumption.food, Math.ceil(state.nation.population / (12 + Math.min(8, snapshot.production.logistics))));
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.equal(restored.nation.population, state.nation.population);
+  assert.equal(restored.world.territories.find(item => item.id === island.id).population, localResidents);
+});
+
+test("regional district jobs and output are staffed by residents on their own island", () => {
+  const state = Engine.createInitialState({ seed: 74102 });
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1000; state.resources.credits = 1000; state.resources.influence = 100;
+  Engine.claimTerritory(state, island.id);
+  Engine.placeWorldDistrict(state, "agricultural", { territoryId: island.id, x: island.x + 0.25, z: island.z, radius: 2.6 });
+  const districts = Engine.districtEffects(state);
+  assert.equal(districts.workforce, 4);
+  assert.equal(districts.employed, 4);
+  assert.equal(districts.production.food, 3);
+  const snapshot = Engine.economicSnapshot(state);
+  assert.equal(snapshot.workforce, Engine.workforceFor(state.buildings) + 4);
+  island.population = 1;
+  const underpopulated = Engine.districtEffects(state);
+  assert.equal(underpopulated.employed, 1);
+  assert.equal(underpopulated.production.food, 0);
+});
+
+test("remote residential growth updates national population and food shortages keep totals synchronized", () => {
+  const state = Engine.createInitialState({ seed: 74103 });
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1000; state.resources.credits = 1000; state.resources.influence = 100;
+  Engine.claimTerritory(state, island.id);
+  Engine.placeWorldDistrict(state, "residential", { territoryId: island.id, x: island.x + 0.25, z: island.z, radius: 2.6 });
+  state.resources.food = 1000;
+  state.nation.stability = 100;
+  const localBefore = island.population, nationalBefore = state.nation.population;
+  Engine.advanceTurn(state);
+  assert.equal(island.population, localBefore + 1);
+  assert.equal(state.nation.population, nationalBefore + 3);
+  assert.equal(state.nation.population, Engine.nationalPopulationFor(state));
+
+  state.buildings.farm = 0;
+  state.resources.food = 0;
+  const remoteBeforeShortage = island.population;
+  Engine.advanceTurn(state);
+  assert.equal(island.population, remoteBeforeShortage);
+  assert.equal(state.nation.population, Engine.nationalPopulationFor(state));
 });
