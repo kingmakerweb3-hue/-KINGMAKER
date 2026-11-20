@@ -177,7 +177,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   }
   function syncShippingRoutes(routes,territories){
     if(!shippingGroup||!Array.isArray(routes))return;
-    const signature=routes.map(route=>[route.id,route.ownerId||"player",route.sourceId,route.destinationId,route.resource,route.status,route.capacity,route.travelTurns].join(":")).join("|");
+    const signature=routes.map(route=>[route.id,route.ownerId||"player",route.partnerId||"",route.sourceId,route.destinationId,route.resource,route.status,route.capacity,route.travelTurns,route.tariffPercent||0].join(":")).join("|");
     if(signature===shippingSignature)return;
     clearGroup(shippingGroup);shippingVessels.length=0;shippingSignature=signature;
     const byId=new Map((territories||[]).map(territory=>[territory.id,territory]));
@@ -185,7 +185,12 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const nationColors={aurelia:0x78a8d8,northreach:0xd28b70,meridian:0xa58bd8,solenne:0x7ab98b,ironmarch:0xc5a66b,duneward:0xd77c54};
     routes.filter(route=>route.status==="active").forEach((route,index)=>{
       const source=byId.get(route.sourceId),destination=byId.get(route.destinationId),ownerId=route.ownerId||"player";
-      if(!source||!destination||source.owner!==ownerId||destination.owner!==ownerId)return;
+      if(!source||!destination)return;
+      const international=!!route.partnerId;
+      const endpointsValid=international
+        ? ownerId==="player"&&((source.owner==="player"&&destination.owner===route.partnerId)||(source.owner===route.partnerId&&destination.owner==="player"))
+        : source.owner===ownerId&&destination.owner===ownerId;
+      if(!endpointsValid)return;
       const rivalOwned=ownerId!=="player";
       const distance=Math.hypot(destination.x-source.x,destination.z-source.z);
       const curve=new THREE.QuadraticBezierCurve3(
@@ -193,11 +198,11 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
         new THREE.Vector3((source.x+destination.x)/2,1.7+distance*.055,(source.z+destination.z)/2),
         new THREE.Vector3(destination.x,.45,destination.z)
       );
-      const color=rivalOwned?(nationColors[ownerId]||0x8b9cae):(routeColors[route.resource]||0x80d4d0);
-      const line=new THREE.Mesh(new THREE.TubeGeometry(curve,48,.065,6,false),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:rivalOwned ? 0.18 : 0.28,transparent:true,opacity:rivalOwned ? 0.58 : 0.82,roughness:.4}));
-      line.userData.shippingRouteId=route.id;line.userData.ownerId=ownerId;shippingGroup.add(line);
+      const color=international?0xe4bd65:rivalOwned?(nationColors[ownerId]||0x8b9cae):(routeColors[route.resource]||0x80d4d0);
+      const line=new THREE.Mesh(new THREE.TubeGeometry(curve,48,.065,6,false),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:international?.34:rivalOwned?.18:.28,transparent:true,opacity:international?.9:rivalOwned?.58:.82,roughness:.4}));
+      line.userData.shippingRouteId=route.id;line.userData.ownerId=ownerId;line.userData.partnerId=route.partnerId||null;shippingGroup.add(line);
       const vessel=new THREE.Group();
-      const hull=new THREE.Mesh(new THREE.BoxGeometry(.48,.2,.95),material(rivalOwned?color:0x29495b,.5));vessel.add(hull);
+      const hull=new THREE.Mesh(new THREE.BoxGeometry(.48,.2,.95),material(international?0x9a7c42:rivalOwned?color:0x29495b,.5));vessel.add(hull);
       const deck=new THREE.Mesh(new THREE.BoxGeometry(.42,.12,.78),material(0x9a7650));deck.position.y=.14;vessel.add(deck);
       const cargo=new THREE.Mesh(new THREE.BoxGeometry(.27,.25,.3),material(routeColors[route.resource]||0x80d4d0));cargo.position.set(0,.31,-.08);vessel.add(cargo);
       const bridge=new THREE.Mesh(new THREE.BoxGeometry(.22,.22,.2),material(0xd9d5c6));bridge.position.set(0,.3,-.34);vessel.add(bridge);
