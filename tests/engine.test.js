@@ -1720,6 +1720,13 @@ test("international routes pause with cargo preserved when a trade agreement exp
   assert.equal(route.status, "active");
   assert.deepEqual(route.inTransit, { amount: 7, remainingTurns: 1 });
   assert.equal(resumed.activeRoutes, 1);
+
+  rival.relation = -25;
+  Engine.declareConflict(state, rivalId);
+  Engine.processShippingRoutes(state);
+  assert.equal(route.status, "paused");
+  assert.deepEqual(route.inTransit, { amount: 7, remainingTurns: 1 });
+  assert.doesNotThrow(() => Engine.validateSave(state));
 });
 
 test("international route validation rejects malformed contracts but retains paused routes after port ownership changes", () => {
@@ -1766,4 +1773,43 @@ test("schema 13 saves migrate to version 14 while preserving domestic shipping r
   const migrated = Engine.migrateSave(legacy);
   assert.equal(migrated.schemaVersion, 14);
   assert.deepEqual(migrated.world.shippingRoutes, legacy.world.shippingRoutes);
+});
+
+
+test("international cargo waits safely for buyer funds and destination storage", () => {
+  const state = Engine.createInitialState({ seed: 74008 });
+  const rivalId = "aurelia";
+  const rival = state.rivals[rivalId];
+  rival.relation = 35;
+  const rivalPort = state.world.territories.find(item => item.owner === rivalId);
+  rivalPort.harborLevel = 1;
+  Engine.offerTreaty(state, rivalId, "trade");
+  const route = Engine.createInternationalTradeRoute(state, rivalId, "home", rivalPort.id, "food", 10);
+  state.resources.food -= 5;
+  const sellerCreditsBefore = state.resources.credits;
+  rival.resources.food = Engine.RESOURCE_LIMIT - 2;
+  rival.resources.credits = 0;
+  route.inTransit = { amount: 5, remainingTurns: 1 };
+  route.loadedTotal = 5;
+  route.lastLoadedTurn = state.turn;
+
+  Engine.processShippingRoutes(state);
+  assert.equal(route.deliveredTotal, 0);
+  assert.deepEqual(route.inTransit, { amount: 5, remainingTurns: 1 });
+  assert.equal(rival.resources.credits, 0);
+
+  rival.resources.credits = 100;
+  Engine.processShippingRoutes(state);
+  assert.equal(route.deliveredTotal, 2);
+  assert.deepEqual(route.inTransit, { amount: 3, remainingTurns: 1 });
+  assert.equal(rival.resources.food, Engine.RESOURCE_LIMIT);
+  assert.equal(rival.resources.credits, 94);
+
+  rival.resources.food = Engine.RESOURCE_LIMIT - 3;
+  Engine.processShippingRoutes(state);
+  assert.equal(route.deliveredTotal, 5);
+  assert.equal(route.inTransit, null);
+  assert.equal(rival.resources.food, Engine.RESOURCE_LIMIT);
+  assert.equal(rival.resources.credits, 85);
+  assert.equal(state.resources.credits, sellerCreditsBefore + 15);
 });
