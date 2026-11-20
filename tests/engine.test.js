@@ -2028,3 +2028,29 @@ test("losing a territorial campaign does not transfer the targeted island", () =
   assert.equal(target.owner, rival.id);
   assert.equal(state.nation.population, Engine.nationalPopulationFor(state));
 });
+
+
+test("conquest never creates residents when the rival has fewer people than the target island", () => {
+  const state = Engine.createInitialState({ seed: 74205 });
+  const rival = state.rivals.aurelia;
+  const target = state.world.territories.find(territory => territory.owner === rival.id);
+  target.population = 100;
+  state.resources.credits = 1000;
+  state.resources.food = 1000;
+  state.resources.power = 1000;
+  state.resources.materials = 1000;
+  state.resources.ore = 1000;
+  state.nation.stability = 100;
+  rival.population = 50;
+  rival.stability = 100;
+  rival.relation = -20;
+  rival.resources = { food: 1000, materials: 0, ore: 0, goods: 0, credits: 1000, science: 0, power: 0, influence: 0 };
+  for (const id of Object.keys(rival.buildings)) rival.buildings[id] = 0;
+  rival.technologies = [];
+  Engine.declareConflict(state, rival.id, target.id);
+  for (let turn = 0; turn < 3; turn++) Engine.advanceTurn(state);
+  assert.equal(target.owner, "player");
+  assert.equal(rival.population, 1);
+  assert.ok(target.population < 100);
+  assert.equal(state.nation.population, Engine.nationalPopulationFor(state));
+});
