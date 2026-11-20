@@ -83,6 +83,46 @@
     $("economy-phase").textContent=state.economy.phase[0].toUpperCase()+state.economy.phase.slice(1)+" · "+(state.economy.lastBalance>=0?"+":"")+num(state.economy.lastBalance)+" credits / turn";
     $("economy-ledger").textContent="Last turn: "+num(state.economy.lastIncome)+" income − "+num(state.economy.lastExpenses)+" wages. "+(state.economy.phase==="recession"?"Two or more loss-making turns reduce stability and stop population growth.":state.economy.phase==="recovery"?"The economy is rebuilding stability after a recession.":"Income includes market output, citizen taxes and trade agreements.");
   }
+  function renderInternationalTradePanel(rival, conflict) {
+    const treatyActive = state.diplomacy.treaties.some(treaty =>
+      treaty.rivalId === rival.id && treaty.kind === "trade" && treaty.status === "active"
+    );
+    const playerPorts = (state.world.territories || []).filter(port => port.owner === "player" && port.harborLevel > 0);
+    const rivalPorts = (state.world.territories || []).filter(port => port.owner === rival.id && port.harborLevel > 0);
+    const routes = (state.world.shippingRoutes || []).filter(route => route.partnerId === rival.id);
+    const routeList = routes.length
+      ? '<div class="international-trade-routes">' + routes.map(route => {
+        const source = state.world.territories.find(port => port.id === route.sourceId);
+        const destination = state.world.territories.find(port => port.id === route.destinationId);
+        const cargo = route.inTransit ? ' · ' + route.inTransit.amount + ' in transit · ' + route.inTransit.remainingTurns + ' turns' : ' · awaiting cargo';
+        return '<span><b>' + esc(source?.name || route.sourceId) + ' → ' + esc(destination?.name || route.destinationId) + '</b><small>' +
+          esc(route.resource) + ' · ' + route.tariffPercent + '% tariff · ' + route.unitPrice + ' credits/unit · ' +
+          esc(route.status) + cargo + ' · delivered ' + num(route.deliveredTotal) + '</small></span>';
+      }).join("") + '</div>'
+      : '<small class="muted">No international cargo routes with this nation yet.</small>';
+    let form = "";
+    if (!treatyActive) {
+      form = '<p class="muted">Sign or renew a trade agreement to receive reciprocal port access. Routes pause when the agreement expires or conflict begins.</p>';
+    } else if (conflict) {
+      form = '<p class="muted">International shipping is suspended during conflict. Cargo already at sea is preserved.</p>';
+    } else if (!playerPorts.length || !rivalPorts.length) {
+      form = '<p class="muted">Both nations need at least one operational harbor before a trade lane can open.</p>';
+    } else {
+      const id = esc(rival.id);
+      form = '<div class="international-trade-form">' +
+        '<label for="international-source-' + id + '">Your port</label><select id="international-source-' + id + '">' +
+        playerPorts.map(port => '<option value="' + esc(port.id) + '">' + esc(port.name) + ' · level ' + port.harborLevel + '</option>').join("") +
+        '</select><label for="international-destination-' + id + '">Partner port</label><select id="international-destination-' + id + '">' +
+        rivalPorts.map(port => '<option value="' + esc(port.id) + '">' + esc(port.name) + ' · level ' + port.harborLevel + '</option>').join("") +
+        '</select><label for="international-resource-' + id + '">Cargo</label><select id="international-resource-' + id + '">' +
+        E.INTERNATIONAL_TRADE_RESOURCES.map(resource => '<option value="' + esc(resource) + '">' + esc(resource) + '</option>').join("") +
+        '</select><label for="international-tariff-' + id + '">Tariff</label><select id="international-tariff-' + id + '">' +
+        E.INTERNATIONAL_TRADE_TARIFFS.map(rate => '<option value="' + rate + '">' + rate + '%</option>').join("") +
+        '</select><button type="button" data-action="create-international-trade-route" data-id="' + id + '">Open international route · 20 materials / 35 credits</button>' +
+        '<small class="muted">Choose either direction by swapping the ports. The buyer pays on delivery; cargo waits if funds or storage are insufficient. Tariffs lock the contract price. 0% improves relations; 15–20% tariffs strain them.</small></div>';
+    }
+    return '<section class="international-trade-panel"><h4>International shipping · ' + esc(rival.name) + '</h4>' + routeList + form + '</section>';
+  }
   function renderDiplomacy() {
     const treatyTypes=["trade","research","non-aggression","alliance"];
     $("diplomacy-list").innerHTML=Object.values(state.rivals).map(r=>{
@@ -90,7 +130,8 @@
       const treaties=treatyTypes.map(k=>{const req=k==="alliance"?50:20,active=state.diplomacy.treaties.some(t=>t.rivalId===r.id&&t.kind===k&&t.status==="active");return '<button data-action="treaty" data-id="'+r.id+'" data-kind="'+k+'" '+(active||r.relation<req?"disabled":"")+'>'+(active?k+" active":"Offer "+k)+'</button>';}).join("");
       const jobs=E.workforceFor(r.buildings);
       const memory=r.memory.slice(0,3).map(m=>'<li>Turn '+num(m.turn)+': '+esc(m.text)+'</li>').join("");
-      return '<article class="diplomacy-card"><div class="row"><div><h3>'+esc(r.name)+' <span class="level">'+esc(r.personality)+'</span></h3><p>'+esc(r.stance)+' · '+num(r.population)+' citizens</p><small class="rival-activity">Objective: '+esc(r.longTermObjective)+'</small><small class="rival-activity">Plan: '+esc(r.plan?r.plan.reason:"evaluating national priorities")+'</small><small class="rival-activity">This turn: '+esc(r.activity)+'</small><small class="rival-activity">Industry: '+(r.buildings.mine||0)+' mines · '+(r.buildings.factory||0)+' factories · '+num(Math.min(jobs,r.population))+'/'+num(jobs)+' jobs · '+num(r.resources.credits)+' credits</small><details class="rival-history"><summary>Recent history ('+r.memory.length+')</summary><ul>'+memory+'</ul></details></div><div class="relation '+(r.relation>=20?"good":r.relation<=-20?"bad":"")+'">'+r.relation+'<small>'+level+'</small></div></div><div class="actions"><button data-action="gift" data-id="'+r.id+'">Send 20 cr aid</button><button data-action="strain" data-id="'+r.id+'" '+(state.resources.influence<5?"disabled":"")+'>Recall envoy (−15)</button>'+(conflict?'<button class="danger" data-action="peace" data-id="'+r.id+'">Negotiate peace</button>':'<button class="danger" data-action="conflict" data-id="'+r.id+'" '+(r.relation>-20||state.resources.power<10?"disabled":"")+'>Declare conflict</button>')+'</div><div class="treaty-actions">'+treaties+'</div>'+(conflict?'<p class="notice">Conflict active · '+(state.turn-conflict.startedTurn)+' turns · strength '+conflict.playerScore+' to '+conflict.rivalScore+'</p>':"")+'</article>';
+      const maritime=renderInternationalTradePanel(r,conflict);
+      return '<article class="diplomacy-card"><div class="row"><div><h3>'+esc(r.name)+' <span class="level">'+esc(r.personality)+'</span></h3><p>'+esc(r.stance)+' · '+num(r.population)+' citizens</p><small class="rival-activity">Objective: '+esc(r.longTermObjective)+'</small><small class="rival-activity">Plan: '+esc(r.plan?r.plan.reason:"evaluating national priorities")+'</small><small class="rival-activity">This turn: '+esc(r.activity)+'</small><small class="rival-activity">Industry: '+(r.buildings.mine||0)+' mines · '+(r.buildings.factory||0)+' factories · '+num(Math.min(jobs,r.population))+'/'+num(jobs)+' jobs · '+num(r.resources.credits)+' credits</small><details class="rival-history"><summary>Recent history ('+r.memory.length+')</summary><ul>'+memory+'</ul></details></div><div class="relation '+(r.relation>=20?"good":r.relation<=-20?"bad":"")+'">'+r.relation+'<small>'+level+'</small></div></div><div class="actions"><button data-action="gift" data-id="'+r.id+'">Send 20 cr aid</button><button data-action="strain" data-id="'+r.id+'" '+(state.resources.influence<5?"disabled":"")+'>Recall envoy (−15)</button>'+(conflict?'<button class="danger" data-action="peace" data-id="'+r.id+'">Negotiate peace</button>':'<button class="danger" data-action="conflict" data-id="'+r.id+'" '+(r.relation>-20||state.resources.power<10?"disabled":"")+'>Declare conflict</button>')+'</div><div class="treaty-actions">'+treaties+'</div>'+maritime+(conflict?'<p class="notice">Conflict active · '+(state.turn-conflict.startedTurn)+' turns · strength '+conflict.playerScore+' to '+conflict.rivalScore+'</p>':"")+'</article>';
     }).join("");
     const active=state.diplomacy.treaties.filter(t=>t.status==="active");
     $("treaty-summary").textContent=active.length?active.map(t=>t.kind+" with "+state.rivals[t.rivalId].name).join(" · "):"No active agreements";
@@ -231,7 +272,8 @@
         const source = state.world.territories.find(item => item.id === route.sourceId);
         const destination = state.world.territories.find(item => item.id === route.destinationId);
         const cargo = route.inTransit ? ' · ' + route.inTransit.amount + ' in transit · ' + route.inTransit.remainingTurns + ' turns remaining' : ' · awaiting cargo';
-        return '<span><b>' + esc(source?.name || route.sourceId) + ' → ' + esc(destination?.name || route.destinationId) + '</b><small>' + esc(route.resource) + ' · capacity ' + route.capacity + ' · ' + esc(route.status) + cargo + ' · delivered ' + num(route.deliveredTotal) + '</small></span>';
+        const contract = route.partnerId ? ' · international · ' + route.tariffPercent + '% tariff · ' + route.unitPrice + ' cr/unit' : '';
+        return '<span><b>' + esc(source?.name || route.sourceId) + ' → ' + esc(destination?.name || route.destinationId) + '</b><small>' + esc(route.resource) + ' · capacity ' + route.capacity + contract + ' · ' + esc(route.status) + cargo + ' · delivered ' + num(route.deliveredTotal) + '</small></span>';
       }).join("") + '</div>' : '<small class="muted">No shipping routes touch this island yet.</small>';
       const destinations = state.world.territories.filter(item => item.id !== territory.id && item.owner === "player" && item.harborLevel > 0);
       const routeForm = territory.id !== "home" && territory.harborLevel > 0
@@ -244,7 +286,8 @@
       const rival = state.rivals[territory.owner];
       const alliance = state.diplomacy.treaties.some(treaty => treaty.rivalId === territory.owner && treaty.kind === "alliance" && treaty.status === "active");
       const routes = (state.world.shippingRoutes || []).filter(route =>
-        (route.ownerId || "player") === territory.owner && (route.sourceId === territory.id || route.destinationId === territory.id)
+        ((route.ownerId || "player") === territory.owner || route.partnerId === territory.owner) &&
+        (route.sourceId === territory.id || route.destinationId === territory.id)
       );
       const routeList = routes.length ? '<div class="shipping-route-list">' + routes.map(route => {
         const source = state.world.territories.find(item => item.id === route.sourceId);
@@ -297,6 +340,10 @@
       if(action==="claim-territory"){const territory=E.claimTerritory(state,id);toast(territory.name+" claimed. Regional income begins next turn.","success");}
       if(action==="upgrade-harbor"){const territory=E.upgradeHarbor(state,id);toast(territory.name+" harbor upgraded to level "+territory.harborLevel+".","success");}
       if(action==="create-shipping-route"){const route=E.createShippingRoute(state,id,$("shipping-destination")?.value,$("shipping-resource")?.value);toast("Shipping route opened. First cargo will load when local stock is available.","success");}
+      if(action==="create-international-trade-route"){
+        const route=E.createInternationalTradeRoute(state,id,$("international-source-"+id)?.value,$("international-destination-"+id)?.value,$("international-resource-"+id)?.value,Number($("international-tariff-"+id)?.value ?? 10));
+        toast("International route opened at "+route.tariffPercent+"% tariff. Cargo will load from the selected port.","success");
+      }
       if(action==="view-territory-diplomacy"){tab("diplomacy");toast("Diplomatic relations with "+(state.rivals[id]?.name||id)+".");}
       if(action==="trade")E.trade(state,resource,Number(amount));
       if(action==="research"){E.research(state,id);if(!state.achievements.includes("first-research"))state.achievements.push("first-research");}
