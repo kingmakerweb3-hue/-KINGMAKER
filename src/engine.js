@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 14;
+  const SAVE_VERSION = 15;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -386,6 +386,8 @@
     state.buildings.transport = 0;
     state.campaign.buildingStart = Object.values(state.buildings).reduce((a, b) => a + b, 0);
     state.events[0].text = campaignId === "founding" ? state.events[0].text : "Your nation entered the " + CAMPAIGNS[campaignId].name + " campaign.";
+    const homeTerritory = state.world.territories.find(territory => territory.id === "home");
+    if (homeTerritory) homeTerritory.population = state.nation.population;
     return state;
   }
 
@@ -480,6 +482,11 @@
     })) throw new Error("Territory data is invalid.");
     const homeTerritory = normalized.world.territories.find(territory => territory.id === "home");
     if (!homeTerritory || homeTerritory.owner !== "player" || homeTerritory.x !== 0 || homeTerritory.z !== 0 || homeTerritory.harborLevel < 1) throw new Error("Home territory data is invalid.");
+    const ownedPopulation = normalized.world.territories.filter(territory => territory.owner === "player")
+      .reduce((sum, territory) => sum + territory.population, 0);
+    if (ownedPopulation < 1 || ownedPopulation > RESOURCE_LIMIT || normalized.nation.population !== ownedPopulation) {
+      throw new Error("National population does not match player-controlled territories.");
+    }
     const territoryById = new Map(normalized.world.territories.map(territory => [territory.id, territory]));
     const routeIds = new Set();
     if (normalized.world.shippingRoutes.length > 50 || normalized.world.shippingRoutes.some(route => {
@@ -652,7 +659,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -666,6 +673,7 @@
       state.schemaVersion = SAVE_VERSION;
       addIndustryDefaults(state);
       normalizeCitizens(state);
+      migrateNationalPopulation(state);
       return validateSave(state);
     }
     if (input && !("schemaVersion" in input) && input.buildings && input.events) {
@@ -699,6 +707,7 @@
       migrateCreatorEconomy(state);
       state.schemaVersion = SAVE_VERSION;
       addIndustryDefaults(state);
+      migrateNationalPopulation(state);
       return validateSave(state);
     }
     throw new Error("Save is corrupt or from an unsupported version.");
@@ -916,11 +925,43 @@
     return production;
   }
   const JOBS_PER_LEVEL = { farm: 4, mine: 5, workshop: 5, factory: 8, transport: 4, market: 3, academy: 4, power: 4, housing: 1 };
+  const JOBS_PER_DISTRICT = { residential: 1, commercial: 3, industrial: 5, agricultural: 4 };
   function workforceFor(buildings) { return Object.entries(JOBS_PER_LEVEL).reduce((sum, [id, jobs]) => sum + safeInt(buildings[id], 0, 10_000) * jobs, 0); }
-  function industrialOutput(resources, buildings, technologies = [], population = RESOURCE_LIMIT) {
+  function nationalPopulationFor(state) {
+    const territories = state.world?.territories;
+    if (!Array.isArray(territories)) return safeInt(state.nation?.population, 1, RESOURCE_LIMIT) || 1;
+    return territories.filter(territory => territory?.owner === "player")
+      .reduce((sum, territory) => sum + safeInt(territory.population, 0, RESOURCE_LIMIT), 0);
+  }
+  function syncNationalPopulation(state) {
+    state.nation.population = Math.max(1, Math.min(RESOURCE_LIMIT, nationalPopulationFor(state)));
+    return state.nation.population;
+  }
+  function migrateNationalPopulation(state) {
+    state.seed = safeInt(state.seed, 1, 0xffffffff) || 1;
+    state.world = state.world && typeof state.world === "object" ? state.world : {};
+    if (!Array.isArray(state.world.territories)) state.world.territories = createTerritories(state.seed);
+    const home = state.world.territories.find(territory => territory?.id === "home");
+    if (home) home.population = safeInt(state.nation?.population, home.population || 100, RESOURCE_LIMIT) || 1;
+    state.nation.population = nationalPopulationFor(state);
+  }
+  function reducePlayerPopulation(state, amount) {
+    let remaining = Math.max(0, Math.floor(amount));
+    const territories = (state.world?.territories || []).filter(territory => territory?.owner === "player")
+      .sort((a, b) => (a.id === "home" ? -1 : b.id === "home" ? 1 : a.id.localeCompare(b.id)));
+    for (const territory of territories) {
+      const floor = territory.id === "home" ? 1 : 0;
+      const loss = Math.min(remaining, Math.max(0, territory.population - floor));
+      territory.population -= loss;
+      remaining -= loss;
+      if (!remaining) break;
+    }
+    return syncNationalPopulation(state);
+  }
+  function industrialOutput(resources, buildings, technologies = [], population = RESOURCE_LIMIT, workforceOverride = null) {
     const base = productionFor(buildings, technologies);
     const factories = safeInt(buildings.factory, 0, 10_000);
-    const workforce = workforceFor(buildings);
+    const workforce = workforceOverride === null ? workforceFor(buildings) : safeInt(workforceOverride, 0, RESOURCE_LIMIT);
     const staffing = workforce > 0 ? Math.min(1, Math.max(0, population) / workforce) : 1;
     for (const key of Object.keys(base)) base[key] = Math.floor(base[key] * staffing);
     const activeFactories = Math.min(Math.floor(factories * staffing), Math.floor(resources.materials / 5), Math.floor(resources.ore / 3), Math.floor(resources.power / 2));
@@ -930,20 +971,30 @@
   }
   function districtEffects(state) {
     const counts = { residential: 0, commercial: 0, industrial: 0, agricultural: 0 };
-    const regionalGrowth = {};
+    const regionalGrowth = {}, regionalCounts = {};
     const territories = new Map((state.world?.territories || []).map(item => [item.id, item]));
     for (const district of state.world?.placedDistricts || []) {
       if (!district || !Object.hasOwn(counts, district.type)) continue;
       const territoryId = district.territoryId || "home";
-      if (territories.get(territoryId)?.owner !== "player") continue;
+      const territory = territories.get(territoryId);
+      if (territory?.owner !== "player") continue;
       counts[district.type]++;
+      regionalCounts[territoryId] = regionalCounts[territoryId] || { residential: 0, commercial: 0, industrial: 0, agricultural: 0 };
+      regionalCounts[territoryId][district.type]++;
       if (district.type === "residential") regionalGrowth[territoryId] = (regionalGrowth[territoryId] || 0) + 1;
     }
-    return { counts, production: {
-      food: counts.agricultural * 3,
-      materials: counts.industrial * 2,
-      credits: counts.commercial * 4
-    }, populationGrowth: regionalGrowth.home || 0, regionalGrowth };
+    const production = { food: 0, materials: 0, credits: 0 };
+    let workforce = 0;
+    for (const [territoryId, localCounts] of Object.entries(regionalCounts)) {
+      const territory = territories.get(territoryId);
+      const required = Object.entries(JOBS_PER_DISTRICT).reduce((sum, [type, jobs]) => sum + localCounts[type] * jobs, 0);
+      workforce += required;
+      const staffing = required > 0 ? Math.min(1, territory.population / required) : 1;
+      production.food += Math.floor(localCounts.agricultural * 3 * staffing);
+      production.materials += Math.floor(localCounts.industrial * 2 * staffing);
+      production.credits += Math.floor(localCounts.commercial * 4 * staffing);
+    }
+    return { counts, production, populationGrowth: regionalGrowth.home || 0, regionalGrowth, workforce };
   }
   function roadEffects(state) {
     const roads = state.world?.placedRoads || [];
@@ -1421,6 +1472,7 @@
     state.resources.credits -= cost.credits;
     state.resources.influence -= cost.influence;
     territory.owner = "player";
+    syncNationalPopulation(state);
     territory.claimedTurn = state.turn;
     territory.development = Math.min(100, territory.development + 5);
     addEvent(state, "Your nation claimed " + territory.name + ". It now adds 3 credits and 1 influence each turn.", "milestone");
@@ -1480,9 +1532,11 @@
     return node;
   }
   function economicSnapshot(state) {
-    const jobs = workforceFor(state.buildings);
-    const employed = Math.min(jobs, state.nation.population);
-    const staffing = jobs > 0 ? Math.min(1, state.nation.population / jobs) : 1;
+    const population = nationalPopulationFor(state);
+    const districts = districtEffects(state);
+    const jobs = workforceFor(state.buildings) + districts.workforce;
+    const employed = Math.min(jobs, population);
+    const staffing = jobs > 0 ? Math.min(1, population / jobs) : 1;
     const creator = creatorEffects(state);
     const base = productionFor(state.buildings, state.technologies);
     const renewablePower = worldEventActiveThisTurn(state, "energy_crisis") ? 0 : RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar;
@@ -1490,10 +1544,9 @@
       materials: clamp(state.resources.materials + Math.floor(base.materials * staffing), 0, RESOURCE_LIMIT),
       ore: clamp(state.resources.ore + Math.floor(base.ore * staffing), 0, RESOURCE_LIMIT),
       power: clamp(state.resources.power + Math.floor(base.power * staffing) + renewablePower, 0, RESOURCE_LIMIT)
-    }, state.buildings, state.technologies, state.nation.population);
+    }, state.buildings, state.technologies, population, jobs);
     industry.production.power += renewablePower;
     for (const [resource, amount] of Object.entries(creator.production)) industry.production[resource] += amount;
-    const districts = districtEffects(state);
     for (const [resource, amount] of Object.entries(districts.production)) industry.production[resource] += amount;
     const roads = roadEffects(state);
     industry.production.logistics += roads.logistics;
@@ -1503,9 +1556,9 @@
     industry.production.logistics += shipping.activeRoutes;
     const territories = territoryEffects(state);
     industry.production.credits += territories.credits;
-    return { production: industry.production, territoryInfluence: territories.influence, shipping,
-      consumption: { food: Math.ceil(state.nation.population / (12 + Math.min(8, industry.production.logistics))), ...industry.inputs },
-      workforce: jobs, employed, requiredJobs: Math.ceil(state.nation.population / 10), activeFactories: industry.activeFactories };
+    return { population, production: industry.production, territoryInfluence: territories.influence, shipping,
+      consumption: { food: Math.ceil(population / (12 + Math.min(8, industry.production.logistics))), ...industry.inputs },
+      workforce: jobs, employed, requiredJobs: Math.ceil(population / 10), activeFactories: industry.activeFactories };
   }
   function build(state, id) {
     const definition = BUILDINGS[id];
@@ -2067,6 +2120,7 @@
     if (state.turn >= 10_000_000) throw new Error("Turn limit reached.");
     autoResolvePendingWorldEvents(state);
     if (state.status !== "playing") return state;
+    syncNationalPopulation(state);
     state.turn++;
     updateCitizens(state);
     state.creatorEconomy.royaltyTurn = state.turn;
@@ -2081,19 +2135,19 @@
     const flow = Object.fromEntries(MARKET_RESOURCES.map(key => [key, 0]));
     applyOngoingWorldEvents(state, flow);
     const creator = creatorEffects(state);
+    const districts = districtEffects(state);
     const baseOutput = productionFor(state.buildings, state.technologies);
-    const jobs = workforceFor(state.buildings), employed = Math.min(jobs, state.nation.population);
+    const jobs = workforceFor(state.buildings) + districts.workforce, employed = Math.min(jobs, state.nation.population);
     const staffing = jobs > 0 ? Math.min(1, state.nation.population / jobs) : 1;
     const renewablePower = worldEventActiveThisTurn(state, "energy_crisis") ? 0 : RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar;
     const industry = industrialOutput({ ...state.resources,
       materials: clamp(state.resources.materials + Math.floor(baseOutput.materials * staffing), 0, RESOURCE_LIMIT),
       ore: clamp(state.resources.ore + Math.floor(baseOutput.ore * staffing), 0, RESOURCE_LIMIT),
       power: clamp(state.resources.power + Math.floor(baseOutput.power * staffing) + renewablePower, 0, RESOURCE_LIMIT)
-    }, state.buildings, state.technologies, state.nation.population);
+    }, state.buildings, state.technologies, state.nation.population, jobs);
     const output = industry.production;
     output.power += renewablePower;
     for (const [resource, amount] of Object.entries(creator.production)) output[resource] += amount;
-    const districts = districtEffects(state);
     for (const [resource, amount] of Object.entries(districts.production)) output[resource] += amount;
     const roads = roadEffects(state);
     output.logistics += roads.logistics;
@@ -2146,23 +2200,37 @@
     state.economy.consumption.food = foodNeed;
     state.resources.food -= foodNeed;
     flow.food -= foodNeed;
+    let populationGrowthAllowed = false;
     if (state.resources.food < 0) {
       state.resources.food = 0;
       state.nation.stability = Math.max(0, state.nation.stability - 10);
-      state.nation.population = Math.max(1, state.nation.population - 5);
-      addEvent(state, "Food shortages caused unrest and population loss.", "crisis");
+      reducePlayerPopulation(state, 5);
+      addEvent(state, "Food shortages caused unrest and population loss across the nation.", "crisis");
     } else {
       state.nation.stability = Math.min(100, state.nation.stability + (jobs >= Math.ceil(state.nation.population / 10) ? (hasTech(state, "governance") ? 2 : 1) : 0));
-      if (state.resources.food > foodNeed * 3 && state.nation.stability >= 45 && phase !== "recession" && jobs >= Math.ceil(state.nation.population / 10)) {
-        const populationCap = Math.min(RESOURCE_LIMIT, 250 + (state.buildings.housing || 0) * 50 + (hasTech(state, "medicine") ? 100 : 0) + creator.capacity);
-        state.nation.population = Math.min(populationCap, state.nation.population + 2 + (hasTech(state, "medicine") ? 1 : 0) + Math.floor((state.buildings.housing || 0) / 2) + districts.populationGrowth);
+      populationGrowthAllowed = state.resources.food > foodNeed * 3 && state.nation.stability >= 45 && phase !== "recession" && jobs >= Math.ceil(state.nation.population / 10);
+      if (populationGrowthAllowed) {
+        const home = state.world.territories.find(territory => territory.id === "home");
+        if (home) {
+          const populationCap = Math.min(RESOURCE_LIMIT, 250 + (state.buildings.housing || 0) * 50 +
+            (hasTech(state, "medicine") ? 100 : 0) + creator.capacity + districts.populationGrowth * 50);
+          home.population = Math.min(populationCap, home.population + 2 + (hasTech(state, "medicine") ? 1 : 0) +
+            Math.floor((state.buildings.housing || 0) / 2) + districts.populationGrowth);
+        }
       }
     }
-    for (const territory of state.world.territories || []) {
-      if (territory.id === "home" || territory.owner !== "player") continue;
-      const growth = districts.regionalGrowth[territory.id] || 0;
-      if (growth > 0) territory.population = Math.min(RESOURCE_LIMIT, territory.population + growth);
+    if (populationGrowthAllowed) {
+      for (const territory of state.world.territories || []) {
+        if (territory.id === "home" || territory.owner !== "player") continue;
+        const growth = districts.regionalGrowth[territory.id] || 0;
+        if (growth > 0) {
+          const cap = Math.min(RESOURCE_LIMIT, 120 + growth * 50 + (hasTech(state, "medicine") ? 100 : 0));
+          territory.population = Math.min(cap, territory.population + growth);
+        }
+      }
     }
+    syncNationalPopulation(state);
+    state.economy.requiredJobs = Math.ceil(state.nation.population / 10);
     if (jobs < Math.ceil(state.nation.population / 10)) state.nation.stability = Math.max(0, state.nation.stability - 1);
     if (phase === "recession") state.nation.stability = Math.max(0, state.nation.stability - 2);
     else if (phase === "recovery") state.nation.stability = Math.min(100, state.nation.stability + 1);
@@ -2281,7 +2349,7 @@
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
     createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, createShippingRoute, createInternationalTradeRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
-    creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
+    creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects, nationalPopulationFor, syncNationalPopulation,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
     exportSave, saveWithRecovery, loadWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech, worldIntelligence
   };
