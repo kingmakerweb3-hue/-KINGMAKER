@@ -34,9 +34,17 @@ Remote resource extraction is stored locally instead of appearing immediately in
 
 Open a one-way route from a claimed outer island to another player-controlled island with an operational harbor. A route costs 20 materials and 35 credits. It loads up to 10 units per convoy at level-1 ports; each additional harbor level above 1 at either endpoint adds 5 capacity, up to 30. Travel time is based on island distance (one to five turns); Integrated Logistics reduces the journey by one turn, to a minimum of one. Each active route adds one logistics and costs 2 credits per turn; Integrated Logistics reduces route upkeep to 1 credit.
 
-Convoys load from the source stockpile, then deliver after the travel timer. Delivery to the home port enters national reserves; delivery to another outer island enters that island's stockpile and can be forwarded on a separate route. If either port is no longer player-controlled or loses its harbor, the route pauses and cargo remains in transit. Route state, cargo, stockpiles and harbor levels persist in schema-13 saves.
+Convoys load from the source stockpile, then deliver after the travel timer. Delivery to the home port enters national reserves; delivery to another outer island enters that island's stockpile and can be forwarded on a separate route. If either port is no longer player-controlled or loses its harbor, the route pauses and cargo remains in transit. Route state, cargo, stockpiles, harbor levels and bilateral trade contracts persist in schema-14 saves. Schema 13 and earlier saves migrate automatically.
 
 Rival nations also develop their own maritime infrastructure. They build level-1 harbors on controlled islands, open finite resource extraction sites, store output in local island stockpiles, and establish up to three autonomous shipping lanes between their own ports. Rival convoys deliver cargo into that rival's national reserves, pay upkeep from the rival treasury (reduced by its Logistics research), and pause without losing cargo when a port changes ownership or the rival cannot afford upkeep. Rival routes are rendered in the 3D world using their nation's route color and appear in the selected island's maritime intelligence panel. Rival shipping never charges the player's treasury or contributes to the player's logistics ledger.
+## International maritime trade
+
+An active five-turn trade agreement grants reciprocal port access between the player and that rival. Either nation can be the seller: choose one player harbor and one partner harbor, then choose the source and destination direction. The home harbor can ship directly from national reserves; outer-island ports use their local stockpiles. A route costs 20 materials and 35 credits, shares the 50-route network limit, and uses the same harbor-based capacity, distance-based travel time and route upkeep as domestic shipping.
+
+International cargo is limited to food, materials, ore and power. The contract locks a unit price at creation using the current world-market price plus the selected 0%, 5%, 10%, 15% or 20% tariff. The buyer pays the seller on delivery. If the buyer cannot afford the cargo or the destination lacks storage, the undelivered amount waits in transit rather than being lost. Deliveries count toward campaign trade-volume objectives.
+
+A 0% tariff improves relations by one point per delivered convoy; 5% and 10% are neutral; 15% and 20% reduce relations by one point per delivered convoy. A conflict voids the trade agreement and pauses the route; an expired agreement also pauses it until renewed. Cargo remains in transit while access is suspended. International lanes are shown in gold in the 3D archipelago and in the diplomacy and island inspectors.
+
 
 ## Living world events
 
@@ -67,7 +75,7 @@ Creator profiles are derived from validated records: each successful rival use g
 
 ## Diplomacy
 
-Aid costs credits and improves relations. Recalling an envoy costs influence and strains relations. Trade agreements add credits each turn; research agreements add science; alliances add influence and prevent conflict; non-aggression pacts prevent conflict. Trade and research agreements last five turns; alliances last twelve. Conflicts require hostile relations, credits, and power. They resolve after three turns based on national power, infrastructure, and research; fighting drains power and stability. Peace can be negotiated for credits.
+Aid costs credits and improves relations. Recalling an envoy costs influence and strains relations. Trade agreements add credits each turn; research agreements add science; alliances add influence and prevent conflict; non-aggression pacts prevent conflict. Trade and research agreements last five turns; alliances last twelve. Conflicts require hostile relations, credits, and power. They resolve after three turns based on national power, infrastructure, and research; fighting drains power and stability. Peace can be negotiated for credits. An active trade agreement also grants reciprocal port access for international shipping. Conflict voids trade access and pauses those routes; expired agreements pause them until renewed.
 
 ## Campaigns and saves
 
