@@ -26,6 +26,14 @@ National income includes market building output, citizen taxes, and trade-agreem
 
 Six rivals use the same production chains and shared commodity market: Aurelia, Northreach, Meridian, Solenne, Ironmarch, and Duneward. Each has a distinct economic, political, and military priority, risk tolerance, and long-term objective. Rivals consume food and factory inputs, trade against finite shared stock, and maintain a three-turn investment or research plan. They compare food, energy, ore, materials, technology, and faction priorities before choosing what to develop. Their reports show the current action, plan, objective, employed workforce, treasury, and recent interaction history. Player investment, trade, research, aid, agreements, and conflict are remembered; recent aggression can block an alliance. Diplomatic rivals may form strategic alliances when relations are high and their current priorities permit it.
 
+## National population and regional workforce
+
+Population is tracked locally on each island. When an unclaimed island joins the player nation, its existing residents are added to the national population. National workforce requirements, employment, wages, food consumption, taxes, power coverage, campaign thresholds and population-based intelligence use the combined population of every player-controlled territory. Rival and unclaimed residents remain outside the player total.
+
+Home-island buildings are staffed by home residents. Districts add local job positions: residential 1, commercial 3, industrial 5 and agricultural 4. District output is staffed by residents on the same island, so a small or underpopulated region cannot operate unlimited district production. Remote residential districts grow their own island when the national food reserve is healthy, stability is at least 45, the economy is not in recession, and employed workers meet national job demand. Home-island housing, medicine and residential districts determine the home population cap; remote residential districts provide a local capacity and growth allowance. A food shortage reduces home residents first, then other player-held islands, while keeping the national total synchronized.
+
+The current economy uses a pooled national food reserve for all owned territories; local food stockpiles remain cargo storage for shipping rather than separate household reserves. Schema 15 stores national population as the sum of player-owned territory populations. Older saves preserve the previous national figure as home-island population, then add saved populations of other player-owned islands.
+
 ## Archipelago, harbors and shipping
 
 The home island begins with a level-1 national receiving harbor. A player must claim an outer island before building its harbor. Harbor level 1 costs 40 materials and 65 credits; upgrades to level 2 cost 50 materials and 85 credits, and level 3 costs 60 materials and 105 credits. The national receiving harbor is fixed at level 1.
