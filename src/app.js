@@ -113,18 +113,18 @@
         E.INTERNATIONAL_TRADE_RESOURCES.map(resource => '<option value="' + esc(resource) + '">' + esc(resource) + '</option>').join("") + '</select>';
       const tariffSelect = '<label for="international-tariff-' + id + '">Tariff</label><select id="international-tariff-' + id + '">' +
         E.INTERNATIONAL_TRADE_TARIFFS.map(rate => '<option value="' + rate + '">' + rate + '%</option>').join("") + '</select>';
-      form = '<div class="international-trade-form"><h5>Export to partner</h5>' +
+      form = '<div class="international-trade-form">' + resourceSelect + tariffSelect + '<h5>Export to partner</h5>' +
         '<label for="international-export-source-' + id + '">Your export port</label><select id="international-export-source-' + id + '">' +
         playerPorts.map(port => '<option value="' + esc(port.id) + '">' + esc(port.name) + ' · level ' + port.harborLevel + '</option>').join("") +
         '</select><label for="international-export-destination-' + id + '">Partner import port</label><select id="international-export-destination-' + id + '">' +
         rivalPorts.map(port => '<option value="' + esc(port.id) + '">' + esc(port.name) + ' · level ' + port.harborLevel + '</option>').join("") +
-        '</select>' + resourceSelect + tariffSelect +
+        '</select>' +
         '<button type="button" data-action="create-international-export-route" data-id="' + id + '">Open export route · 20 materials / 35 credits</button>' +
         '<h5>Import from partner</h5><label for="international-import-source-' + id + '">Partner export port</label><select id="international-import-source-' + id + '">' +
         rivalPorts.map(port => '<option value="' + esc(port.id) + '">' + esc(port.name) + ' · level ' + port.harborLevel + '</option>').join("") +
         '</select><label for="international-import-destination-' + id + '">Your import port</label><select id="international-import-destination-' + id + '">' +
         playerPorts.map(port => '<option value="' + esc(port.id) + '">' + esc(port.name) + ' · level ' + port.harborLevel + '</option>').join("") +
-        '</select>' + resourceSelect + tariffSelect +
+        '</select>' +
         '<button type="button" data-action="create-international-import-route" data-id="' + id + '">Open import route · 20 materials / 35 credits</button>' +
         '<small class="muted">The buyer pays the seller on delivery. Cargo waits if funds or destination storage are insufficient. Tariffs lock the contract price. 0% improves relations; 15–20% tariffs strain them.</small></div>';
 
