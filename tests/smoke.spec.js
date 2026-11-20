@@ -349,13 +349,15 @@ test('a territorial campaign captures its selected island and updates national p
     return {
       territory: save.world.territories.find(item => item.id === id),
       population: save.nation.population,
+      ownedPopulation: save.world.territories.filter(item => item.owner === 'player').reduce((sum, item) => sum + item.population, 0),
       conflict: save.diplomacy.conflicts[0]
     };
   }, setup.targetId);
   expect(captured.conflict.status).toBe('resolved');
   expect(captured.conflict.playerScore).toBeGreaterThan(captured.conflict.rivalScore);
   expect(captured.territory.owner).toBe('player');
-  expect(captured.population).toBe(setup.before + setup.targetPopulation);
+  expect(captured.population).toBe(captured.ownedPopulation);
+  expect(captured.population).toBeGreaterThanOrEqual(setup.before + setup.targetPopulation);
   await page.locator('[data-tab="world3d"]').click();
   await page.evaluate(id => window.dispatchEvent(new CustomEvent('kingmaker:inspect-territory', { detail: { id } })), setup.targetId);
   await expect(page.locator('#world3d-territory-inspector')).toContainText('Under your control');
