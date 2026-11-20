@@ -651,7 +651,11 @@
     for (const conflict of normalized.diplomacy.conflicts) {
       if (!conflict || !normalized.rivals[conflict.rivalId] || !["active", "peace", "resolved"].includes(conflict.status) ||
           !Number.isInteger(conflict.startedTurn) || conflict.startedTurn > normalized.turn ||
-          !Number.isInteger(conflict.playerScore) || !Number.isInteger(conflict.rivalScore)) throw new Error("Conflict record is invalid.");
+          !Number.isInteger(conflict.playerScore) || !Number.isInteger(conflict.rivalScore) ||
+          (conflict.targetTerritoryId !== undefined && (typeof conflict.targetTerritoryId !== "string" ||
+            conflict.targetTerritoryId.length > 48 || !normalized.world.territories.some(territory => territory.id === conflict.targetTerritoryId)))) {
+        throw new Error("Conflict record is invalid.");
+      }
     }
     if (!["playing", "victory", "defeat"].includes(normalized.status)) throw new Error("Game status is invalid.");
     return normalized;
@@ -1662,10 +1666,14 @@
     updateObjectives(state);
     return state;
   }
-  function declareConflict(state, rivalId) {
+  function declareConflict(state, rivalId, targetTerritoryId = null) {
     const rival = state.rivals[rivalId];
     if (!rival) throw new Error("Unknown nation.");
     if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (targetTerritoryId !== null) {
+      const target = (state.world?.territories || []).find(territory => territory.id === targetTerritoryId);
+      if (!target || target.owner !== rivalId) throw new Error("Choose a territory currently controlled by " + rival.name + ".");
+    }
     if (rival.relation > -20) throw new Error("Relations must fall to -20 before conflict can be declared.");
     if (state.diplomacy.treaties.some(t => t.rivalId === rivalId && t.kind === "alliance" && t.status === "active")) throw new Error("An active alliance prevents conflict.");
     if (state.diplomacy.treaties.some(t => t.rivalId === rivalId && t.kind === "non-aggression" && t.status === "active")) throw new Error("An active non-aggression pact prevents conflict.");
@@ -1677,7 +1685,9 @@
       if (treaty.rivalId === rivalId && treaty.status === "active") treaty.status = "expired";
     }
     addEvent(state, "Prior agreements with " + rival.name + " were voided by the conflict.", "diplomacy");
-    state.diplomacy.conflicts.push({ rivalId, status: "active", startedTurn: state.turn, playerScore: 0, rivalScore: 0 });
+    const conflict = { rivalId, status: "active", startedTurn: state.turn, playerScore: 0, rivalScore: 0 };
+    if (targetTerritoryId !== null) conflict.targetTerritoryId = targetTerritoryId;
+    state.diplomacy.conflicts.push(conflict);
     addEvent(state, "Conflict declared with " + rival.name + ". Armies are mobilizing.", "conflict");
     rememberRival(rival, state.turn, "player-conflict", "The player declared conflict and voided prior agreements", -80);
     return state;
@@ -2262,7 +2272,13 @@
       if (conflict.status !== "active") continue;
       const rival = state.rivals[conflict.rivalId];
       const playerStrength = Math.max(1, state.resources.power + (state.buildings.power || 0) * 12 + state.technologies.length * 5);
-      const rivalStrength = Math.max(1, rival.resources.power + (rival.buildings.power || 0) * 12 + rival.technologies.length * 5);
+      const targetTerritory = conflict.targetTerritoryId
+        ? (state.world.territories || []).find(territory => territory.id === conflict.targetTerritoryId)
+        : null;
+      const territorialDefense = targetTerritory && targetTerritory.owner === rival.id
+        ? Math.floor(targetTerritory.population / 20) + Math.floor(targetTerritory.development / 10) + targetTerritory.harborLevel * 8
+        : 0;
+      const rivalStrength = Math.max(1, rival.resources.power + (rival.buildings.power || 0) * 12 + rival.technologies.length * 5 + territorialDefense);
       conflict.playerScore += playerStrength;
       conflict.rivalScore += rivalStrength;
       state.resources.power = Math.max(0, state.resources.power - 2);
@@ -2276,6 +2292,22 @@
           state.resources.credits = Math.min(RESOURCE_LIMIT, state.resources.credits + 30);
           rival.relation = -10;
           addEvent(state, "Your forces prevailed over " + rival.name + "; a settlement brings 30 credits.", "conflict");
+          if (conflict.targetTerritoryId) {
+            const captured = (state.world.territories || []).find(territory => territory.id === conflict.targetTerritoryId);
+            if (captured && captured.owner === rival.id) {
+              const populationTransferred = Math.min(Math.max(0, rival.population - 1), captured.population);
+              rival.population = Math.max(1, rival.population - populationTransferred);
+              captured.owner = "player";
+              captured.claimedTurn = state.turn;
+              captured.development = Math.min(100, captured.development + 5);
+              for (const route of state.world.shippingRoutes || []) {
+                if (route.sourceId === captured.id || route.destinationId === captured.id) route.status = "paused";
+              }
+              syncNationalPopulation(state);
+              addEvent(state, "Territorial victory: " + captured.name + " is now part of " + state.nation.name + ". Its residents, harbor, stockpile and infrastructure have transferred with the island.", "milestone");
+              rememberRival(rival, state.turn, "territory-lost", "Lost " + captured.name + " after a territorial campaign", -15);
+            }
+          }
         } else {
           state.resources.credits = Math.max(0, state.resources.credits - 30);
           state.nation.stability = Math.max(0, state.nation.stability - 12);
