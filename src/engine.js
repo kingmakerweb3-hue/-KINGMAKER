@@ -483,9 +483,10 @@
     const territoryById = new Map(normalized.world.territories.map(territory => [territory.id, territory]));
     const routeIds = new Set();
     if (normalized.world.shippingRoutes.length > 50 || normalized.world.shippingRoutes.some(route => {
-      const source = route && territoryById.get(route.sourceId);
-      const destination = route && territoryById.get(route.destinationId);
-      const international = !!(route && route.partnerId);
+      if (!route) return true;
+      const source = territoryById.get(route.sourceId);
+      const destination = territoryById.get(route.destinationId);
+      const international = !!route.partnerId;
       const partner = international ? normalized.rivals[route.partnerId] : null;
       const ownershipValid = international
         ? route.ownerId === "player" && !!partner &&
