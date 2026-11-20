@@ -307,3 +307,56 @@ test('a signed trade agreement opens a tariff-priced international route and del
   await page.locator('[data-tab="diplomacy"]').click();
   await expect(page.locator('.international-trade-panel').filter({ hasText: 'Aurelia' })).toContainText('delivered');
 });
+
+
+test('a territorial campaign captures its selected island and updates national population', async ({ page }) => {
+  const setup = await page.evaluate(() => {
+    const engine = window.KingmakerEngine;
+    const state = engine.createInitialState({ seed: 74204 });
+    const rival = state.rivals.aurelia;
+    const target = state.world.territories.find(territory => territory.owner === rival.id);
+    state.resources.credits = 1000;
+    state.resources.food = 1000;
+    state.resources.materials = 1000;
+    state.resources.ore = 1000;
+    state.resources.power = 1000;
+    state.resources.science = 100;
+    state.resources.influence = 100;
+    state.nation.stability = 100;
+    rival.relation = -20;
+    rival.stability = 100;
+    rival.resources = { food: 1000, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, influence: 0 };
+    for (const id of Object.keys(rival.buildings)) rival.buildings[id] = 0;
+    rival.technologies = [];
+    const before = state.nation.population;
+    localStorage.setItem('kingmaker_save_v1', engine.exportSave(state));
+    return { targetId: target.id, targetName: target.name, targetPopulation: target.population, before };
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="diplomacy"]').click();
+  const panel = page.locator('.diplomacy-card').filter({ hasText: 'Aurelia' });
+  await expect(panel.locator('#war-target-aurelia')).toBeVisible();
+  await expect(panel.locator('[data-action="conflict"]')).toContainText('Declare territorial campaign');
+  await panel.locator('#war-target-aurelia').selectOption(setup.targetId);
+  await panel.locator('[data-action="conflict"]').click();
+
+  const declared = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save_v1')).diplomacy.conflicts[0]);
+  expect(declared.targetTerritoryId).toBe(setup.targetId);
+  for (let turn = 0; turn < 3; turn++) await page.locator('#advance-turn').click();
+
+  const captured = await page.evaluate(id => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    return {
+      territory: save.world.territories.find(item => item.id === id),
+      population: save.nation.population,
+      conflict: save.diplomacy.conflicts[0]
+    };
+  }, setup.targetId);
+  expect(captured.conflict.status).toBe('resolved');
+  expect(captured.conflict.playerScore).toBeGreaterThan(captured.conflict.rivalScore);
+  expect(captured.territory.owner).toBe('player');
+  expect(captured.population).toBe(setup.before + setup.targetPopulation);
+  await page.locator('[data-tab="world3d"]').click();
+  await page.evaluate(id => window.dispatchEvent(new CustomEvent('kingmaker:inspect-territory', { detail: { id } })), setup.targetId);
+  await expect(page.locator('#world3d-territory-inspector')).toContainText('Under your control');
+});
