@@ -246,3 +246,57 @@ test('rival ports, extraction and autonomous shipping appear in the 3D world ins
   expect(route.ownerId).toBe('duneward');
   expect(route.status).toBe('active');
 });
+
+
+test('a signed trade agreement opens a tariff-priced international route and delivers cargo', async ({ page }) => {
+  const setup = await page.evaluate(() => {
+    const engine = window.KingmakerEngine;
+    const state = engine.createInitialState({ seed: 74007 });
+    const rival = state.rivals.aurelia;
+    rival.relation = 35;
+    rival.resources.credits = 1000;
+    const port = state.world.territories.find(territory => territory.owner === rival.id);
+    port.harborLevel = 1;
+    for (const node of state.world.resourceNodes.filter(item => item.territoryId === port.id)) {
+      node.quantity = 0;
+      node.depleted = true;
+      node.operational = false;
+      node.operatedSinceTurn = null;
+    }
+    engine.offerTreaty(state, rival.id, 'trade');
+    localStorage.setItem('kingmaker_save_v1', engine.exportSave(state));
+    return { portId: port.id, portName: port.name };
+  });
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="diplomacy"]').click();
+  const panel = page.locator('.international-trade-panel').filter({ hasText: 'Aurelia' });
+  await expect(panel).toContainText('International shipping');
+  await page.locator('#international-source-aurelia').selectOption('home');
+  await page.locator('#international-destination-aurelia').selectOption(setup.portId);
+  await page.locator('#international-resource-aurelia').selectOption('food');
+  await page.locator('#international-tariff-aurelia').selectOption('10');
+  await panel.locator('[data-action="create-international-trade-route"]').click();
+
+  const created = await page.evaluate(() => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    return save.world.shippingRoutes.find(route => route.partnerId === 'aurelia');
+  });
+  expect(created.sourceId).toBe('home');
+  expect(created.destinationId).toBe(setup.portId);
+  expect(created.tariffPercent).toBe(10);
+  expect(created.unitPrice).toBe(3);
+  expect(created.status).toBe('active');
+
+  await page.locator('#advance-turn').click();
+  const loaded = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.shippingRoutes.find(route => route.partnerId === 'aurelia'));
+  expect(loaded.inTransit.amount).toBeGreaterThan(0);
+  for (let i = 0; i < created.travelTurns; i++) await page.locator('#advance-turn').click();
+
+  const delivered = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.shippingRoutes.find(route => route.partnerId === 'aurelia'));
+  expect(delivered.deliveredTotal).toBeGreaterThan(0);
+  expect(delivered.lastDeliveredTurn).toBeGreaterThan(created.createdTurn);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="diplomacy"]').click();
+  await expect(page.locator('.international-trade-panel').filter({ hasText: 'Aurelia' })).toContainText('delivered');
+});
