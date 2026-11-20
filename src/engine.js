@@ -487,7 +487,7 @@
       const source = territoryById.get(route.sourceId);
       const destination = territoryById.get(route.destinationId);
       const international = !!route.partnerId;
-      const partner = international ? normalized.rivals[route.partnerId] : null;
+      const partner = international && Object.hasOwn(normalized.rivals || {}, route.partnerId) ? normalized.rivals[route.partnerId] : null;
       const ownershipValid = international
         ? route.ownerId === "player" && !!partner &&
           ((source?.owner === "player" && destination?.owner === route.partnerId) ||
@@ -1113,6 +1113,7 @@
     return route;
   }
   function hasActiveTradeAgreement(state, rivalId) {
+    if (!Object.hasOwn(state.rivals || {}, rivalId)) return false;
     return (state.diplomacy?.treaties || []).some(treaty =>
       treaty.rivalId === rivalId && treaty.kind === "trade" && treaty.status === "active"
     ) && !(state.diplomacy?.conflicts || []).some(conflict =>
@@ -1130,7 +1131,7 @@
   function createInternationalTradeRoute(state, rivalId, sourceId, destinationId, resource, tariffPercent = 10) {
     if (state.status !== "playing") throw new Error("This campaign has ended.");
     const rival = state.rivals[rivalId];
-    if (!rival) throw new Error("Choose a valid trading nation.");
+    if (!Object.hasOwn(state.rivals || {}, rivalId) || !rival) throw new Error("Choose a valid trading nation.");
     if (!hasActiveTradeAgreement(state, rivalId)) throw new Error("An active trade agreement is required for port access.");
     const territories = state.world?.territories || [];
     const source = territories.find(item => item.id === sourceId);
