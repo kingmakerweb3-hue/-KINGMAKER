@@ -1997,7 +1997,7 @@ test("losing a territorial campaign does not transfer the targeted island", () =
   const target = state.world.territories.find(territory => territory.owner === rival.id);
   state.resources.credits = 1000;
   state.resources.food = 1000;
-  state.resources.power = 1;
+  state.resources.power = 10;
   state.resources.materials = 100;
   state.nation.stability = 100;
   rival.stability = 100;
