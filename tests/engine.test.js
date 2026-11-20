@@ -1959,11 +1959,21 @@ test("winning a territorial campaign transfers the island, residents and infrast
   state.resources.influence = 100;
   state.nation.stability = 100;
   rival.stability = 100;
-  rival.resources = { food: 1000, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, influence: 0 };
+  rival.resources = { food: 1000, materials: 0, ore: 0, goods: 0, credits: 1000, science: 0, power: 0, influence: 0 };
   for (const id of Object.keys(rival.buildings)) rival.buildings[id] = 0;
   rival.technologies = [];
   target.harborLevel = 1;
   target.stockpile.materials = 17;
+  const secondPort = state.world.territories.find(territory => territory.owner === "unclaimed");
+  secondPort.owner = rival.id;
+  secondPort.harborLevel = 1;
+  const rivalRoute = {
+    id: "rival-aurelia-campaign-test", ownerId: rival.id, sourceId: target.id, destinationId: secondPort.id,
+    resource: "ore", capacity: 10, travelTurns: 5, status: "active",
+    inTransit: { amount: 8, remainingTurns: 5 }, createdTurn: state.turn,
+    loadedTotal: 8, deliveredTotal: 0, lastLoadedTurn: state.turn, lastDeliveredTurn: null
+  };
+  state.world.shippingRoutes.push(rivalRoute);
   state.world.placedDistricts.push({ type: "agricultural", x: target.x + 0.2, z: target.z, radius: 2.6, territoryId: target.id });
   const deposit = state.world.resourceNodes.find(node => node.territoryId === target.id);
   deposit.resource = "Iron";
@@ -1980,6 +1990,8 @@ test("winning a territorial campaign transfers the island, residents and infrast
   assert.equal(target.claimedTurn, state.turn);
   assert.equal(target.harborLevel, 1);
   assert.equal(target.stockpile.materials, 17);
+  assert.equal(rivalRoute.status, "paused");
+  assert.deepEqual(rivalRoute.inTransit, { amount: 8, remainingTurns: 2 });
   assert.equal(state.world.placedDistricts[0].territoryId, target.id);
   assert.equal(state.nation.population, homePopulation + targetPopulation);
   assert.equal(state.nation.population, Engine.nationalPopulationFor(state));
