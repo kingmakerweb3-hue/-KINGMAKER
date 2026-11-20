@@ -1959,6 +1959,7 @@ test("winning a territorial campaign transfers the island, residents and infrast
   state.resources.influence = 100;
   state.nation.stability = 100;
   rival.stability = 100;
+  rival.relation = -20;
   rival.resources = { food: 1000, materials: 0, ore: 0, goods: 0, credits: 1000, science: 0, power: 0, influence: 0 };
   for (const id of Object.keys(rival.buildings)) rival.buildings[id] = 0;
   rival.technologies = [];
