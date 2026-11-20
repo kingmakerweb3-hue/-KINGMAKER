@@ -272,11 +272,11 @@ test('a signed trade agreement opens a tariff-priced international route and del
   await page.locator('[data-tab="diplomacy"]').click();
   const panel = page.locator('.international-trade-panel').filter({ hasText: 'Aurelia' });
   await expect(panel).toContainText('International shipping');
-  await page.locator('#international-source-aurelia').selectOption('home');
-  await page.locator('#international-destination-aurelia').selectOption(setup.portId);
+  await page.locator('#international-export-source-aurelia').selectOption('home');
+  await page.locator('#international-export-destination-aurelia').selectOption(setup.portId);
   await page.locator('#international-resource-aurelia').selectOption('food');
   await page.locator('#international-tariff-aurelia').selectOption('10');
-  await panel.locator('[data-action="create-international-trade-route"]').click();
+  await panel.locator('[data-action="create-international-export-route"]').click();
 
   const created = await page.evaluate(() => {
     const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
