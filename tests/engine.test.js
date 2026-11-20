@@ -1900,3 +1900,26 @@ test("remote residential growth updates national population and food shortages k
   assert.equal(island.population, remoteBeforeShortage);
   assert.equal(state.nation.population, Engine.nationalPopulationFor(state));
 });
+
+
+test("remote residents do not staff home-island factories without local employment", () => {
+  const state = Engine.createInitialState({ seed: 74104 });
+  const home = state.world.territories.find(item => item.id === "home");
+  const island = state.world.territories.find(item => item.owner === "unclaimed");
+  home.population = 20;
+  state.nation.population = 20;
+  state.resources.materials = 50;
+  state.resources.ore = 30;
+  state.resources.power = 20;
+  state.resources.food = 1000;
+  for (const id of Object.keys(state.buildings)) state.buildings[id] = 0;
+  state.buildings.factory = 10;
+  state.resources.materials = 50;
+  state.resources.ore = 30;
+  state.resources.power = 20;
+  state.resources.influence = 100;
+  state.resources.credits = 1000;
+  Engine.claimTerritory(state, island.id);
+  assert.ok(state.nation.population > home.population);
+  assert.equal(Engine.economicSnapshot(state).activeFactories, 2);
+});
