@@ -360,6 +360,7 @@ test("workforce shortages reduce industrial output and restrict population growt
   assert.equal(economy.production.food, 240);
 
   for (const id of Object.keys(state.buildings)) state.buildings[id] = 0;
+  state.world.territories.find(item => item.id === "home").garrison = 0;
   state.resources.food = 100;
   const population = state.nation.population;
   const stability = state.nation.stability;
