@@ -362,3 +362,46 @@ test('a territorial campaign captures its selected island and updates national p
   await page.evaluate(id => window.dispatchEvent(new CustomEvent('kingmaker:inspect-territory', { detail: { id } })), setup.targetId);
   await expect(page.locator('#world3d-territory-inspector')).toContainText('Under your control');
 });
+
+
+test('home-island garrison recruitment and fortification persist in the military inspector', async ({ page }) => {
+  const setup = await page.evaluate(() => {
+    const engine = window.KingmakerEngine;
+    const state = engine.createInitialState({ seed: 75507 });
+    state.resources.materials = 500;
+    state.resources.ore = 500;
+    state.resources.credits = 1000;
+    localStorage.setItem('kingmaker_save_v1', engine.exportSave(state));
+    const home = state.world.territories.find(item => item.id === 'home');
+    return { initialGarrison: home.garrison, initialFortification: home.fortificationLevel };
+  });
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="world3d"]').click();
+  const inspector = page.locator('#world3d-territory-inspector');
+  await expect(inspector).toContainText('New Horizon');
+  await expect(inspector).toContainText('Island defence');
+  await expect(inspector).toContainText(setup.initialGarrison + ' garrison units');
+
+  await inspector.locator('[data-action="recruit-garrison"]').click();
+  await expect(inspector).toContainText((setup.initialGarrison + 1) + ' garrison units');
+  await inspector.locator('[data-action="build-fortification"]').click();
+  await expect(inspector).toContainText('Fortification level 1');
+
+  const saved = await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    const home = state.world.territories.find(item => item.id === 'home');
+    return { schemaVersion: state.schemaVersion, garrison: home.garrison, fortificationLevel: home.fortificationLevel,
+      military: window.KingmakerEngine.economicSnapshot(state).military };
+  });
+  expect(saved.schemaVersion).toBe(16);
+  expect(saved.garrison).toBe(setup.initialGarrison + 1);
+  expect(saved.fortificationLevel).toBe(1);
+  expect(saved.military.units).toBe(setup.initialGarrison + 1);
+  expect(saved.military.upkeep).toBe(setup.initialGarrison + 1);
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="world3d"]').click();
+  await expect(page.locator('#world3d-territory-inspector')).toContainText((setup.initialGarrison + 1) + ' garrison units');
+  await expect(page.locator('#world3d-territory-inspector')).toContainText('Fortification level 1');
+});
