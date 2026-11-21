@@ -167,6 +167,9 @@ button{min-height:40px}
 
 .shipping-panel{display:grid;gap:10px;margin-top:14px;padding:13px;border:1px solid #3a566c;border-radius:12px;background:linear-gradient(145deg,#14283a,#101d30)}
 .shipping-panel h4{margin:0;color:var(--gold);font-size:.9rem;letter-spacing:.08em;text-transform:uppercase}
+.military-panel{border-color:#78653f;background:linear-gradient(145deg,#2a281e,#111d2b)}
+.military-panel .territory-infrastructure span{border-color:#79683f;background:#d8ad3d12}
+.military-panel>small{display:block;line-height:1.45}
 .shipping-stockpile{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:6px;padding:10px;border:1px solid var(--line);border-radius:9px;background:#07132155}
 .shipping-stockpile b{grid-column:1/-1;font-size:.8rem}
 .shipping-stockpile span{color:var(--muted);font-size:.76rem;font-variant-numeric:tabular-nums}
