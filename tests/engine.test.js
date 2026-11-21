@@ -1056,12 +1056,12 @@ test("rare-crystal extraction contributes science and finite deposits deplete", 
   assert.equal(Engine.resourceSiteEffects(state).science, 0);
 });
 
-test("schema 8 saves migrate to version 16 with deterministic archipelago deposits", () => {
+test("schema 8 saves migrate to version 17 with deterministic archipelago deposits", () => {
   const state = Engine.createInitialState({ seed: 42005 });
   state.schemaVersion = 8;
   delete state.world.resourceNodes;
   const migrated = Engine.migrateSave(state);
-  assert.equal(migrated.schemaVersion, 16);
+  assert.equal(migrated.schemaVersion, 17);
   assert.deepEqual(migrated.world.resourceNodes, Engine.createResourceDeposits(state.seed, state.world.territories));
   const roundTrip = Engine.migrateSave(JSON.parse(Engine.exportSave(migrated)));
   assert.deepEqual(roundTrip.world.resourceNodes, migrated.world.resourceNodes);
@@ -1166,7 +1166,7 @@ test("version 9 saves migrate to schema 16 without losing existing extraction pr
   legacy.world.resourceNodes[0].operational = true;
   legacy.world.resourceNodes[0].operatedSinceTurn = 1;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 16);
+  assert.equal(migrated.schemaVersion, 17);
   assert.equal(migrated.world.territories.length, 9);
   assert.equal(migrated.world.resourceNodes.length, 16);
   assert.equal(migrated.world.resourceNodes[0].operational, true);
@@ -1286,7 +1286,7 @@ test("version 10 home placements migrate into schema 16 without changing their l
   legacy.world.placedRoads.push({ from: { x: -2, z: 0 }, to: { x: 2, z: 0 } });
   legacy.world.placedDistricts.push({ type: "residential", x: 1, z: 1, radius: 2.6 });
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 16);
+  assert.equal(migrated.schemaVersion, 17);
   assert.equal(migrated.world.placedBuildings[0].territoryId, "home");
   assert.equal(migrated.world.placedRoads[0].territoryId, "home");
   assert.equal(migrated.world.placedDistricts[0].territoryId, "home");
@@ -1303,7 +1303,7 @@ test("version 11 saves migrate with default harbor levels, local stockpiles and 
     delete territory.stockpile;
   }
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 16);
+  assert.equal(migrated.schemaVersion, 17);
   assert.equal(migrated.world.shippingRoutes.length, 0);
   assert.equal(migrated.world.territories.find(item => item.id === "home").harborLevel, 1);
   assert.ok(migrated.world.territories.filter(item => item.id !== "home").every(item => item.harborLevel === 0));
@@ -1591,7 +1591,7 @@ test("schema 12 player shipping routes migrate with explicit player ownership", 
   legacy.schemaVersion = 12;
   delete legacy.world.shippingRoutes[0].ownerId;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 16);
+  assert.equal(migrated.schemaVersion, 17);
   assert.equal(migrated.world.shippingRoutes[0].ownerId, "player");
 });
 
@@ -1763,7 +1763,7 @@ test("international route validation rejects malformed contracts but retains pau
   assert.equal(restored.world.shippingRoutes[0].status, "paused");
 });
 
-test("schema 13 saves migrate to version 16 while preserving domestic shipping routes and regional population", () => {
+test("schema 13 saves migrate to version 17 while preserving domestic shipping routes and regional population", () => {
   const state = Engine.createInitialState({ seed: 74006 });
   const island = state.world.territories.find(item => item.owner === "unclaimed");
   state.resources.materials = 1000;
@@ -1776,7 +1776,7 @@ test("schema 13 saves migrate to version 16 while preserving domestic shipping r
   legacy.nation.population = legacy.world.territories.find(item => item.id === "home").population;
   legacy.schemaVersion = 13;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 16);
+  assert.equal(migrated.schemaVersion, 17);
   assert.equal(migrated.nation.population, migrated.world.territories.filter(item => item.owner === "player").reduce((sum, item) => sum + item.population, 0));
   assert.deepEqual(migrated.world.shippingRoutes, legacy.world.shippingRoutes);
 });
@@ -1791,7 +1791,7 @@ test("schema 14 saves add existing player-island residents to the national popul
   legacy.nation.population = home.population;
   legacy.schemaVersion = 14;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 16);
+  assert.equal(migrated.schemaVersion, 17);
   assert.equal(migrated.nation.population, home.population + island.population);
   assert.equal(migrated.world.territories.find(item => item.id === island.id).population, island.population);
 });
@@ -2270,7 +2270,7 @@ test("a rival counterattack can retake an island and transfer residents back wit
   state.buildings.power = 0;
   state.nation.stability = 100;
   const route = {
-    id: "counterattack-cargo-test", ownerId: "player", sourceId: "home", destinationId: target.id,
+    id: "counterattack-cargo-test", ownerId: "player", sourceId: target.id, destinationId: "home",
     resource: "food", capacity: 10, travelTurns: 5, status: "active",
     inTransit: { amount: 5, remainingTurns: 5 }, createdTurn: state.turn,
     loadedTotal: 5, deliveredTotal: 0, lastLoadedTurn: state.turn, lastDeliveredTurn: null
@@ -2334,12 +2334,13 @@ test("strong island garrisons repel a rival counterattack and consume the escape
 
 test("counterattack windows expire and invalid former-owner records are rejected", () => {
   const state = Engine.createInitialState({ seed: 76105 });
+  state.turn = 8;
   const rival = state.rivals.aurelia;
   const target = state.world.territories.find(territory => territory.owner === rival.id);
   target.owner = "player";
   target.claimedTurn = state.turn;
   target.lastLostOwnerId = rival.id;
-  target.lastLostTurn = state.turn - 7;
+  target.lastLostTurn = 1;
   target.counterattackStatus = "available";
   target.counterattackForce = 2;
   Engine.syncNationalPopulation(state);
