@@ -2054,3 +2054,136 @@ test("conquest never creates residents when the rival has fewer people than the 
   assert.ok(target.population < 100);
   assert.equal(state.nation.population, Engine.nationalPopulationFor(state));
 });
+
+
+test("new territories receive deterministic local garrisons and Ironmarch starts fortified", () => {
+  const state = Engine.createInitialState({ seed: 75501 });
+  const home = state.world.territories.find(item => item.id === "home");
+  const ironmarch = state.world.territories.find(item => item.owner === "ironmarch");
+  const neutral = state.world.territories.find(item => item.owner === "unclaimed");
+  assert.equal(home.garrison, 2);
+  assert.equal(home.fortificationLevel, 0);
+  assert.equal(ironmarch.garrison, 3);
+  assert.equal(ironmarch.fortificationLevel, 1);
+  assert.equal(neutral.garrison, 0);
+  assert.equal(Engine.militaryEffects(state).units, 2);
+  assert.equal(Engine.militaryEffects(state).manpower, 20);
+  assert.equal(Engine.militaryEffects(state).upkeep, 2);
+});
+
+test("recruiting a garrison spends resources and respects local manpower capacity", () => {
+  const state = Engine.createInitialState({ seed: 75502 });
+  const home = state.world.territories.find(item => item.id === "home");
+  state.resources.materials = 500;
+  state.resources.ore = 500;
+  state.resources.credits = 500;
+  const before = { ...state.resources };
+  Engine.recruitGarrison(state, "home", 2);
+  assert.equal(home.garrison, 4);
+  assert.equal(state.resources.materials, before.materials - 24);
+  assert.equal(state.resources.ore, before.ore - 12);
+  assert.equal(state.resources.credits, before.credits - 40);
+  assert.deepEqual(Engine.militaryEffects(state), { units: 4, manpower: 40, upkeep: 4, fortifications: 0 });
+  assert.throws(() => Engine.recruitGarrison(state, "isle-aurelia"), /territory you control/);
+  home.garrison = Engine.garrisonCapacity(home);
+  assert.throws(() => Engine.recruitGarrison(state, "home"), /Local manpower supports/);
+});
+
+test("fortification upgrades consume escalating resources and add territorial defense", () => {
+  const state = Engine.createInitialState({ seed: 75503 });
+  const home = state.world.territories.find(item => item.id === "home");
+  state.resources.materials = 1000;
+  state.resources.credits = 1000;
+  const beforeDefense = Engine.territoryDefenseStrength(home);
+  const beforeMaterials = state.resources.materials;
+  const beforeCredits = state.resources.credits;
+  Engine.buildFortification(state, "home");
+  assert.equal(home.fortificationLevel, 1);
+  Engine.buildFortification(state, "home");
+  assert.equal(home.fortificationLevel, 2);
+  Engine.buildFortification(state, "home");
+  assert.equal(home.fortificationLevel, 3);
+  assert.equal(state.resources.materials, beforeMaterials - 150);
+  assert.equal(state.resources.credits, beforeCredits - 120);
+  assert.equal(Engine.territoryDefenseStrength(home), beforeDefense + 36);
+  assert.throws(() => Engine.buildFortification(state, "home"), /maximum level/);
+  assert.throws(() => Engine.buildFortification(state, "isle-aurelia"), /territory you control/);
+});
+
+test("schema 15 saves migrate to local garrisons and validated fortification levels", () => {
+  const state = Engine.createInitialState({ seed: 75504 });
+  state.schemaVersion = 15;
+  for (const territory of state.world.territories) {
+    delete territory.garrison;
+    delete territory.fortificationLevel;
+  }
+  const migrated = Engine.migrateSave(state);
+  const home = migrated.world.territories.find(item => item.id === "home");
+  const ironmarch = migrated.world.territories.find(item => item.owner === "ironmarch");
+  const neutral = migrated.world.territories.find(item => item.owner === "unclaimed");
+  assert.equal(migrated.schemaVersion, 16);
+  assert.equal(home.garrison, 2);
+  assert.equal(ironmarch.garrison, 3);
+  assert.equal(ironmarch.fortificationLevel, 1);
+  assert.equal(neutral.garrison, 0);
+  const invalid = JSON.parse(Engine.exportSave(migrated));
+  invalid.world.territories.find(item => item.id === "home").garrison = 99;
+  assert.throws(() => Engine.validateSave(invalid), /Territory data is invalid/);
+});
+
+test("territorial combat includes the home garrison and target island defenses", () => {
+  const unfortified = Engine.createInitialState({ seed: 75505 });
+  const fortified = structuredClone(unfortified);
+  const targetA = unfortified.world.territories.find(item => item.owner === "aurelia");
+  const targetB = fortified.world.territories.find(item => item.id === targetA.id);
+  for (const state of [unfortified, fortified]) {
+    state.resources.credits = 1000;
+    state.resources.power = 1000;
+    const rival = state.rivals.aurelia;
+    rival.relation = -20;
+    rival.resources.materials = 0;
+    rival.resources.ore = 0;
+    rival.resources.credits = 0;
+    rival.resources.power = 0;
+    rival.buildings.power = 0;
+    rival.technologies = [];
+  }
+  targetA.garrison = 0;
+  targetA.fortificationLevel = 0;
+  targetB.garrison = 3;
+  targetB.fortificationLevel = 2;
+  Engine.declareConflict(unfortified, "aurelia", targetA.id);
+  Engine.declareConflict(fortified, "aurelia", targetB.id);
+  Engine.advanceTurn(unfortified);
+  Engine.advanceTurn(fortified);
+  assert.equal(fortified.diplomacy.conflicts[0].playerScore, unfortified.diplomacy.conflicts[0].playerScore);
+  assert.equal(fortified.diplomacy.conflicts[0].rivalScore - unfortified.diplomacy.conflicts[0].rivalScore, 48);
+});
+
+test("rivals fortify a targeted island and recruit local defenders during a territorial campaign", () => {
+  const state = Engine.createInitialState({ seed: 75506 });
+  const rival = state.rivals.aurelia;
+  const target = state.world.territories.find(item => item.owner === rival.id);
+  target.harborLevel = 1;
+  for (const territory of state.world.territories.filter(item => item.owner === rival.id)) territory.harborLevel = 1;
+  for (const node of state.world.resourceNodes.filter(item => item.territoryId === target.id)) {
+    node.quantity = 0;
+    node.depleted = true;
+    node.operational = false;
+  }
+  rival.resources.materials = 100;
+  rival.resources.ore = 100;
+  rival.resources.credits = 100;
+  rival.resources.power = 0;
+  rival.buildings.power = 0;
+  rival.technologies = [];
+  rival.relation = -20;
+  state.resources.credits = 1000;
+  state.resources.power = 1000;
+  Engine.declareConflict(state, rival.id, target.id);
+  Engine.advanceTurn(state);
+  assert.equal(target.fortificationLevel, 1);
+  assert.equal(rival.resources.materials, 75);
+  assert.ok(rival.resources.credits < 80);
+  assert.ok(state.events.some(event => event.text.includes("reinforced " + target.name)));
+});
