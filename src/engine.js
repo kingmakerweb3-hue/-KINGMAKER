@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 16;
+  const SAVE_VERSION = 17;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -511,6 +511,10 @@
           !Number.isInteger(territory.harborLevel) || territory.harborLevel < 0 || territory.harborLevel > 3 ||
           !Number.isInteger(territory.garrison) || territory.garrison < 0 || territory.garrison > 1000 || territory.garrison > garrisonCapacity(territory) ||
           !Number.isInteger(territory.fortificationLevel) || territory.fortificationLevel < 0 || territory.fortificationLevel > MAX_FORTIFICATION_LEVEL ||
+          (territory.lastLostOwnerId !== undefined && territory.lastLostOwnerId !== "player" && !Object.hasOwn(normalized.rivals, territory.lastLostOwnerId)) ||
+          (territory.lastLostTurn !== undefined && (!Number.isInteger(territory.lastLostTurn) || territory.lastLostTurn < 1 || territory.lastLostTurn > normalized.turn)) ||
+          (territory.counterattackStatus !== undefined && !["available", "active", "repelled", "retaken", "expired", "unavailable", "withdrawn"].includes(territory.counterattackStatus)) ||
+          (territory.counterattackForce !== undefined && (!Number.isInteger(territory.counterattackForce) || territory.counterattackForce < 0 || territory.counterattackForce > 6)) ||
           !territory.stockpile || typeof territory.stockpile !== "object" || Array.isArray(territory.stockpile) ||
           Object.keys(territory.stockpile).some(key => !SHIPPING_RESOURCES.includes(key)) ||
           SHIPPING_RESOURCES.some(key => !Number.isInteger(territory.stockpile[key]) || territory.stockpile[key] < 0 || territory.stockpile[key] > STOCKPILE_LIMIT) ||
@@ -687,11 +691,19 @@
           !["active", "expired"].includes(treaty.status) || !Number.isInteger(treaty.startedTurn) || treaty.startedTurn > normalized.turn) throw new Error("Diplomatic agreement is invalid.");
     }
     for (const conflict of normalized.diplomacy.conflicts) {
+      const target = conflict?.targetTerritoryId
+        ? normalized.world.territories.find(territory => territory.id === conflict.targetTerritoryId)
+        : null;
       if (!conflict || !normalized.rivals[conflict.rivalId] || !["active", "peace", "resolved"].includes(conflict.status) ||
-          !Number.isInteger(conflict.startedTurn) || conflict.startedTurn > normalized.turn ||
-          !Number.isInteger(conflict.playerScore) || !Number.isInteger(conflict.rivalScore) ||
+          !Number.isInteger(conflict.startedTurn) || conflict.startedTurn < 1 || conflict.startedTurn > normalized.turn ||
+          !Number.isInteger(conflict.playerScore) || conflict.playerScore < 0 ||
+          !Number.isInteger(conflict.rivalScore) || conflict.rivalScore < 0 ||
+          (conflict.initiator !== undefined && !["player", "rival"].includes(conflict.initiator)) ||
+          (conflict.assaultGarrison !== undefined && (!Number.isInteger(conflict.assaultGarrison) || conflict.assaultGarrison < 1 || conflict.assaultGarrison > 6)) ||
           (conflict.targetTerritoryId !== undefined && (typeof conflict.targetTerritoryId !== "string" ||
-            conflict.targetTerritoryId.length > 48 || !normalized.world.territories.some(territory => territory.id === conflict.targetTerritoryId)))) {
+            conflict.targetTerritoryId.length > 48 || !target)) ||
+          (conflict.initiator === "rival" && (!target || !Number.isInteger(conflict.assaultGarrison) ||
+            (conflict.status === "active" && target.owner !== "player")))) {
         throw new Error("Conflict record is invalid.");
       }
     }
@@ -701,7 +713,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -1258,6 +1270,56 @@
         summary.garrisonsRecruited++;
         rememberRival(rival, state.turn, "garrison-recruitment", "Mobilized a garrison on " + target.name);
         addEvent(state, rival.name + " mobilized additional defenders on " + target.name + ".", "conflict");
+      }
+    }
+    return summary;
+  }
+  const COUNTERATTACK_WINDOW = 6;
+  const COUNTERATTACK_COST = Object.freeze({ credits: 40, power: 10 });
+  function planRivalCounterattacks(state) {
+    const summary = { launched: 0, expired: 0 };
+    const territories = state.world?.territories || [];
+    for (const rival of Object.values(state.rivals || {}).sort((a, b) => a.id.localeCompare(b.id))) {
+      if ((state.diplomacy.conflicts || []).some(conflict => conflict.rivalId === rival.id && conflict.status === "active")) continue;
+      const candidates = territories.filter(territory =>
+        territory.owner === "player" && territory.lastLostOwnerId === rival.id &&
+        territory.counterattackStatus === "available" && territory.counterattackForce > 0
+      ).sort((a, b) => territoryDefenseStrength(a) - territoryDefenseStrength(b) ||
+        (b.lastLostTurn || 0) - (a.lastLostTurn || 0) || a.id.localeCompare(b.id));
+      for (const target of candidates) {
+        const age = state.turn - target.lastLostTurn;
+        if (age > COUNTERATTACK_WINDOW) {
+          target.counterattackStatus = "expired";
+          target.counterattackForce = 0;
+          summary.expired++;
+          continue;
+        }
+        if (age < 1 || rival.relation > -50 || rival.stability < 30) continue;
+        if (state.diplomacy.treaties.some(treaty =>
+          treaty.rivalId === rival.id && treaty.status === "active" &&
+          ["alliance", "non-aggression"].includes(treaty.kind)
+        )) continue;
+        if (rival.resources.credits < COUNTERATTACK_COST.credits || rival.resources.power < COUNTERATTACK_COST.power) continue;
+        const force = Math.min(6, target.counterattackForce);
+        const attackStrength = rival.resources.power + (rival.buildings.power || 0) * 12 +
+          (rival.technologies || []).length * 5 + force * 8;
+        if (attackStrength < Math.max(12, territoryDefenseStrength(target) * 0.4)) continue;
+        rival.resources.credits -= COUNTERATTACK_COST.credits;
+        rival.resources.power -= COUNTERATTACK_COST.power;
+        target.counterattackForce = 0;
+        target.counterattackStatus = "active";
+        const conflict = {
+          rivalId: rival.id, status: "active", startedTurn: state.turn,
+          playerScore: 0, rivalScore: 0, targetTerritoryId: target.id,
+          initiator: "rival", assaultGarrison: force
+        };
+        state.diplomacy.conflicts.push(conflict);
+        rival.stance = "Retaking lost territory";
+        rival.activity = "Launched a counterattack to retake " + target.name;
+        rememberRival(rival, state.turn, "territorial-counterattack", "Launched a counterattack for " + target.name);
+        addEvent(state, rival.name + " launched a counterattack to retake " + target.name + ". Defend the island or negotiate peace.", "conflict");
+        summary.launched++;
+        break;
       }
     }
     return summary;
@@ -1824,6 +1886,13 @@
     state.resources.credits -= 35;
     conflict.status = "peace";
     conflict.endedTurn = state.turn;
+    if (conflict.initiator === "rival" && conflict.targetTerritoryId) {
+      const target = (state.world?.territories || []).find(territory => territory.id === conflict.targetTerritoryId);
+      if (target && target.counterattackStatus === "active") {
+        target.counterattackStatus = "withdrawn";
+        target.counterattackForce = 0;
+      }
+    }
     state.rivals[rivalId].relation = Math.max(-25, state.rivals[rivalId].relation);
     addEvent(state, "A peace accord ended the conflict with " + state.rivals[rivalId].name + ".", "diplomacy");
     rememberRival(state.rivals[rivalId], state.turn, "peace", "The player negotiated an end to conflict");
@@ -2392,6 +2461,7 @@
     developRivals(state, flow);
     expandRivals(state);
     developRivalTerritories(state);
+    planRivalCounterattacks(state);
     developRivalMilitary(state);
     const creatorRoyalties = state.creatorEconomy.lastTurnRoyalties - royaltiesBeforeRivals;
     if (creatorRoyalties > 0) {
@@ -2401,50 +2471,108 @@
     for (const conflict of state.diplomacy.conflicts) {
       if (conflict.status !== "active") continue;
       const rival = state.rivals[conflict.rivalId];
+      const initiator = conflict.initiator === "rival" ? "rival" : "player";
       const homeTerritory = (state.world.territories || []).find(territory => territory.id === "home");
-      const playerStrength = Math.max(1, state.resources.power + (state.buildings.power || 0) * 12 + state.technologies.length * 5 + (homeTerritory?.garrison || 0) * 8);
       const targetTerritory = conflict.targetTerritoryId
         ? (state.world.territories || []).find(territory => territory.id === conflict.targetTerritoryId)
         : null;
-      const territorialDefense = targetTerritory && targetTerritory.owner === rival.id
-        ? territoryDefenseStrength(targetTerritory)
-        : 0;
-      const rivalStrength = Math.max(1, rival.resources.power + (rival.buildings.power || 0) * 12 + rival.technologies.length * 5 + territorialDefense);
+      const targetDefense = targetTerritory ? territoryDefenseStrength(targetTerritory) : 0;
+      const playerStrength = initiator === "rival"
+        ? Math.max(1, state.resources.power + (state.buildings.power || 0) * 12 +
+          state.technologies.length * 5 + (targetTerritory?.owner === "player" ? targetDefense : 0))
+        : Math.max(1, state.resources.power + (state.buildings.power || 0) * 12 +
+          state.technologies.length * 5 + (homeTerritory?.garrison || 0) * 8);
+      const rivalStrength = initiator === "rival"
+        ? Math.max(1, rival.resources.power + (rival.buildings.power || 0) * 12 +
+          rival.technologies.length * 5 + (conflict.assaultGarrison || 0) * 8)
+        : Math.max(1, rival.resources.power + (rival.buildings.power || 0) * 12 +
+          rival.technologies.length * 5 + (targetTerritory?.owner === rival.id ? targetDefense : 0));
       conflict.playerScore += playerStrength;
       conflict.rivalScore += rivalStrength;
       state.resources.power = Math.max(0, state.resources.power - 2);
-      state.nation.stability = Math.max(0, state.nation.stability - 2);
-      rival.stability = Math.max(0, rival.stability - 3);
+      if (initiator === "rival") {
+        state.nation.stability = Math.max(0, state.nation.stability - 3);
+        rival.stability = Math.max(0, rival.stability - 2);
+      } else {
+        state.nation.stability = Math.max(0, state.nation.stability - 2);
+        rival.stability = Math.max(0, rival.stability - 3);
+      }
       if (state.turn - conflict.startedTurn >= 3 || state.nation.stability < 30 || rival.stability < 30) {
         conflict.status = "resolved";
         conflict.endedTurn = state.turn;
-        const won = conflict.playerScore >= conflict.rivalScore;
-        if (won) {
-          state.resources.credits = Math.min(RESOURCE_LIMIT, state.resources.credits + 30);
-          rival.relation = -10;
-          addEvent(state, "Your forces prevailed over " + rival.name + "; a settlement brings 30 credits.", "conflict");
-          if (conflict.targetTerritoryId) {
-            const captured = (state.world.territories || []).find(territory => territory.id === conflict.targetTerritoryId);
-            if (captured && captured.owner === rival.id) {
-              const populationTransferred = Math.min(captured.population, Math.max(0, rival.population - 1));
-              captured.population = populationTransferred;
-              rival.population = Math.max(1, rival.population - populationTransferred);
-              captured.owner = "player";
-              captured.claimedTurn = state.turn;
-              captured.development = Math.min(100, captured.development + 5);
-              for (const route of state.world.shippingRoutes || []) {
-                if (route.sourceId === captured.id || route.destinationId === captured.id) route.status = "paused";
+        const attackerWon = initiator === "rival"
+          ? conflict.rivalScore > conflict.playerScore
+          : conflict.playerScore >= conflict.rivalScore;
+        if (initiator === "player") {
+          if (attackerWon) {
+            state.resources.credits = Math.min(RESOURCE_LIMIT, state.resources.credits + 30);
+            rival.relation = -65;
+            addEvent(state, "Your forces prevailed over " + rival.name + "; a settlement brings 30 credits.", "conflict");
+            if (conflict.targetTerritoryId) {
+              const captured = (state.world.territories || []).find(territory => territory.id === conflict.targetTerritoryId);
+              if (captured && captured.owner === rival.id) {
+                const populationTransferred = Math.min(captured.population, Math.max(0, rival.population - 1));
+                captured.population = populationTransferred;
+                rival.population = Math.max(1, rival.population - populationTransferred);
+                const retreatingForce = Math.min(6, Math.max(captured.garrison > 0 ? 1 : 0,
+                  Math.floor(captured.garrison / 2) + (captured.harborLevel > 0 ? 1 : 0)));
+                captured.garrison = Math.max(0, captured.garrison - retreatingForce);
+                captured.counterattackForce = retreatingForce;
+                captured.lastLostOwnerId = rival.id;
+                captured.lastLostTurn = state.turn;
+                captured.counterattackStatus = retreatingForce > 0 ? "available" : "unavailable";
+                captured.owner = "player";
+                captured.claimedTurn = state.turn;
+                captured.development = Math.min(100, captured.development + 5);
+                for (const route of state.world.shippingRoutes || []) {
+                  if (route.sourceId === captured.id || route.destinationId === captured.id) route.status = "paused";
+                }
+                syncNationalPopulation(state);
+                addEvent(state, "Territorial victory: " + captured.name + " is now part of " + state.nation.name + ". " +
+                  (retreatingForce ? retreatingForce + " former garrison unit" + (retreatingForce === 1 ? " escaped by sea; the rival may attempt one counterattack." : "s escaped by sea; the rival may attempt one counterattack.") : "The former garrison did not escape.") +
+                  " Its residents, harbor, stockpile and infrastructure transferred with the island.", "milestone");
+                rememberRival(rival, state.turn, "territory-lost", "Lost " + captured.name + " after a territorial campaign", -15);
               }
-              syncNationalPopulation(state);
-              addEvent(state, "Territorial victory: " + captured.name + " is now part of " + state.nation.name + ". Its residents, harbor, stockpile and infrastructure have transferred with the island.", "milestone");
-              rememberRival(rival, state.turn, "territory-lost", "Lost " + captured.name + " after a territorial campaign", -15);
             }
+          } else {
+            state.resources.credits = Math.max(0, state.resources.credits - 30);
+            state.nation.stability = Math.max(0, state.nation.stability - 12);
+            rival.relation = -15;
+            addEvent(state, rival.name + " prevailed. Your treasury and stability suffered.", "conflict");
           }
         } else {
-          state.resources.credits = Math.max(0, state.resources.credits - 30);
-          state.nation.stability = Math.max(0, state.nation.stability - 12);
-          rival.relation = -15;
-          addEvent(state, rival.name + " prevailed. Your treasury and stability suffered.", "conflict");
+          const defendedTerritory = targetTerritory && targetTerritory.owner === "player" ? targetTerritory : null;
+          if (attackerWon && defendedTerritory) {
+            state.resources.credits = Math.max(0, state.resources.credits - 30);
+            state.nation.stability = Math.max(0, state.nation.stability - 12);
+            const populationTransferred = Math.min(defendedTerritory.population, Math.max(0, state.nation.population - 1));
+            defendedTerritory.population = populationTransferred;
+            rival.population = Math.min(RESOURCE_LIMIT, rival.population + populationTransferred);
+            defendedTerritory.owner = rival.id;
+            defendedTerritory.claimedTurn = state.turn;
+            defendedTerritory.lastLostOwnerId = "player";
+            defendedTerritory.lastLostTurn = state.turn;
+            defendedTerritory.counterattackStatus = "retaken";
+            defendedTerritory.counterattackForce = 0;
+            defendedTerritory.garrison = Math.min(garrisonCapacity(defendedTerritory),
+              Math.max(1, Math.floor((conflict.assaultGarrison || 1) / 2)));
+            for (const route of state.world.shippingRoutes || []) {
+              if (route.sourceId === defendedTerritory.id || route.destinationId === defendedTerritory.id) route.status = "paused";
+            }
+            syncNationalPopulation(state);
+            rival.relation = -65;
+            rival.stance = "Recovered lost territory";
+            addEvent(state, rival.name + " retook " + defendedTerritory.name + " in a counterattack. " +
+              populationTransferred + " residents returned to its national population; shipping lanes paused with cargo preserved.", "conflict");
+            rememberRival(rival, state.turn, "territory-retaken", "Retook " + defendedTerritory.name + " in a counterattack");
+          } else if (defendedTerritory) {
+            defendedTerritory.counterattackStatus = "repelled";
+            defendedTerritory.counterattackForce = 0;
+            rival.relation = -65;
+            rival.stance = "Counterattack repelled";
+            addEvent(state, "Your garrison and island defenses repelled " + rival.name + " at " + defendedTerritory.name + ".", "milestone");
+            rememberRival(rival, state.turn, "counterattack-repelled", "Failed to retake " + defendedTerritory.name);
+          }
         }
       }
     }
@@ -2524,7 +2652,7 @@
   return {
     SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, SHIPPING_RESOURCES, INTERNATIONAL_TRADE_RESOURCES, INTERNATIONAL_TRADE_TARIFFS, STOCKPILE_LIMIT, RENEWABLE_POWER_OUTPUT, GARRISON_RECRUIT_COST, MILITARY_UPKEEP_PER_UNIT, GARRISON_MANPOWER_PER_UNIT, MAX_FORTIFICATION_LEVEL, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, garrisonCapacity, fortificationCost, territoryDefenseStrength, militaryEffects, recruitGarrison, buildFortification, developRivalMilitary, createShippingRoute, createInternationalTradeRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
+    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, garrisonCapacity, fortificationCost, territoryDefenseStrength, militaryEffects, recruitGarrison, buildFortification, developRivalMilitary, planRivalCounterattacks, COUNTERATTACK_WINDOW, COUNTERATTACK_COST, createShippingRoute, createInternationalTradeRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects, nationalPopulationFor, syncNationalPopulation,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
