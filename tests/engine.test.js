@@ -355,9 +355,9 @@ test("workforce shortages reduce industrial output and restrict population growt
   for (const id of Object.keys(state.buildings)) state.buildings[id] = 0;
   state.buildings.farm = 100;
   const economy = Engine.economicSnapshot(state);
-  assert.equal(economy.workforce, 400);
+  assert.equal(economy.workforce, 420);
   assert.equal(economy.employed, state.nation.population);
-  assert.equal(economy.production.food, 300);
+  assert.equal(economy.production.food, 240);
 
   for (const id of Object.keys(state.buildings)) state.buildings[id] = 0;
   state.resources.food = 100;
@@ -1872,7 +1872,7 @@ test("regional district jobs and output are staffed by residents on their own is
   assert.equal(districts.employed, 4);
   assert.equal(districts.production.food, 3);
   const snapshot = Engine.economicSnapshot(state);
-  assert.equal(snapshot.workforce, Engine.workforceFor(state.buildings) + 4);
+  assert.equal(snapshot.workforce, Engine.workforceFor(state.buildings) + 4 + Engine.militaryEffects(state).manpower);
   island.population = 1;
   const underpopulated = Engine.districtEffects(state);
   assert.equal(underpopulated.employed, 1);
@@ -1907,6 +1907,7 @@ test("remote residents do not staff home-island factories without local employme
   const home = state.world.territories.find(item => item.id === "home");
   const island = state.world.territories.find(item => item.owner === "unclaimed");
   home.population = 20;
+  home.garrison = 0;
   state.nation.population = 20;
   state.resources.materials = 1000;
   state.resources.ore = 30;
