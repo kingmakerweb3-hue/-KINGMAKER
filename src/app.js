@@ -142,13 +142,17 @@
       const warTargets=(state.world.territories||[]).filter(territory=>territory.owner===r.id);
       const protectedByPact=state.diplomacy.treaties.some(treaty=>treaty.rivalId===r.id&&["alliance","non-aggression"].includes(treaty.kind)&&treaty.status==="active");
       const warDisabled=r.relation>-20||state.resources.power<10||state.resources.credits<25||protectedByPact;
-      const targetName=conflict?.targetTerritoryId?warTargets.find(territory=>territory.id===conflict.targetTerritoryId)?.name:"";
+      const conflictTarget = conflict?.targetTerritoryId
+        ? (state.world.territories || []).find(territory => territory.id === conflict.targetTerritoryId)
+        : null;
+      const targetName = conflictTarget?.name || "";
+      const counterattack = conflict?.initiator === "rival";
       const conflictControls=conflict
         ? '<button class="danger" data-action="peace" data-id="'+r.id+'">Negotiate peace</button>'
         : (warTargets.length
           ? '<label for="war-target-'+r.id+'">Territorial campaign target</label><select id="war-target-'+r.id+'">'+warTargets.map(territory=>'<option value="'+esc(territory.id)+'">'+esc(territory.name)+' · '+num(territory.population)+' residents</option>').join("")+'</select><small class="muted">Victory transfers this island and its population; its shipping lanes pause with cargo preserved.</small><button class="danger" data-action="conflict" data-id="'+r.id+'" '+(warDisabled?"disabled":"")+'>Declare territorial campaign</button>'
           : '<button class="danger" data-action="conflict" data-id="'+r.id+'" '+(warDisabled?"disabled":"")+'>Declare conflict</button>');
-      return '<article class="diplomacy-card"><div class="row"><div><h3>'+esc(r.name)+' <span class="level">'+esc(r.personality)+'</span></h3><p>'+esc(r.stance)+' · '+num(r.population)+' citizens</p><small class="rival-activity">Objective: '+esc(r.longTermObjective)+'</small><small class="rival-activity">Plan: '+esc(r.plan?r.plan.reason:"evaluating national priorities")+'</small><small class="rival-activity">This turn: '+esc(r.activity)+'</small><small class="rival-activity">Industry: '+(r.buildings.mine||0)+' mines · '+(r.buildings.factory||0)+' factories · '+num(Math.min(jobs,r.population))+'/'+num(jobs)+' jobs · '+num(r.resources.credits)+' credits</small><details class="rival-history"><summary>Recent history ('+r.memory.length+')</summary><ul>'+memory+'</ul></details></div><div class="relation '+(r.relation>=20?"good":r.relation<=-20?"bad":"")+'">'+r.relation+'<small>'+level+'</small></div></div><div class="actions"><button data-action="gift" data-id="'+r.id+'">Send 20 cr aid</button><button data-action="strain" data-id="'+r.id+'" '+(state.resources.influence<5?"disabled":"")+'>Recall envoy (−15)</button>'+conflictControls+'</div><div class="treaty-actions">'+treaties+'</div>'+maritime+(conflict?'<p class="notice">Conflict active · '+(state.turn-conflict.startedTurn)+' turns · strength '+conflict.playerScore+' to '+conflict.rivalScore+(targetName?' · target: '+esc(targetName):' · no territorial target')+'</p>':"")+'</article>';
+      return '<article class="diplomacy-card"><div class="row"><div><h3>'+esc(r.name)+' <span class="level">'+esc(r.personality)+'</span></h3><p>'+esc(r.stance)+' · '+num(r.population)+' citizens</p><small class="rival-activity">Objective: '+esc(r.longTermObjective)+'</small><small class="rival-activity">Plan: '+esc(r.plan?r.plan.reason:"evaluating national priorities")+'</small><small class="rival-activity">This turn: '+esc(r.activity)+'</small><small class="rival-activity">Industry: '+(r.buildings.mine||0)+' mines · '+(r.buildings.factory||0)+' factories · '+num(Math.min(jobs,r.population))+'/'+num(jobs)+' jobs · '+num(r.resources.credits)+' credits</small><details class="rival-history"><summary>Recent history ('+r.memory.length+')</summary><ul>'+memory+'</ul></details></div><div class="relation '+(r.relation>=20?"good":r.relation<=-20?"bad":"")+'">'+r.relation+'<small>'+level+'</small></div></div><div class="actions"><button data-action="gift" data-id="'+r.id+'">Send 20 cr aid</button><button data-action="strain" data-id="'+r.id+'" '+(state.resources.influence<5?"disabled":"")+'>Recall envoy (−15)</button>'+conflictControls+'</div><div class="treaty-actions">'+treaties+'</div>'+maritime+(conflict?'<p class="notice">'+(counterattack?'Rival counterattack · defend '+esc(targetName):'Conflict active')+' · '+(state.turn-conflict.startedTurn)+' turns · '+(counterattack?'defence':'strength')+' '+conflict.playerScore+' to '+conflict.rivalScore+(targetName?' · target: '+esc(targetName):' · no territorial target')+'</p>':"")+'</article>';
     }).join("");
     const active=state.diplomacy.treaties.filter(t=>t.status==="active");
     $("treaty-summary").textContent=active.length?active.map(t=>t.kind+" with "+state.rivals[t.rivalId].name).join(" · "):"No active agreements";
@@ -288,6 +292,20 @@
       territory.owner === "unclaimed" ? "Unclaimed" : (state.rivals[territory.owner]?.name || "Unknown nation");
     const deposits = (state.world?.resourceNodes || []).filter(node => node.territoryId === territory.id);
     const depositText = deposits.length ? deposits.map(node => esc(node.resource) + " · " + num(node.quantity) + " units" + (node.depleted ? " · depleted" : node.operational ? " · extracting" : " · undeveloped")).join(" / ") : "No mapped deposits";
+    const incomingCounterattack = state.diplomacy.conflicts.find(conflict =>
+      conflict.status === "active" && conflict.initiator === "rival" && conflict.targetTerritoryId === territory.id
+    );
+    const counterattackNotice = incomingCounterattack
+      ? '<p class="notice">Counterattack by ' + esc(state.rivals[incomingCounterattack.rivalId]?.name || incomingCounterattack.rivalId) +
+        ' is targeting this island. Its garrison and fortifications contribute to defence. Negotiate peace in Diplomacy to withdraw the attack.</p>'
+      : territory.counterattackStatus === "available"
+        ? '<p class="muted">The former owner has ' + num(territory.counterattackForce || 0) +
+          ' escaped garrison units and may attempt one counterattack within ' + E.COUNTERATTACK_WINDOW + ' turns.</p>'
+        : territory.counterattackStatus === "repelled"
+          ? '<p class="muted">The former owner\'s counterattack was repelled.</p>'
+          : territory.counterattackStatus === "withdrawn"
+            ? '<p class="muted">The former owner withdrew its counterattack after a peace accord.</p>'
+            : "";
     let action = "";
     if (territory.owner === "unclaimed") {
       const cost = E.territoryClaimCost(state);
@@ -350,7 +368,7 @@
     const populationScope = territory.owner === "player"
       ? ' · National population: ' + num(state.nation.population)
       : territory.owner === "unclaimed" ? ' · Not yet in your national total' : ' · Rival national population';
-    panel.innerHTML = '<div class="world3d-territory-heading"><div><span class="eyebrow">SELECTED ISLAND</span><h3>' + esc(territory.name) + '</h3><p>' + esc(territory.biome) + ' · ' + num(territory.population) + ' local residents' + populationScope + ' · Development ' + territory.development + '/100</p></div><span class="tag">' + esc(owner) + '</span></div><p class="territory-deposits"><b>Mapped resources:</b> ' + depositText + '</p>' + action;
+    panel.innerHTML = '<div class="world3d-territory-heading"><div><span class="eyebrow">SELECTED ISLAND</span><h3>' + esc(territory.name) + '</h3><p>' + esc(territory.biome) + ' · ' + num(territory.population) + ' local residents' + populationScope + ' · Development ' + territory.development + '/100</p></div><span class="tag">' + esc(owner) + '</span></div><p class="territory-deposits"><b>Mapped resources:</b> ' + depositText + '</p>' + counterattackNotice + action;
   }
   function render() {
     renderMetrics();renderMap();renderNation();renderMarket();renderDiplomacy();renderWorldEvents();renderResearch();renderCampaign();renderCreator();renderAdvice();renderDirectorIntelligence();renderDirectorCitizens();renderHistory();renderResourceInspector();renderTerritoryInspector();document.querySelectorAll("[data-world-build]").forEach(button=>{const id=button.dataset.worldBuild;const label=E.BUILDINGS[id]?.name||id;button.innerHTML=esc(label)+' <small>Lv '+(state.buildings[id]||0)+'</small>';});if(window.KingmakerWorld3D)window.KingmakerWorld3D.update(state);
