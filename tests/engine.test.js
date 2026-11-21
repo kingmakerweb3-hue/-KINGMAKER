@@ -1055,12 +1055,12 @@ test("rare-crystal extraction contributes science and finite deposits deplete", 
   assert.equal(Engine.resourceSiteEffects(state).science, 0);
 });
 
-test("schema 8 saves migrate to version 15 with deterministic archipelago deposits", () => {
+test("schema 8 saves migrate to version 16 with deterministic archipelago deposits", () => {
   const state = Engine.createInitialState({ seed: 42005 });
   state.schemaVersion = 8;
   delete state.world.resourceNodes;
   const migrated = Engine.migrateSave(state);
-  assert.equal(migrated.schemaVersion, 15);
+  assert.equal(migrated.schemaVersion, 16);
   assert.deepEqual(migrated.world.resourceNodes, Engine.createResourceDeposits(state.seed, state.world.territories));
   const roundTrip = Engine.migrateSave(JSON.parse(Engine.exportSave(migrated)));
   assert.deepEqual(roundTrip.world.resourceNodes, migrated.world.resourceNodes);
@@ -1153,7 +1153,7 @@ test("Duneward expands into a neutral island unless an active alliance protects 
   assert.equal(protectedState.world.territories.filter(item => item.owner === "unclaimed").length, 2);
 });
 
-test("version 9 saves migrate to schema 15 without losing existing extraction progress", () => {
+test("version 9 saves migrate to schema 16 without losing existing extraction progress", () => {
   const legacy = Engine.createInitialState({ seed: 52007 });
   legacy.schemaVersion = 9;
   delete legacy.world.territories;
@@ -1165,7 +1165,7 @@ test("version 9 saves migrate to schema 15 without losing existing extraction pr
   legacy.world.resourceNodes[0].operational = true;
   legacy.world.resourceNodes[0].operatedSinceTurn = 1;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 15);
+  assert.equal(migrated.schemaVersion, 16);
   assert.equal(migrated.world.territories.length, 9);
   assert.equal(migrated.world.resourceNodes.length, 16);
   assert.equal(migrated.world.resourceNodes[0].operational, true);
@@ -1278,14 +1278,14 @@ test("outer-island construction rejects unowned land and positions outside its c
   }), /shore/);
 });
 
-test("version 10 home placements migrate into schema 14 without changing their location", () => {
+test("version 10 home placements migrate into schema 16 without changing their location", () => {
   const legacy = Engine.createInitialState({ seed: 62003 });
   legacy.schemaVersion = 10;
   legacy.world.placedBuildings.push({ type: "farm", x: 3, z: 4 });
   legacy.world.placedRoads.push({ from: { x: -2, z: 0 }, to: { x: 2, z: 0 } });
   legacy.world.placedDistricts.push({ type: "residential", x: 1, z: 1, radius: 2.6 });
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 15);
+  assert.equal(migrated.schemaVersion, 16);
   assert.equal(migrated.world.placedBuildings[0].territoryId, "home");
   assert.equal(migrated.world.placedRoads[0].territoryId, "home");
   assert.equal(migrated.world.placedDistricts[0].territoryId, "home");
@@ -1302,7 +1302,7 @@ test("version 11 saves migrate with default harbor levels, local stockpiles and 
     delete territory.stockpile;
   }
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 15);
+  assert.equal(migrated.schemaVersion, 16);
   assert.equal(migrated.world.shippingRoutes.length, 0);
   assert.equal(migrated.world.territories.find(item => item.id === "home").harborLevel, 1);
   assert.ok(migrated.world.territories.filter(item => item.id !== "home").every(item => item.harborLevel === 0));
@@ -1590,7 +1590,7 @@ test("schema 12 player shipping routes migrate with explicit player ownership", 
   legacy.schemaVersion = 12;
   delete legacy.world.shippingRoutes[0].ownerId;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 15);
+  assert.equal(migrated.schemaVersion, 16);
   assert.equal(migrated.world.shippingRoutes[0].ownerId, "player");
 });
 
@@ -1762,7 +1762,7 @@ test("international route validation rejects malformed contracts but retains pau
   assert.equal(restored.world.shippingRoutes[0].status, "paused");
 });
 
-test("schema 13 saves migrate to version 15 while preserving domestic shipping routes and regional population", () => {
+test("schema 13 saves migrate to version 16 while preserving domestic shipping routes and regional population", () => {
   const state = Engine.createInitialState({ seed: 74006 });
   const island = state.world.territories.find(item => item.owner === "unclaimed");
   state.resources.materials = 1000;
@@ -1775,7 +1775,7 @@ test("schema 13 saves migrate to version 15 while preserving domestic shipping r
   legacy.nation.population = legacy.world.territories.find(item => item.id === "home").population;
   legacy.schemaVersion = 13;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 15);
+  assert.equal(migrated.schemaVersion, 16);
   assert.equal(migrated.nation.population, migrated.world.territories.filter(item => item.owner === "player").reduce((sum, item) => sum + item.population, 0));
   assert.deepEqual(migrated.world.shippingRoutes, legacy.world.shippingRoutes);
 });
@@ -1790,7 +1790,7 @@ test("schema 14 saves add existing player-island residents to the national popul
   legacy.nation.population = home.population;
   legacy.schemaVersion = 14;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 15);
+  assert.equal(migrated.schemaVersion, 16);
   assert.equal(migrated.nation.population, home.population + island.population);
   assert.equal(migrated.world.territories.find(item => item.id === island.id).population, island.population);
 });
@@ -2171,9 +2171,9 @@ test("rivals fortify a targeted island and recruit local defenders during a terr
     node.depleted = true;
     node.operational = false;
   }
-  rival.resources.materials = 100;
-  rival.resources.ore = 100;
-  rival.resources.credits = 100;
+  rival.resources.materials = 1000;
+  rival.resources.ore = 1000;
+  rival.resources.credits = 1000;
   rival.resources.power = 0;
   rival.buildings.power = 0;
   rival.technologies = [];
@@ -2181,9 +2181,10 @@ test("rivals fortify a targeted island and recruit local defenders during a terr
   state.resources.credits = 1000;
   state.resources.power = 1000;
   Engine.declareConflict(state, rival.id, target.id);
-  Engine.advanceTurn(state);
-  assert.equal(target.fortificationLevel, 1);
-  assert.equal(rival.resources.materials, 75);
-  assert.ok(rival.resources.credits < 80);
+  for (let turn = 0; turn < 3; turn++) Engine.advanceTurn(state);
+  assert.equal(target.fortificationLevel, 2);
+  assert.equal(target.garrison, 2);
+  assert.equal(target.owner, "player");
   assert.ok(state.events.some(event => event.text.includes("reinforced " + target.name)));
+  assert.ok(state.events.some(event => event.text.includes("mobilized additional defenders on " + target.name)));
 });
