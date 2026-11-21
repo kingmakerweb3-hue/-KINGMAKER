@@ -2123,7 +2123,7 @@ test("schema 15 saves migrate to local garrisons and validated fortification lev
   const home = migrated.world.territories.find(item => item.id === "home");
   const ironmarch = migrated.world.territories.find(item => item.owner === "ironmarch");
   const neutral = migrated.world.territories.find(item => item.owner === "unclaimed");
-  assert.equal(migrated.schemaVersion, 16);
+  assert.equal(migrated.schemaVersion, 17);
   assert.equal(home.garrison, 2);
   assert.equal(ironmarch.garrison, 3);
   assert.equal(ironmarch.fortificationLevel, 1);
@@ -2185,8 +2185,176 @@ test("rivals fortify a targeted island and recruit local defenders during a terr
   Engine.declareConflict(state, rival.id, target.id);
   for (let turn = 0; turn < 3; turn++) Engine.advanceTurn(state);
   assert.equal(target.fortificationLevel, 2);
-  assert.equal(target.garrison, 2);
+  assert.equal(target.garrison, 0);
+  assert.equal(target.counterattackForce, 2);
+  assert.equal(target.counterattackStatus, "available");
   assert.equal(target.owner, "player");
   assert.ok(state.events.some(event => event.text.includes("reinforced " + target.name)));
   assert.ok(state.events.some(event => event.text.includes("mobilized additional defenders on " + target.name)));
+});
+
+
+test("schema 16 campaigns migrate without inventing former-owner counterattack history", () => {
+  const state = Engine.createInitialState({ seed: 76101 });
+  state.schemaVersion = 16;
+  const migrated = Engine.migrateSave(state);
+  assert.equal(migrated.schemaVersion, 17);
+  assert.ok(migrated.world.territories.every(territory => territory.counterattackStatus === undefined));
+  assert.doesNotThrow(() => Engine.validateSave(JSON.parse(Engine.exportSave(migrated))));
+});
+
+test("a hostile former owner launches one counterattack with its escaped garrison", () => {
+  const state = Engine.createInitialState({ seed: 76102 });
+  state.turn = 5;
+  const rival = state.rivals.aurelia;
+  const target = state.world.territories.find(territory => territory.owner === rival.id);
+  target.owner = "player";
+  target.claimedTurn = state.turn;
+  target.population = 50;
+  target.garrison = 0;
+  target.lastLostOwnerId = rival.id;
+  target.lastLostTurn = state.turn - 1;
+  target.counterattackStatus = "available";
+  target.counterattackForce = 2;
+  Engine.syncNationalPopulation(state);
+  rival.relation = -65;
+  rival.stability = 100;
+  rival.resources.credits = 200;
+  rival.resources.power = 100;
+  rival.buildings.power = 1;
+  const creditsBefore = rival.resources.credits;
+  const powerBefore = rival.resources.power;
+
+  const result = Engine.planRivalCounterattacks(state);
+  assert.equal(result.launched, 1);
+  assert.equal(state.diplomacy.conflicts.length, 1);
+  const conflict = state.diplomacy.conflicts[0];
+  assert.equal(conflict.initiator, "rival");
+  assert.equal(conflict.targetTerritoryId, target.id);
+  assert.equal(conflict.assaultGarrison, 2);
+  assert.equal(target.counterattackStatus, "active");
+  assert.equal(target.counterattackForce, 0);
+  assert.equal(rival.resources.credits, creditsBefore - Engine.COUNTERATTACK_COST.credits);
+  assert.equal(rival.resources.power, powerBefore - Engine.COUNTERATTACK_COST.power);
+  assert.doesNotThrow(() => Engine.validateSave(JSON.parse(Engine.exportSave(state))));
+});
+
+test("a rival counterattack can retake an island and transfer residents back without losing cargo", () => {
+  const state = Engine.createInitialState({ seed: 76103 });
+  state.turn = 4;
+  const rival = state.rivals.aurelia;
+  const target = state.world.territories.find(territory => territory.owner === rival.id);
+  target.owner = "player";
+  target.claimedTurn = state.turn;
+  target.population = 50;
+  target.harborLevel = 1;
+  target.garrison = 0;
+  target.fortificationLevel = 0;
+  target.lastLostOwnerId = rival.id;
+  target.lastLostTurn = state.turn - 1;
+  target.counterattackStatus = "available";
+  target.counterattackForce = 3;
+  Engine.syncNationalPopulation(state);
+  const populationBefore = rival.population;
+  rival.relation = -65;
+  rival.stability = 100;
+  rival.resources.credits = 1000;
+  rival.resources.power = 1000;
+  rival.resources.materials = 500;
+  rival.resources.ore = 500;
+  rival.buildings.power = 0;
+  rival.technologies = [];
+  state.resources.credits = 1000;
+  state.resources.food = 1000;
+  state.resources.power = 0;
+  state.buildings.power = 0;
+  state.nation.stability = 100;
+  const route = {
+    id: "counterattack-cargo-test", ownerId: "player", sourceId: "home", destinationId: target.id,
+    resource: "food", capacity: 10, travelTurns: 5, status: "active",
+    inTransit: { amount: 5, remainingTurns: 5 }, createdTurn: state.turn,
+    loadedTotal: 5, deliveredTotal: 0, lastLoadedTurn: state.turn, lastDeliveredTurn: null
+  };
+  state.world.shippingRoutes.push(route);
+
+  for (let turn = 0; turn < 4; turn++) Engine.advanceTurn(state);
+  const conflict = state.diplomacy.conflicts.find(item => item.initiator === "rival");
+  assert.ok(conflict);
+  assert.equal(conflict.status, "resolved");
+  assert.ok(conflict.rivalScore > conflict.playerScore);
+  assert.equal(target.owner, rival.id);
+  assert.equal(target.counterattackStatus, "retaken");
+  assert.equal(target.garrison, 1);
+  assert.ok(rival.population > populationBefore);
+  assert.equal(state.nation.population, Engine.nationalPopulationFor(state));
+  assert.equal(route.status, "paused");
+  assert.ok(route.inTransit && route.inTransit.amount === 5 && route.inTransit.remainingTurns === 1);
+  assert.doesNotThrow(() => Engine.validateSave(JSON.parse(Engine.exportSave(state))));
+});
+
+test("strong island garrisons repel a rival counterattack and consume the escaped assault force", () => {
+  const state = Engine.createInitialState({ seed: 76104 });
+  state.turn = 4;
+  const rival = state.rivals.aurelia;
+  const target = state.world.territories.find(territory => territory.owner === rival.id);
+  target.owner = "player";
+  target.claimedTurn = state.turn;
+  target.population = 80;
+  target.garrison = 4;
+  target.fortificationLevel = 3;
+  target.lastLostOwnerId = rival.id;
+  target.lastLostTurn = state.turn - 1;
+  target.counterattackStatus = "available";
+  target.counterattackForce = 1;
+  Engine.syncNationalPopulation(state);
+  rival.relation = -65;
+  rival.stability = 100;
+  rival.resources.credits = 1000;
+  rival.resources.power = 100;
+  rival.resources.materials = 500;
+  rival.resources.ore = 500;
+  rival.buildings.power = 0;
+  rival.technologies = [];
+  state.resources.credits = 1000;
+  state.resources.food = 1000;
+  state.resources.power = 1000;
+  state.buildings.power = 10;
+  state.nation.stability = 100;
+
+  for (let turn = 0; turn < 4; turn++) Engine.advanceTurn(state);
+  const conflict = state.diplomacy.conflicts.find(item => item.initiator === "rival");
+  assert.ok(conflict);
+  assert.equal(conflict.status, "resolved");
+  assert.ok(conflict.playerScore > conflict.rivalScore);
+  assert.equal(target.owner, "player");
+  assert.equal(target.counterattackStatus, "repelled");
+  assert.equal(target.counterattackForce, 0);
+  assert.doesNotThrow(() => Engine.validateSave(JSON.parse(Engine.exportSave(state))));
+});
+
+test("counterattack windows expire and invalid former-owner records are rejected", () => {
+  const state = Engine.createInitialState({ seed: 76105 });
+  const rival = state.rivals.aurelia;
+  const target = state.world.territories.find(territory => territory.owner === rival.id);
+  target.owner = "player";
+  target.claimedTurn = state.turn;
+  target.lastLostOwnerId = rival.id;
+  target.lastLostTurn = state.turn - 7;
+  target.counterattackStatus = "available";
+  target.counterattackForce = 2;
+  Engine.syncNationalPopulation(state);
+  const result = Engine.planRivalCounterattacks(state);
+  assert.equal(result.launched, 0);
+  assert.equal(result.expired, 1);
+  assert.equal(target.counterattackStatus, "expired");
+  assert.equal(target.counterattackForce, 0);
+  const invalid = JSON.parse(Engine.exportSave(state));
+  invalid.world.territories.find(item => item.id === target.id).lastLostOwnerId = "unknown-faction";
+  assert.throws(() => Engine.validateSave(invalid), /Territory data is invalid/);
+  const invalidConflict = JSON.parse(Engine.exportSave(state));
+  invalidConflict.diplomacy.conflicts.push({
+    rivalId: rival.id, status: "active", startedTurn: state.turn, playerScore: 0, rivalScore: 0,
+    targetTerritoryId: target.id, initiator: "rival", assaultGarrison: 0
+  });
+  assert.throws(() => Engine.validateSave(invalidConflict), /Conflict record is invalid/);
 });
