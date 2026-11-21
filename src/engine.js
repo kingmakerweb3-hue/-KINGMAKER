@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 15;
+  const SAVE_VERSION = 16;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -39,6 +39,10 @@
   const INTERNATIONAL_TRADE_RESOURCES = Object.freeze(["food", "materials", "ore", "power"]);
   const INTERNATIONAL_TRADE_TARIFFS = Object.freeze([0, 5, 10, 15, 20]);
   const STOCKPILE_LIMIT = 500;
+  const GARRISON_RECRUIT_COST = Object.freeze({ materials: 12, ore: 6, credits: 20 });
+  const MILITARY_UPKEEP_PER_UNIT = 1;
+  const GARRISON_MANPOWER_PER_UNIT = 10;
+  const MAX_FORTIFICATION_LEVEL = 3;
   // Permanent island wind and solar installations contribute power each turn.
   const RENEWABLE_POWER_OUTPUT = Object.freeze({ wind: 2, solar: 2 });
   const BUILDINGS = {
@@ -148,6 +152,31 @@
   }
   function copy(value) { return JSON.parse(JSON.stringify(value)); }
   function createStockpile() { return Object.fromEntries(SHIPPING_RESOURCES.map(resource => [resource, 0])); }
+  function garrisonCapacity(territory) {
+    return Math.max(0, Math.floor(Math.max(0, Number(territory?.population) || 0) / GARRISON_MANPOWER_PER_UNIT));
+  }
+  function fortificationCost(nextLevel) {
+    if (!Number.isInteger(nextLevel) || nextLevel < 1 || nextLevel > MAX_FORTIFICATION_LEVEL) return null;
+    return { materials: 25 * nextLevel, credits: 20 * nextLevel };
+  }
+  function territoryDefenseStrength(territory) {
+    if (!territory) return 0;
+    return Math.floor(Math.max(0, territory.population || 0) / 20) +
+      Math.floor(Math.max(0, territory.development || 0) / 10) +
+      Math.max(0, territory.harborLevel || 0) * 8 +
+      Math.max(0, territory.garrison || 0) * 8 +
+      Math.max(0, territory.fortificationLevel || 0) * 12;
+  }
+  function militaryEffects(state) {
+    const owned = (state.world?.territories || []).filter(territory => territory.owner === "player");
+    const units = owned.reduce((sum, territory) => sum + Math.max(0, territory.garrison || 0), 0);
+    return {
+      units,
+      manpower: units * GARRISON_MANPOWER_PER_UNIT,
+      upkeep: units * MILITARY_UPKEEP_PER_UNIT,
+      fortifications: owned.reduce((sum, territory) => sum + Math.max(0, territory.fortificationLevel || 0), 0)
+    };
+  }
   const ARCHIPELAGO_TEMPLATES = [
     { id: "isle-aurelia", name: "Aurelian Reach", owner: "aurelia", biome: "Temperate" },
     { id: "isle-northreach", name: "Northreach", owner: "northreach", biome: "Highland" },
@@ -180,6 +209,8 @@
         population: owner === "unclaimed" ? 18 + Math.floor(random() * 18) : 55 + Math.floor(random() * 65),
         development: 12 + Math.floor(random() * 28),
         biome: template.biome, harborLevel: 0, stockpile: createStockpile(),
+        garrison: owner === "unclaimed" ? 0 : owner === "ironmarch" ? 3 : 1,
+        fortificationLevel: owner === "ironmarch" ? 1 : 0,
         phase: Number((random() * Math.PI * 2).toFixed(4)),
         claimedTurn: owner === "unclaimed" ? null : 1
       };
@@ -187,7 +218,7 @@
     return [{
       id: "home", name: "New Horizon", owner: "player", x: 0, z: 0,
       radius: 15, population: 100, development: 35, biome: "Temperate", harborLevel: 1,
-      stockpile: createStockpile(), phase: 0, claimedTurn: 1
+      stockpile: createStockpile(), garrison: 2, fortificationLevel: 0, phase: 0, claimedTurn: 1
     }, ...outer];
   }
   function createResourceDeposits(seed, territories = []) {
@@ -362,7 +393,7 @@
       market: { stock: { food: 400, materials: 300, ore: 240, goods: 180, power: 260 }, basePrices: { food: 2, materials: 4, ore: 5, goods: 8, power: 4 }, prices: { food: 2, materials: 4, ore: 5, goods: 8, power: 4 }, lastFlow: { food: 0, materials: 0, ore: 0, goods: 0, power: 0 } },
       rivals: Object.fromEntries(RIVAL_TEMPLATES.map((r, i) => [r.id, createRival(r, i)])),
       diplomacy: { treaties: [], conflicts: [] },
-      economy: { lastIncome: 0, lastExpenses: 0, lastBalance: 0, workforce: 0, employed: 0, production: { food: 0, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, capacity: 0, logistics: 0 }, consumption: { food: 0, materials: 0, ore: 0, power: 0 }, phase: "stable", deficitTurns: 0, recoveryTurns: 0 },
+      economy: { lastIncome: 0, lastExpenses: 0, lastBalance: 0, workforce: 0, employed: 0, militaryUnits: 2, militaryManpower: 20, militaryUpkeep: 2, production: { food: 0, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, capacity: 0, logistics: 0 }, consumption: { food: 0, materials: 0, ore: 0, power: 0 }, phase: "stable", deficitTurns: 0, recoveryTurns: 0 },
       campaign: { id: campaignId, completedObjectives: [], status: "active", phaseIndex: 0, buildingStart: 6, progress: { tradeVolume: 0, agreementsSigned: 0, crisesSurvived: 0, peacefulDisputes: 0 } },
       achievements: [], creations: [], events: [{ id: "history-1-0", turn: 1, text: "Your civilization was founded. The first chapter begins.", type: "milestone", details: { summary: "A new campaign begins with a developing economy and six neighboring nations.", affectedNationIds: ["player"] } }],
       creatorEconomy: { nextAdoptionId: 1, publications: [], commissions: [], adoptions: [], totalRoyalties: 0, royaltyTurn: 1, lastTurnRoyalties: 0 },
@@ -418,6 +449,11 @@
       if (!territory || typeof territory !== "object") continue;
       if (territory.harborLevel === undefined) territory.harborLevel = territory.id === "home" ? 1 : 0;
       if (territory.stockpile === undefined) territory.stockpile = createStockpile();
+      if (territory.garrison === undefined) {
+        const defaultUnits = territory.id === "home" ? 2 : territory.owner === "unclaimed" ? 0 : territory.owner === "ironmarch" ? 3 : 1;
+        territory.garrison = Math.min(defaultUnits, garrisonCapacity(territory));
+      }
+      if (territory.fortificationLevel === undefined) territory.fortificationLevel = territory.owner === "ironmarch" ? 1 : 0;
     }
     if (normalized.world.resourceNodes === undefined) normalized.world.resourceNodes = createResourceDeposits(normalized.seed, normalized.world.territories);
     if (!Array.isArray(normalized.world.resourceNodes)) throw new Error("Resource deposit data is invalid.");
@@ -473,6 +509,8 @@
           typeof territory.biome !== "string" || territory.biome.length > 32 ||
           !Number.isFinite(territory.phase) || territory.phase < 0 || territory.phase > Math.PI * 2 ||
           !Number.isInteger(territory.harborLevel) || territory.harborLevel < 0 || territory.harborLevel > 3 ||
+          !Number.isInteger(territory.garrison) || territory.garrison < 0 || territory.garrison > 1000 || territory.garrison > garrisonCapacity(territory) ||
+          !Number.isInteger(territory.fortificationLevel) || territory.fortificationLevel < 0 || territory.fortificationLevel > MAX_FORTIFICATION_LEVEL ||
           !territory.stockpile || typeof territory.stockpile !== "object" || Array.isArray(territory.stockpile) ||
           Object.keys(territory.stockpile).some(key => !SHIPPING_RESOURCES.includes(key)) ||
           SHIPPING_RESOURCES.some(key => !Number.isInteger(territory.stockpile[key]) || territory.stockpile[key] < 0 || territory.stockpile[key] > STOCKPILE_LIMIT) ||
@@ -663,7 +701,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -938,6 +976,9 @@
       .reduce((sum, territory) => sum + safeInt(territory.population, 0, RESOURCE_LIMIT), 0);
   }
   function syncNationalPopulation(state) {
+    for (const territory of state.world?.territories || []) {
+      if (Number.isInteger(territory.garrison)) territory.garrison = Math.min(territory.garrison, garrisonCapacity(territory));
+    }
     state.nation.population = Math.max(1, Math.min(RESOURCE_LIMIT, nationalPopulationFor(state)));
     return state.nation.population;
   }
@@ -955,7 +996,7 @@
     }
     const home = state.world.territories.find(territory => territory?.id === "home");
     if (home) home.population = safeInt(state.nation?.population, home.population || 100, RESOURCE_LIMIT) || 1;
-    state.nation.population = nationalPopulationFor(state);
+    syncNationalPopulation(state);
   }
   function reducePlayerPopulation(state, amount) {
     let remaining = Math.max(0, Math.floor(amount));
@@ -1140,6 +1181,85 @@
     }
     addEvent(state, territory.name + " harbor expanded to level " + nextLevel + ".", "economy");
     return territory;
+  }
+  function recruitGarrison(state, territoryId, units = 1) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const territory = (state.world?.territories || []).find(item => item.id === territoryId);
+    if (!territory) throw new Error("Territory not found.");
+    if (territory.owner !== "player") throw new Error("You can only recruit forces on territory you control.");
+    if (!Number.isInteger(units) || units < 1 || units > 5) throw new Error("Recruit between one and five garrison units.");
+    if (territory.garrison + units > garrisonCapacity(territory)) {
+      throw new Error("Local manpower supports " + garrisonCapacity(territory) + " garrison units on this island.");
+    }
+    for (const [resource, amount] of Object.entries(GARRISON_RECRUIT_COST)) {
+      const required = amount * units;
+      if ((state.resources[resource] || 0) < required) throw new Error("Recruitment requires " + required + " " + resource + ".");
+    }
+    for (const [resource, amount] of Object.entries(GARRISON_RECRUIT_COST)) state.resources[resource] -= amount * units;
+    territory.garrison += units;
+    addEvent(state, units + " garrison unit" + (units === 1 ? "" : "s") + " mobilized on " + territory.name + ". Each unit reserves ten local residents and costs one credit per turn.", "milestone");
+    return territory;
+  }
+  function buildFortification(state, territoryId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const territory = (state.world?.territories || []).find(item => item.id === territoryId);
+    if (!territory) throw new Error("Territory not found.");
+    if (territory.owner !== "player") throw new Error("You can only fortify territory you control.");
+    const nextLevel = territory.fortificationLevel + 1;
+    const cost = fortificationCost(nextLevel);
+    if (!cost) throw new Error("This island's fortifications are already at maximum level.");
+    if (state.resources.materials < cost.materials || state.resources.credits < cost.credits) {
+      throw new Error("Fortification level " + nextLevel + " requires " + cost.materials + " materials and " + cost.credits + " credits.");
+    }
+    state.resources.materials -= cost.materials;
+    state.resources.credits -= cost.credits;
+    territory.fortificationLevel = nextLevel;
+    territory.development = Math.min(100, territory.development + 1);
+    addEvent(state, territory.name + " completed fortification level " + nextLevel + ".", "milestone");
+    return territory;
+  }
+  function developRivalMilitary(state) {
+    const summary = { garrisonsRecruited: 0, fortificationsBuilt: 0, upkeepPaid: 0 };
+    for (const rival of Object.values(state.rivals || {})) {
+      const owned = (state.world?.territories || []).filter(territory => territory.owner === rival.id);
+      if (!owned.length) continue;
+      const currentUnits = owned.reduce((sum, territory) => sum + (territory.garrison || 0), 0);
+      const upkeep = currentUnits * MILITARY_UPKEEP_PER_UNIT;
+      const paid = Math.min(rival.resources.credits, upkeep);
+      rival.resources.credits -= paid;
+      summary.upkeepPaid += paid;
+      if (paid < upkeep) rival.stability = Math.max(0, rival.stability - 1);
+      const conflict = (state.diplomacy.conflicts || []).find(item => item.rivalId === rival.id && item.status === "active");
+      if (!conflict && rival.relation > -35) continue;
+      const target = conflict?.targetTerritoryId
+        ? owned.find(territory => territory.id === conflict.targetTerritoryId)
+        : owned.slice().sort((a, b) => b.development - a.development || b.population - a.population || a.id.localeCompare(b.id))[0];
+      if (!target) continue;
+      const fortificationLimit = conflict ? 2 : 1;
+      const nextLevel = target.fortificationLevel + 1;
+      const fortCost = fortificationCost(nextLevel);
+      if (target.fortificationLevel < fortificationLimit && fortCost &&
+          rival.resources.materials >= fortCost.materials && rival.resources.credits >= fortCost.credits) {
+        rival.resources.materials -= fortCost.materials;
+        rival.resources.credits -= fortCost.credits;
+        target.fortificationLevel = nextLevel;
+        summary.fortificationsBuilt++;
+        rememberRival(rival, state.turn, "defensive-fortification", "Fortified " + target.name + " against a territorial threat");
+        addEvent(state, rival.name + " reinforced " + target.name + " with fortification level " + nextLevel + ".", "conflict");
+      } else if (target.garrison < garrisonCapacity(target) &&
+          rival.resources.materials >= GARRISON_RECRUIT_COST.materials &&
+          rival.resources.ore >= GARRISON_RECRUIT_COST.ore &&
+          rival.resources.credits >= GARRISON_RECRUIT_COST.credits) {
+        rival.resources.materials -= GARRISON_RECRUIT_COST.materials;
+        rival.resources.ore -= GARRISON_RECRUIT_COST.ore;
+        rival.resources.credits -= GARRISON_RECRUIT_COST.credits;
+        target.garrison++;
+        summary.garrisonsRecruited++;
+        rememberRival(rival, state.turn, "garrison-recruitment", "Mobilized a garrison on " + target.name);
+        addEvent(state, rival.name + " mobilized additional defenders on " + target.name + ".", "conflict");
+      }
+    }
+    return summary;
   }
   function createShippingRoute(state, sourceId, destinationId, resource) {
     if (state.status !== "playing") throw new Error("This campaign has ended.");
@@ -1548,6 +1668,7 @@
     const population = nationalPopulationFor(state);
     const homePopulation = state.world?.territories?.find(territory => territory.id === "home")?.population ?? population;
     const districts = districtEffects(state);
+    const military = militaryEffects(state);
     const homeJobs = workforceFor(state.buildings);
     const jobs = homeJobs + districts.workforce;
     const employed = Math.min(homeJobs, homePopulation) + districts.employed;
@@ -1571,7 +1692,7 @@
     industry.production.logistics += shipping.activeRoutes;
     const territories = territoryEffects(state);
     industry.production.credits += territories.credits;
-    return { population, production: industry.production, territoryInfluence: territories.influence, shipping,
+    return { population, production: industry.production, territoryInfluence: territories.influence, shipping, military,
       consumption: { food: Math.ceil(population / (12 + Math.min(8, industry.production.logistics))), ...industry.inputs },
       workforce: jobs, employed, requiredJobs: Math.ceil(population / 10), activeFactories: industry.activeFactories };
   }
@@ -2157,6 +2278,7 @@
     applyOngoingWorldEvents(state, flow);
     const creator = creatorEffects(state);
     const districts = districtEffects(state);
+    const military = militaryEffects(state);
     const homePopulation = state.world.territories.find(territory => territory.id === "home")?.population ?? state.nation.population;
     const baseOutput = productionFor(state.buildings, state.technologies);
     const homeJobs = workforceFor(state.buildings);
@@ -2196,7 +2318,7 @@
     if (worldEventActiveThisTurn(state, "financial_crisis")) income = Math.floor(income * 0.75);
     state.resources.science = clamp(state.resources.science + activeTreaties.filter(t => t.kind === "research").length * 2, 0, RESOURCE_LIMIT);
     state.resources.influence = clamp(state.resources.influence + activeTreaties.filter(t => t.kind === "alliance").length + creator.influence + territorialOutput.influence, 0, RESOURCE_LIMIT);
-    const wageExpense = Math.ceil(employed / 10 * (worldEventActiveThisTurn(state, "financial_crisis") ? 1.15 : 1) * (hasTech(state, "urbanism") ? 0.9 : 1)) + shipping.upkeep;
+    const wageExpense = Math.ceil(employed / 10 * (worldEventActiveThisTurn(state, "financial_crisis") ? 1.15 : 1) * (hasTech(state, "urbanism") ? 0.9 : 1)) + shipping.upkeep + military.upkeep;
     state.resources.credits = clamp(state.resources.credits + income - wageExpense, 0, RESOURCE_LIMIT);
     const previousPhase = state.economy.phase;
     let phase = previousPhase, deficitTurns = state.economy.deficitTurns, recoveryTurns = state.economy.recoveryTurns;
@@ -2215,7 +2337,7 @@
       phase = "stable"; deficitTurns = 0; recoveryTurns = 0;
     }
     state.economy = { lastIncome: income, lastExpenses: wageExpense, lastBalance: balance,
-      workforce: jobs, employed, requiredJobs: Math.ceil(state.nation.population / 10), production: output, consumption: { food: 0, ...industry.inputs }, phase, deficitTurns, recoveryTurns };
+      workforce: jobs, employed, militaryUnits: military.units, militaryManpower: military.manpower, militaryUpkeep: military.upkeep, requiredJobs: Math.ceil(state.nation.population / 10), production: output, consumption: { food: 0, ...industry.inputs }, phase, deficitTurns, recoveryTurns };
     if (phase !== previousPhase) addEvent(state, "The national economy entered a period of " + phase + ".", "economy");
     for (const resource of MARKET_RESOURCES) flow[resource] += output[resource] - (industry.inputs[resource] || 0);
     let foodNeed = Math.ceil(state.nation.population / (12 + Math.min(8, output.logistics)));
@@ -2263,6 +2385,7 @@
     developRivals(state, flow);
     expandRivals(state);
     developRivalTerritories(state);
+    developRivalMilitary(state);
     const creatorRoyalties = state.creatorEconomy.lastTurnRoyalties - royaltiesBeforeRivals;
     if (creatorRoyalties > 0) {
       state.economy.lastIncome = Math.min(RESOURCE_LIMIT, state.economy.lastIncome + creatorRoyalties);
@@ -2271,12 +2394,13 @@
     for (const conflict of state.diplomacy.conflicts) {
       if (conflict.status !== "active") continue;
       const rival = state.rivals[conflict.rivalId];
-      const playerStrength = Math.max(1, state.resources.power + (state.buildings.power || 0) * 12 + state.technologies.length * 5);
+      const homeTerritory = (state.world.territories || []).find(territory => territory.id === "home");
+      const playerStrength = Math.max(1, state.resources.power + (state.buildings.power || 0) * 12 + state.technologies.length * 5 + (homeTerritory?.garrison || 0) * 8);
       const targetTerritory = conflict.targetTerritoryId
         ? (state.world.territories || []).find(territory => territory.id === conflict.targetTerritoryId)
         : null;
       const territorialDefense = targetTerritory && targetTerritory.owner === rival.id
-        ? Math.floor(targetTerritory.population / 20) + Math.floor(targetTerritory.development / 10) + targetTerritory.harborLevel * 8
+        ? territoryDefenseStrength(targetTerritory)
         : 0;
       const rivalStrength = Math.max(1, rival.resources.power + (rival.buildings.power || 0) * 12 + rival.technologies.length * 5 + territorialDefense);
       conflict.playerScore += playerStrength;
@@ -2391,9 +2515,9 @@
   }
 
   return {
-    SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, SHIPPING_RESOURCES, INTERNATIONAL_TRADE_RESOURCES, INTERNATIONAL_TRADE_TARIFFS, STOCKPILE_LIMIT, RENEWABLE_POWER_OUTPUT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
+    SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, SHIPPING_RESOURCES, INTERNATIONAL_TRADE_RESOURCES, INTERNATIONAL_TRADE_TARIFFS, STOCKPILE_LIMIT, RENEWABLE_POWER_OUTPUT, GARRISON_RECRUIT_COST, MILITARY_UPKEEP_PER_UNIT, GARRISON_MANPOWER_PER_UNIT, MAX_FORTIFICATION_LEVEL, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, createShippingRoute, createInternationalTradeRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
+    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, garrisonCapacity, fortificationCost, territoryDefenseStrength, militaryEffects, recruitGarrison, buildFortification, developRivalMilitary, createShippingRoute, createInternationalTradeRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects, nationalPopulationFor, syncNationalPopulation,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
