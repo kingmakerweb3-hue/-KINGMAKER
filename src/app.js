@@ -2,7 +2,7 @@
   "use strict";
   const E = window.KingmakerEngine, KEY = "kingmaker_save_v1", BACKUP = "kingmaker_save_recovery", OLD = "kingmaker_save";
   const $ = id => document.getElementById(id);
-  let state, soundOn = false, activeTab = "overview", selectedResourceId = null, selectedTerritoryId = null;
+  let state, soundOn = false, activeTab = "overview", selectedResourceId = null, selectedTerritoryId = "home";
   const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const num = v => Math.floor(Number(v) || 0).toLocaleString();
   function toast(message, kind="info") {
@@ -251,6 +251,31 @@
       cost + '<button type="button" data-action="develop-resource" data-id="' + esc(node.id) + '" ' + (affordable ? "" : "disabled") + '>Establish extraction site</button>' + (missing.length ? '<small class="muted">Requires ' + esc(missing.join(" and ")) + '.</small>' : '<small class="muted">Ready to develop. Production starts on the next world turn.</small>');
     panel.innerHTML = '<div class="world3d-resource-heading"><div><span class="eyebrow">SELECTED DEPOSIT</span><h3>' + esc(node.resource) + '</h3><p>' + num(node.quantity) + ' units remaining · ' + esc(rate) + '</p></div><span class="tag">' + status + '</span></div>' + action;
   }
+  function renderMilitaryPanel(territory, canCommand) {
+    const units = territory.garrison || 0;
+    const capacity = E.garrisonCapacity(territory);
+    const manpower = units * E.GARRISON_MANPOWER_PER_UNIT;
+    const upkeep = units * E.MILITARY_UPKEEP_PER_UNIT;
+    const defense = E.territoryDefenseStrength(territory);
+    let controls = "";
+    if (canCommand) {
+      const recruitCost = E.GARRISON_RECRUIT_COST;
+      const recruitDisabled = state.status !== "playing" || units >= capacity ||
+        Object.entries(recruitCost).some(([resource, cost]) => (state.resources[resource] || 0) < cost);
+      const nextLevel = territory.fortificationLevel + 1;
+      const cost = E.fortificationCost(nextLevel);
+      const fortificationDisabled = state.status !== "playing" || !cost ||
+        state.resources.materials < (cost?.materials || 0) || state.resources.credits < (cost?.credits || 0);
+      controls = '<button type="button" data-action="recruit-garrison" data-id="' + esc(territory.id) + '" ' + (recruitDisabled ? "disabled" : "") + '>Recruit 1 garrison unit · 12 materials / 6 ore / 20 credits</button>' +
+        (units >= capacity ? '<small class="muted">Local manpower capacity reached. Develop this island to support more defenders.</small>' : "") +
+        (cost
+          ? '<button type="button" data-action="build-fortification" data-id="' + esc(territory.id) + '" ' + (fortificationDisabled ? "disabled" : "") + '>Build fortification level ' + nextLevel + ' · ' + cost.materials + ' materials / ' + cost.credits + ' credits</button>'
+          : '<small class="muted">Fortifications are at maximum level.</small>');
+    } else {
+      controls = '<small class="muted">Defensive recruitment and construction are managed by ' + esc(territory.owner === "player" ? state.nation.name : state.rivals[territory.owner]?.name || "the territory owner") + '.</small>';
+    }
+    return '<div class="shipping-panel military-panel"><h4>Island defence</h4><div class="territory-infrastructure"><span>' + units + ' garrison units / ' + capacity + ' capacity</span><span>Fortification level ' + territory.fortificationLevel + '</span><span>Defence rating ' + defense + '</span><span>' + num(manpower) + ' residents reserved</span><span>' + upkeep + ' credits / turn upkeep</span></div>' + controls + '<small class="muted">Each garrison unit reserves ten local residents and costs one credit per turn. Fortification levels add twelve defensive strength each.</small></div>';
+  }
   function renderTerritoryInspector() {
     const panel = $("world3d-territory-inspector");
     if (!panel || !state) return;
@@ -298,7 +323,8 @@
           ? '<div class="shipping-route-form"><label for="shipping-destination">Destination port</label><select id="shipping-destination">' + destinations.map(item => '<option value="' + esc(item.id) + '">' + esc(item.name) + ' · level ' + item.harborLevel + '</option>').join("") + '</select><label for="shipping-resource">Cargo resource</label><select id="shipping-resource">' + E.SHIPPING_RESOURCES.map(resource => '<option value="' + esc(resource) + '">' + esc(resource) + '</option>').join("") + '</select><button type="button" data-action="create-shipping-route" data-id="' + esc(territory.id) + '">Open shipping route · 20 materials / 35 credits</button><small class="muted">Convoys load local stockpiles, then deliver after the route travel time. Logistics research shortens journeys and halves upkeep.</small></div>'
           : '<small class="muted">Claim another island and build its harbor to open a shipping route.</small>'
         : territory.id === "home" ? '<small class="muted">Home is the national receiving port. Build harbors on claimed outer islands to export their local resources here.</small>' : '<small class="muted">Build a harbor before opening a shipping route.</small>';
-      action = '<p class="muted">Under your control. Each claimed outer island adds 3 credits and 1 influence per turn. Buildings, districts, roads and extraction sites operate here.</p><div class="territory-infrastructure"><span>' + buildings + ' buildings</span><span>' + districts + ' districts</span><span>' + roads + ' road segments</span><span>Harbor level ' + territory.harborLevel + '</span></div><div class="shipping-panel"><h4>Harbor & shipping</h4>' + harborAction + stockpile + '<div class="shipping-routes"><b>Connected routes</b>' + routeList + '</div>' + routeForm + '</div>';
+      const military = renderMilitaryPanel(territory, true);
+      action = '<p class="muted">Under your control. Each claimed outer island adds 3 credits and 1 influence per turn. Buildings, districts, roads and extraction sites operate here.</p><div class="territory-infrastructure"><span>' + buildings + ' buildings</span><span>' + districts + ' districts</span><span>' + roads + ' road segments</span><span>Harbor level ' + territory.harborLevel + '</span></div>' + military + '<div class="shipping-panel"><h4>Harbor & shipping</h4>' + harborAction + stockpile + '<div class="shipping-routes"><b>Connected routes</b>' + routeList + '</div>' + routeForm + '</div>';
     } else {
       const rival = state.rivals[territory.owner];
       const alliance = state.diplomacy.treaties.some(treaty => treaty.rivalId === territory.owner && treaty.kind === "alliance" && treaty.status === "active");
@@ -315,7 +341,8 @@
       const activeSites = deposits.filter(node => node.operational && !node.depleted).length;
       const stockpile = '<div class="shipping-stockpile"><b>Local port stockpile</b>' + E.SHIPPING_RESOURCES.map(resource => '<span>' + esc(resource) + ': ' + num(territory.stockpile?.[resource] || 0) + '</span>').join("") + '</div>';
       const maritime = '<div class="shipping-panel"><h4>Rival maritime infrastructure</h4><div class="territory-infrastructure"><span>Harbor level ' + territory.harborLevel + '</span><span>' + activeSites + ' operating extraction sites</span><span>' + routes.length + ' connected routes</span></div>' + stockpile + '<div class="shipping-routes"><b>Fleet activity</b>' + routeList + '</div></div>';
-      action = '<p class="muted">Controlled by ' + esc(owner) + (rival ? ' · Relations ' + rival.relation + ' · ' + esc(rival.stance) : '') + (alliance ? ' · Active alliance' : '') + '. Rival infrastructure produces resources locally and sends cargo along autonomous shipping lanes.</p>' + maritime + '<button type="button" data-action="view-territory-diplomacy" data-id="' + esc(territory.owner) + '">Open diplomacy</button>';
+      const military = renderMilitaryPanel(territory, false);
+      action = '<p class="muted">Controlled by ' + esc(owner) + (rival ? ' · Relations ' + rival.relation + ' · ' + esc(rival.stance) : '') + (alliance ? ' · Active alliance' : '') + '. Rival infrastructure produces resources locally and sends cargo along autonomous shipping lanes.</p>' + military + maritime + '<button type="button" data-action="view-territory-diplomacy" data-id="' + esc(territory.owner) + '">Open diplomacy</button>';
     }
     const populationScope = territory.owner === "player"
       ? ' · National population: ' + num(state.nation.population)
@@ -358,6 +385,8 @@
       if(action==="build")E.build(state,id);
       if(action==="develop-resource"){E.developResourceSite(state,id);toast("Extraction site established. Production begins next turn.","success");}
       if(action==="claim-territory"){const territory=E.claimTerritory(state,id);toast(territory.name+" claimed. Regional income begins next turn.","success");}
+      if(action==="recruit-garrison"){const territory=E.recruitGarrison(state,id);toast("Garrison recruited on "+territory.name+". Military upkeep is now "+E.militaryEffects(state).upkeep+" credits per turn.","success");}
+      if(action==="build-fortification"){const territory=E.buildFortification(state,id);toast(territory.name+" fortified to level "+territory.fortificationLevel+".","success");}
       if(action==="upgrade-harbor"){const territory=E.upgradeHarbor(state,id);toast(territory.name+" harbor upgraded to level "+territory.harborLevel+".","success");}
       if(action==="create-shipping-route"){const route=E.createShippingRoute(state,id,$("shipping-destination")?.value,$("shipping-resource")?.value);toast("Shipping route opened. First cargo will load when local stock is available.","success");}
       if(action==="create-international-export-route"||action==="create-international-import-route"){
