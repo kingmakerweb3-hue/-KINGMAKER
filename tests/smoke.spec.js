@@ -394,7 +394,7 @@ test('home-island garrison recruitment and fortification persist in the military
     return { schemaVersion: state.schemaVersion, garrison: home.garrison, fortificationLevel: home.fortificationLevel,
       military: window.KingmakerEngine.economicSnapshot(state).military };
   });
-  expect(saved.schemaVersion).toBe(16);
+  expect(saved.schemaVersion).toBe(17);
   expect(saved.garrison).toBe(setup.initialGarrison + 1);
   expect(saved.fortificationLevel).toBe(1);
   expect(saved.military.units).toBe(setup.initialGarrison + 1);
@@ -404,4 +404,67 @@ test('home-island garrison recruitment and fortification persist in the military
   await page.locator('[data-tab="world3d"]').click();
   await expect(page.locator('#world3d-territory-inspector')).toContainText((setup.initialGarrison + 1) + ' garrison units');
   await expect(page.locator('#world3d-territory-inspector')).toContainText('Fortification level 1');
+});
+
+
+test('the island inspector warns of a rival counterattack and shows the retaken territory', async ({ page }) => {
+  const targetId = await page.evaluate(() => {
+    const engine = window.KingmakerEngine;
+    const state = engine.createInitialState({ seed: 76106 });
+    const rival = state.rivals.aurelia;
+    const target = state.world.territories.find(item => item.owner === rival.id);
+    state.turn = 4;
+    target.owner = 'player';
+    target.claimedTurn = state.turn;
+    target.population = 50;
+    target.garrison = 0;
+    target.fortificationLevel = 0;
+    target.harborLevel = 0;
+    target.lastLostOwnerId = rival.id;
+    target.lastLostTurn = state.turn - 1;
+    target.counterattackStatus = 'active';
+    target.counterattackForce = 0;
+    rival.relation = -65;
+    rival.stability = 100;
+    rival.resources.credits = 1000;
+    rival.resources.power = 1000;
+    rival.resources.materials = 500;
+    rival.resources.ore = 500;
+    rival.buildings.power = 0;
+    rival.technologies = [];
+    state.resources.credits = 1000;
+    state.resources.food = 1000;
+    state.resources.power = 0;
+    state.buildings.power = 0;
+    state.technologies = [];
+    state.nation.stability = 100;
+    engine.syncNationalPopulation(state);
+    state.diplomacy.conflicts.push({
+      rivalId: rival.id, status: 'active', startedTurn: state.turn,
+      playerScore: 0, rivalScore: 0, targetTerritoryId: target.id,
+      initiator: 'rival', assaultGarrison: 3
+    });
+    localStorage.setItem('kingmaker_save_v1', engine.exportSave(state));
+    return target.id;
+  });
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="world3d"]').click();
+  await page.evaluate(id => window.dispatchEvent(new CustomEvent('kingmaker:inspect-territory', { detail: { id } })), targetId);
+  const inspector = page.locator('#world3d-territory-inspector');
+  await expect(inspector).toContainText('Counterattack by Aurelia');
+  await expect(inspector).toContainText('Island defence');
+
+  for (let turn = 0; turn < 3; turn++) {
+    await page.getByRole('button', { name: /Advance World/ }).click();
+  }
+  await expect(inspector).toContainText('Controlled by Aurelia');
+  const saved = await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    const territory = state.world.territories.find(item => item.id === 'isle-aurelia');
+    return { owner: territory.owner, status: territory.counterattackStatus, population: state.nation.population };
+  });
+  expect(saved.owner).toBe('aurelia');
+  expect(saved.status).toBe('retaken');
+  expect(saved.population).toBeGreaterThan(1);
 });
