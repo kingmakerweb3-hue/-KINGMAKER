@@ -2359,3 +2359,29 @@ test("counterattack windows expire and invalid former-owner records are rejected
   });
   assert.throws(() => Engine.validateSave(invalidConflict), /Conflict record is invalid/);
 });
+
+
+test("a peace accord withdraws an active rival counterattack without changing island ownership", () => {
+  const state = Engine.createInitialState({ seed: 76107 });
+  const rival = state.rivals.aurelia;
+  const target = state.world.territories.find(territory => territory.owner === rival.id);
+  target.owner = "player";
+  target.claimedTurn = state.turn;
+  target.lastLostOwnerId = rival.id;
+  target.lastLostTurn = state.turn;
+  target.counterattackStatus = "active";
+  target.counterattackForce = 0;
+  Engine.syncNationalPopulation(state);
+  state.resources.credits = 100;
+  state.diplomacy.conflicts.push({
+    rivalId: rival.id, status: "active", startedTurn: state.turn,
+    playerScore: 12, rivalScore: 18, targetTerritoryId: target.id,
+    initiator: "rival", assaultGarrison: 2
+  });
+  Engine.makePeace(state, rival.id);
+  assert.equal(state.diplomacy.conflicts[0].status, "peace");
+  assert.equal(target.owner, "player");
+  assert.equal(target.counterattackStatus, "withdrawn");
+  assert.equal(target.counterattackForce, 0);
+  assert.doesNotThrow(() => Engine.validateSave(JSON.parse(Engine.exportSave(state))));
+});
