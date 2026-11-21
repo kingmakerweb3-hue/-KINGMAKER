@@ -112,3 +112,16 @@ A garrison unit reserves ten local residents, so an island's manpower limit is o
 Fortifications can be upgraded through three levels. The costs are 25 materials and 20 credits for level one, 50 materials and 40 credits for level two, and 75 materials and 60 credits for level three. Each level adds twelve defensive strength and one point of local development. Fortifications are represented by visible defensive walls and watchtowers in the 3D archipelago; garrison buildings and unit markers appear on defended islands.
 
 Rivals pay upkeep for their local garrisons. When relations are hostile or a territorial campaign targets one of their islands, a rival can spend its own materials and credits to fortify the threatened territory, then recruit additional defenders using local manpower, ore and its own treasury. Territorial campaign scoring includes the target island's population, development, harbor, garrison and fortification strength. Rival defense decisions are deterministic for a given save and turn sequence.
+
+
+## Territorial counterattacks
+
+When a player wins a targeted territorial campaign, part of the former garrison may escape by sea. The captured island records its former owner, the loss turn, and the surviving expeditionary force. The remaining local garrison transfers with the island; escaped units are held separately for one possible counterattack.
+
+A former owner may launch a counterattack within six turns when relations remain at or below -50, its stability is at least 30, and it can pay 40 credits and 10 power. An active alliance or non-aggression pact prevents the attack. The AI consumes the escaped force when it launches, so the same force cannot be reused.
+
+Counterattacks resolve over three battle rounds. The rival's assault strength uses its power reserve, power infrastructure, research and escaped garrison. The player's defence includes national power, power infrastructure, research, and the target island's population, development, harbor, garrison and fortifications. Island garrisons and fortifications therefore matter directly when defending an exposed acquisition.
+
+If the rival wins, the island and the transferable local population return to the former owner, its garrison is re-established from the surviving assault force, and shipping routes touching the island pause without discarding cargo in transit. If the player wins, the counterattack is marked repelled and its escaped force is exhausted. The player may also negotiate peace for 35 credits; this withdraws an active counterattack without changing ownership.
+
+Counterattack history is stored on the territory and active battles record their initiator and assault size. Save schema 17 validates these fields. Schema 16 and earlier campaigns migrate without inventing historical losses or counterattack forces.
