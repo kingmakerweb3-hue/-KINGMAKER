@@ -131,7 +131,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const units=Math.max(0,territory.garrison||0);
     const ownerColor=TERRITORY_COLORS[territory.owner]||0x8da0ad;
     if(level>0){
-      const radius=territory.radius*(territory.id==="home"?.52:.56);
+      const radius=territory.radius*(territory.id==="home" ? 0.52 : 0.56);
       const wallY=islandHeightAt(territory.x,territory.z,territory)+.12;
       const wall=new THREE.Mesh(new THREE.TorusGeometry(radius,.085+level*.035,7,64),material(0x858d94,.9));
       wall.rotation.x=-Math.PI/2;wall.position.set(territory.x,wallY,territory.z);parent.add(wall);
