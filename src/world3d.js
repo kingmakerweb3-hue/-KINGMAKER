@@ -126,6 +126,44 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     controls.maxDistance=Math.max(140,distance*1.8);
     controls.update();
   }
+  function makeMilitaryInstallation(territory,parent){
+    const level=Math.max(0,Math.min(3,territory.fortificationLevel||0));
+    const units=Math.max(0,territory.garrison||0);
+    const ownerColor=TERRITORY_COLORS[territory.owner]||0x8da0ad;
+    if(level>0){
+      const radius=territory.radius*(territory.id==="home"?.52:.56);
+      const wallY=islandHeightAt(territory.x,territory.z,territory)+.12;
+      const wall=new THREE.Mesh(new THREE.TorusGeometry(radius,.085+level*.035,7,64),material(0x858d94,.9));
+      wall.rotation.x=-Math.PI/2;wall.position.set(territory.x,wallY,territory.z);parent.add(wall);
+      const towerCount=Math.min(6,level*2);
+      for(let index=0;index<towerCount;index++){
+        const angle=territory.phase+index*Math.PI*2/towerCount;
+        const x=territory.x+Math.cos(angle)*radius,z=territory.z+Math.sin(angle)*radius,y=islandHeightAt(x,z,territory);
+        const tower=new THREE.Group();tower.position.set(x,y,z);
+        const stone=material(0x8b9296,.92),roof=material(ownerColor,.72);
+        const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.2,.27,.76,8),stone);shaft.position.y=.38;shaft.castShadow=true;tower.add(shaft);
+        const cap=new THREE.Mesh(new THREE.ConeGeometry(.3,.38,8),roof);cap.position.y=.94;cap.castShadow=true;tower.add(cap);
+        parent.add(tower);
+      }
+    }
+    if(units>0){
+      const x=territory.x-territory.radius*.13,z=territory.z+territory.radius*.12,y=islandHeightAt(x,z,territory);
+      const barracks=new THREE.Group();barracks.position.set(x,y+.02,z);
+      const walls=material(0x8b897c,.94),roof=material(0x4a5360,.86);
+      const body=new THREE.Mesh(new THREE.BoxGeometry(.95,.58,.82),walls);body.position.y=.29;body.castShadow=true;barracks.add(body);
+      const canopy=new THREE.Mesh(new THREE.ConeGeometry(.72,.48,4),roof);canopy.position.y=.82;canopy.rotation.y=Math.PI/4;canopy.castShadow=true;barracks.add(canopy);
+      const banner=new THREE.Mesh(new THREE.BoxGeometry(.32,.22,.035),new THREE.MeshStandardMaterial({color:ownerColor,roughness:.7,side:THREE.DoubleSide}));
+      const pole=new THREE.Mesh(new THREE.CylinderGeometry(.018,.024,.8,6),material(0xc2c5c4,.7));pole.position.set(.68,.55,0);barracks.add(pole);
+      const cloth=banner.clone();cloth.position.set(.68,.82,0);barracks.add(cloth);
+      parent.add(barracks);
+      for(let index=0;index<Math.min(4,units);index++){
+        const angle=index*Math.PI/2+.35,marker=new THREE.Group();
+        marker.position.set(x+Math.cos(angle)*1.05,y+.03,z+Math.sin(angle)*1.05);
+        const shield=new THREE.Mesh(new THREE.CylinderGeometry(.13,.13,.08,6),new THREE.MeshStandardMaterial({color:ownerColor,emissive:ownerColor,emissiveIntensity:.12,roughness:.65}));
+        shield.rotation.x=Math.PI/2;marker.add(shield);parent.add(marker);
+      }
+    }
+  }
   function makeTerritoryIsland(territory){
     const group=new THREE.Group();group.userData.territoryId=territory.id;
     const n=48,extent=territory.radius+1.05,verts=[],indices=[],colors=[];
@@ -165,11 +203,12 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
       if(territory.harborLevel>=3){const beacon=new THREE.Mesh(new THREE.SphereGeometry(.13,10,8),new THREE.MeshStandardMaterial({color:0x8be1d8,emissive:0x43bdb3,emissiveIntensity:1.3}));beacon.position.set(0,1.3,1.25);harbor.add(beacon);}
       group.add(harbor);
     }
+    makeMilitaryInstallation(territory,group);
     territoryGroup.add(group);
   }
   function syncTerritories(territories){
     if(!territoryGroup||!Array.isArray(territories))return;
-    const signature=territories.map(t=>[t.id,t.owner,t.x,t.z,t.radius,t.phase,t.harborLevel].join(":")).join("|");
+    const signature=territories.map(t=>[t.id,t.owner,t.x,t.z,t.radius,t.phase,t.harborLevel,t.garrison||0,t.fortificationLevel||0].join(":")).join("|");
     if(signature===territorySignature)return;
     clearGroup(territoryGroup);territorySignature=signature;
     territories.filter(t=>t.id!=="home").forEach(makeTerritoryIsland);
@@ -542,12 +581,15 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const pointer=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-((event.clientY-rect.top)/rect.height)*2+1);
     raycaster.setFromCamera(pointer,camera);
     const hit=raycaster.intersectObjects(territoryGroup.children,true)[0];
-    if(!hit)return false;
-    let marker=hit.object;
-    while(marker&&marker.parent!==territoryGroup)marker=marker.parent;
-    const id=marker?.userData?.territoryId;
-    if(!id)return false;
-    window.dispatchEvent(new CustomEvent("kingmaker:inspect-territory",{detail:{id}}));
+    if(hit){
+      let marker=hit.object;
+      while(marker&&marker.parent!==territoryGroup)marker=marker.parent;
+      const id=marker?.userData?.territoryId;
+      if(id){window.dispatchEvent(new CustomEvent("kingmaker:inspect-territory",{detail:{id}}));return true;}
+    }
+    const homeHit=terrainMesh?raycaster.intersectObject(terrainMesh,false)[0]:null;
+    if(!homeHit||Math.hypot(homeHit.point.x,homeHit.point.z)>13.2)return false;
+    window.dispatchEvent(new CustomEvent("kingmaker:inspect-territory",{detail:{id:"home"}}));
     return true;
   }
   function inspectResource(event){
@@ -656,6 +698,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     (state.world?.resourceNodes||[]).forEach(makeResourceMarker);
     const capital=new THREE.Group();const base=new THREE.Mesh(boxGeo,material(0xe4dcc7));base.scale.set(1.7,2.8,1.7);base.position.y=1.4;capital.add(base);
     const roof=new THREE.Mesh(new THREE.ConeGeometry(1.25,.9,4),material(0x9d4e3f));roof.position.y=3.25;roof.rotation.y=Math.PI/4;capital.add(roof);buildingGroup.add(capital);
+    const homeTerritory=(state.world?.territories||[]).find(territory=>territory.id==="home");if(homeTerritory)makeMilitaryInstallation(homeTerritory,buildingGroup);
     let index=0;const placedByType={};for(const [type,count] of Object.entries(state.buildings||{})){for(let i=0;i<Math.min(Number(count)||0,18);i++){const n=placedByType[type]||0;const saved=(state.world?.placedBuildings||[]).filter(p=>p.type===type)[n];makeBuilding(type,index++,total,saved,saved?.territoryId||"home");placedByType[type]=n+1;}}
     if(lastState&&state.nation.name){const title=document.getElementById("world3d-status");if(title)title.title=state.nation.name+" · population "+state.nation.population;}
   }
