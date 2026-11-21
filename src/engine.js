@@ -1041,9 +1041,10 @@
     for (const [territoryId, localCounts] of Object.entries(regionalCounts)) {
       const territory = territories.get(territoryId);
       const required = Object.entries(JOBS_PER_DISTRICT).reduce((sum, [type, jobs]) => sum + localCounts[type] * jobs, 0);
+      const civilianPopulation = Math.max(0, territory.population - (territory.garrison || 0) * GARRISON_MANPOWER_PER_UNIT);
       workforce += required;
-      employed += Math.min(required, territory.population);
-      const staffing = required > 0 ? Math.min(1, territory.population / required) : 1;
+      employed += Math.min(required, civilianPopulation);
+      const staffing = required > 0 ? Math.min(1, civilianPopulation / required) : 1;
       production.food += Math.floor(localCounts.agricultural * 3 * staffing);
       production.materials += Math.floor(localCounts.industrial * 2 * staffing);
       production.credits += Math.floor(localCounts.commercial * 4 * staffing);
@@ -1666,13 +1667,15 @@
   }
   function economicSnapshot(state) {
     const population = nationalPopulationFor(state);
-    const homePopulation = state.world?.territories?.find(territory => territory.id === "home")?.population ?? population;
+    const homeTerritory = state.world?.territories?.find(territory => territory.id === "home");
+    const homePopulation = homeTerritory?.population ?? population;
     const districts = districtEffects(state);
     const military = militaryEffects(state);
+    const civilianHomePopulation = Math.max(0, homePopulation - (homeTerritory?.garrison || 0) * GARRISON_MANPOWER_PER_UNIT);
     const homeJobs = workforceFor(state.buildings);
-    const jobs = homeJobs + districts.workforce;
-    const employed = Math.min(homeJobs, homePopulation) + districts.employed;
-    const staffing = homeJobs > 0 ? Math.min(1, homePopulation / homeJobs) : 1;
+    const jobs = homeJobs + districts.workforce + military.manpower;
+    const employed = Math.min(homeJobs, civilianHomePopulation) + districts.employed + military.manpower;
+    const staffing = homeJobs > 0 ? Math.min(1, civilianHomePopulation / homeJobs) : 1;
     const creator = creatorEffects(state);
     const base = productionFor(state.buildings, state.technologies);
     const renewablePower = worldEventActiveThisTurn(state, "energy_crisis") ? 0 : RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar;
@@ -1680,7 +1683,7 @@
       materials: clamp(state.resources.materials + Math.floor(base.materials * staffing), 0, RESOURCE_LIMIT),
       ore: clamp(state.resources.ore + Math.floor(base.ore * staffing), 0, RESOURCE_LIMIT),
       power: clamp(state.resources.power + Math.floor(base.power * staffing) + renewablePower, 0, RESOURCE_LIMIT)
-    }, state.buildings, state.technologies, homePopulation, homeJobs);
+    }, state.buildings, state.technologies, civilianHomePopulation, homeJobs);
     industry.production.power += renewablePower;
     for (const [resource, amount] of Object.entries(creator.production)) industry.production[resource] += amount;
     for (const [resource, amount] of Object.entries(districts.production)) industry.production[resource] += amount;
@@ -2279,17 +2282,20 @@
     const creator = creatorEffects(state);
     const districts = districtEffects(state);
     const military = militaryEffects(state);
-    const homePopulation = state.world.territories.find(territory => territory.id === "home")?.population ?? state.nation.population;
+    const homeTerritory = state.world.territories.find(territory => territory.id === "home");
+    const homePopulation = homeTerritory?.population ?? state.nation.population;
+    const civilianHomePopulation = Math.max(0, homePopulation - (homeTerritory?.garrison || 0) * GARRISON_MANPOWER_PER_UNIT);
     const baseOutput = productionFor(state.buildings, state.technologies);
     const homeJobs = workforceFor(state.buildings);
-    const jobs = homeJobs + districts.workforce, employed = Math.min(homeJobs, homePopulation) + districts.employed;
-    const staffing = homeJobs > 0 ? Math.min(1, homePopulation / homeJobs) : 1;
+    const jobs = homeJobs + districts.workforce + military.manpower;
+    const employed = Math.min(homeJobs, civilianHomePopulation) + districts.employed + military.manpower;
+    const staffing = homeJobs > 0 ? Math.min(1, civilianHomePopulation / homeJobs) : 1;
     const renewablePower = worldEventActiveThisTurn(state, "energy_crisis") ? 0 : RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar;
     const industry = industrialOutput({ ...state.resources,
       materials: clamp(state.resources.materials + Math.floor(baseOutput.materials * staffing), 0, RESOURCE_LIMIT),
       ore: clamp(state.resources.ore + Math.floor(baseOutput.ore * staffing), 0, RESOURCE_LIMIT),
       power: clamp(state.resources.power + Math.floor(baseOutput.power * staffing) + renewablePower, 0, RESOURCE_LIMIT)
-    }, state.buildings, state.technologies, homePopulation, homeJobs);
+    }, state.buildings, state.technologies, civilianHomePopulation, homeJobs);
     const output = industry.production;
     output.power += renewablePower;
     for (const [resource, amount] of Object.entries(creator.production)) output[resource] += amount;
