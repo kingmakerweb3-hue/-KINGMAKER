@@ -393,7 +393,7 @@
       market: { stock: { food: 400, materials: 300, ore: 240, goods: 180, power: 260 }, basePrices: { food: 2, materials: 4, ore: 5, goods: 8, power: 4 }, prices: { food: 2, materials: 4, ore: 5, goods: 8, power: 4 }, lastFlow: { food: 0, materials: 0, ore: 0, goods: 0, power: 0 } },
       rivals: Object.fromEntries(RIVAL_TEMPLATES.map((r, i) => [r.id, createRival(r, i)])),
       diplomacy: { treaties: [], conflicts: [] },
-      economy: { lastIncome: 0, lastExpenses: 0, lastBalance: 0, workforce: 0, employed: 0, militaryUnits: 2, militaryManpower: 20, militaryUpkeep: 2, production: { food: 0, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, capacity: 0, logistics: 0 }, consumption: { food: 0, materials: 0, ore: 0, power: 0 }, phase: "stable", deficitTurns: 0, recoveryTurns: 0 },
+      economy: { lastIncome: 0, lastExpenses: 0, lastBalance: 0, workforce: 0, employed: 0, production: { food: 0, materials: 0, ore: 0, goods: 0, credits: 0, science: 0, power: 0, capacity: 0, logistics: 0 }, consumption: { food: 0, materials: 0, ore: 0, power: 0 }, phase: "stable", deficitTurns: 0, recoveryTurns: 0 },
       campaign: { id: campaignId, completedObjectives: [], status: "active", phaseIndex: 0, buildingStart: 6, progress: { tradeVolume: 0, agreementsSigned: 0, crisesSurvived: 0, peacefulDisputes: 0 } },
       achievements: [], creations: [], events: [{ id: "history-1-0", turn: 1, text: "Your civilization was founded. The first chapter begins.", type: "milestone", details: { summary: "A new campaign begins with a developing economy and six neighboring nations.", affectedNationIds: ["player"] } }],
       creatorEconomy: { nextAdoptionId: 1, publications: [], commissions: [], adoptions: [], totalRoyalties: 0, royaltyTurn: 1, lastTurnRoyalties: 0 },
@@ -2344,7 +2344,7 @@
       phase = "stable"; deficitTurns = 0; recoveryTurns = 0;
     }
     state.economy = { lastIncome: income, lastExpenses: wageExpense, lastBalance: balance,
-      workforce: jobs, employed, militaryUnits: military.units, militaryManpower: military.manpower, militaryUpkeep: military.upkeep, requiredJobs: Math.ceil(state.nation.population / 10), production: output, consumption: { food: 0, ...industry.inputs }, phase, deficitTurns, recoveryTurns };
+      workforce: jobs, employed, requiredJobs: Math.ceil(state.nation.population / 10), production: output, consumption: { food: 0, ...industry.inputs }, phase, deficitTurns, recoveryTurns };
     if (phase !== previousPhase) addEvent(state, "The national economy entered a period of " + phase + ".", "economy");
     for (const resource of MARKET_RESOURCES) flow[resource] += output[resource] - (industry.inputs[resource] || 0);
     let foodNeed = Math.ceil(state.nation.population / (12 + Math.min(8, output.logistics)));
