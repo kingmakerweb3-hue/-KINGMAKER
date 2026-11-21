@@ -281,7 +281,7 @@
     if (!panel || !state) return;
     const territory = (state.world?.territories || []).find(item => item.id === selectedTerritoryId);
     if (!territory) {
-      panel.innerHTML = '<p class="muted">Select an outer island in the 3D archipelago to inspect its nation, population, resources and territorial status.</p>';
+      panel.innerHTML = '<p class="muted">Select an island in the 3D archipelago to inspect its nation, population, resources and territorial status.</p>';
       return;
     }
     const owner = territory.owner === "player" ? state.nation.name :
@@ -324,7 +324,10 @@
           : '<small class="muted">Claim another island and build its harbor to open a shipping route.</small>'
         : territory.id === "home" ? '<small class="muted">Home is the national receiving port. Build harbors on claimed outer islands to export their local resources here.</small>' : '<small class="muted">Build a harbor before opening a shipping route.</small>';
       const military = renderMilitaryPanel(territory, true);
-      action = '<p class="muted">Under your control. Each claimed outer island adds 3 credits and 1 influence per turn. Buildings, districts, roads and extraction sites operate here.</p><div class="territory-infrastructure"><span>' + buildings + ' buildings</span><span>' + districts + ' districts</span><span>' + roads + ' road segments</span><span>Harbor level ' + territory.harborLevel + '</span></div>' + military + '<div class="shipping-panel"><h4>Harbor & shipping</h4>' + harborAction + stockpile + '<div class="shipping-routes"><b>Connected routes</b>' + routeList + '</div>' + routeForm + '</div>';
+      const controlIntro = territory.id === "home"
+        ? "National capital and receiving harbor. Its garrison contributes expeditionary strength in territorial campaigns."
+        : "Under your control. This claimed outer island adds 3 credits and 1 influence per turn. Buildings, districts, roads and extraction sites operate here.";
+      action = '<p class="muted">' + esc(controlIntro) + '</p><div class="territory-infrastructure"><span>' + buildings + ' buildings</span><span>' + districts + ' districts</span><span>' + roads + ' road segments</span><span>Harbor level ' + territory.harborLevel + '</span></div>' + military + '<div class="shipping-panel"><h4>Harbor & shipping</h4>' + harborAction + stockpile + '<div class="shipping-routes"><b>Connected routes</b>' + routeList + '</div>' + routeForm + '</div>';
     } else {
       const rival = state.rivals[territory.owner];
       const alliance = state.diplomacy.treaties.some(treaty => treaty.rivalId === territory.owner && treaty.kind === "alliance" && treaty.status === "active");
