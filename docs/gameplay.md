@@ -2,7 +2,7 @@
 
 ## Turn order
 
-Each world turn resolves an unchosen event with its conservative default, applies active world modifiers, expires agreements, collects national and local production, advances shipping convoys, charges wages and route upkeep, consumes food, simulates rival industries and market decisions, resolves conflicts, refreshes commodity supply and prices, then may introduce one new event. The game stores its random seed, so a save continues the same world sequence. Players can respond to a pending event before advancing; if they leave it unanswered, a safe default response is recorded on the next turn.
+Each world turn resolves an unchosen event with its conservative default, applies active world modifiers, expires agreements, collects national and local production, advances shipping convoys, charges wages, shipping and military upkeep, consumes food, simulates rival industries and market decisions, resolves conflicts, refreshes commodity supply and prices, then may introduce one new event. The game stores its random seed, so a save continues the same world sequence. Players can respond to a pending event before advancing; if they leave it unanswered, a safe default response is recorded on the next turn.
 
 ## National economy
 
