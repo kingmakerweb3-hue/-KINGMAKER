@@ -1056,12 +1056,12 @@ test("rare-crystal extraction contributes science and finite deposits deplete", 
   assert.equal(Engine.resourceSiteEffects(state).science, 0);
 });
 
-test("schema 8 saves migrate to version 17 with deterministic archipelago deposits", () => {
+test("schema 8 saves migrate to version 18 with deterministic archipelago deposits", () => {
   const state = Engine.createInitialState({ seed: 42005 });
   state.schemaVersion = 8;
   delete state.world.resourceNodes;
   const migrated = Engine.migrateSave(state);
-  assert.equal(migrated.schemaVersion, 17);
+  assert.equal(migrated.schemaVersion, 18);
   assert.deepEqual(migrated.world.resourceNodes, Engine.createResourceDeposits(state.seed, state.world.territories));
   const roundTrip = Engine.migrateSave(JSON.parse(Engine.exportSave(migrated)));
   assert.deepEqual(roundTrip.world.resourceNodes, migrated.world.resourceNodes);
@@ -1154,7 +1154,7 @@ test("Duneward expands into a neutral island unless an active alliance protects 
   assert.equal(protectedState.world.territories.filter(item => item.owner === "unclaimed").length, 2);
 });
 
-test("version 9 saves migrate to schema 16 without losing existing extraction progress", () => {
+test("version 9 saves migrate to schema 18 without losing existing extraction progress", () => {
   const legacy = Engine.createInitialState({ seed: 52007 });
   legacy.schemaVersion = 9;
   delete legacy.world.territories;
@@ -1166,7 +1166,7 @@ test("version 9 saves migrate to schema 16 without losing existing extraction pr
   legacy.world.resourceNodes[0].operational = true;
   legacy.world.resourceNodes[0].operatedSinceTurn = 1;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 17);
+  assert.equal(migrated.schemaVersion, 18);
   assert.equal(migrated.world.territories.length, 9);
   assert.equal(migrated.world.resourceNodes.length, 16);
   assert.equal(migrated.world.resourceNodes[0].operational, true);
@@ -1279,14 +1279,14 @@ test("outer-island construction rejects unowned land and positions outside its c
   }), /shore/);
 });
 
-test("version 10 home placements migrate into schema 16 without changing their location", () => {
+test("version 10 home placements migrate into schema 18 without changing their location", () => {
   const legacy = Engine.createInitialState({ seed: 62003 });
   legacy.schemaVersion = 10;
   legacy.world.placedBuildings.push({ type: "farm", x: 3, z: 4 });
   legacy.world.placedRoads.push({ from: { x: -2, z: 0 }, to: { x: 2, z: 0 } });
   legacy.world.placedDistricts.push({ type: "residential", x: 1, z: 1, radius: 2.6 });
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 17);
+  assert.equal(migrated.schemaVersion, 18);
   assert.equal(migrated.world.placedBuildings[0].territoryId, "home");
   assert.equal(migrated.world.placedRoads[0].territoryId, "home");
   assert.equal(migrated.world.placedDistricts[0].territoryId, "home");
@@ -1303,7 +1303,7 @@ test("version 11 saves migrate with default harbor levels, local stockpiles and 
     delete territory.stockpile;
   }
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 17);
+  assert.equal(migrated.schemaVersion, 18);
   assert.equal(migrated.world.shippingRoutes.length, 0);
   assert.equal(migrated.world.territories.find(item => item.id === "home").harborLevel, 1);
   assert.ok(migrated.world.territories.filter(item => item.id !== "home").every(item => item.harborLevel === 0));
@@ -1591,7 +1591,7 @@ test("schema 12 player shipping routes migrate with explicit player ownership", 
   legacy.schemaVersion = 12;
   delete legacy.world.shippingRoutes[0].ownerId;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 17);
+  assert.equal(migrated.schemaVersion, 18);
   assert.equal(migrated.world.shippingRoutes[0].ownerId, "player");
 });
 
@@ -1763,7 +1763,7 @@ test("international route validation rejects malformed contracts but retains pau
   assert.equal(restored.world.shippingRoutes[0].status, "paused");
 });
 
-test("schema 13 saves migrate to version 17 while preserving domestic shipping routes and regional population", () => {
+test("schema 13 saves migrate to version 18 while preserving domestic shipping routes and regional population", () => {
   const state = Engine.createInitialState({ seed: 74006 });
   const island = state.world.territories.find(item => item.owner === "unclaimed");
   state.resources.materials = 1000;
@@ -1776,7 +1776,7 @@ test("schema 13 saves migrate to version 17 while preserving domestic shipping r
   legacy.nation.population = legacy.world.territories.find(item => item.id === "home").population;
   legacy.schemaVersion = 13;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 17);
+  assert.equal(migrated.schemaVersion, 18);
   assert.equal(migrated.nation.population, migrated.world.territories.filter(item => item.owner === "player").reduce((sum, item) => sum + item.population, 0));
   assert.deepEqual(migrated.world.shippingRoutes, legacy.world.shippingRoutes);
 });
@@ -1791,7 +1791,7 @@ test("schema 14 saves add existing player-island residents to the national popul
   legacy.nation.population = home.population;
   legacy.schemaVersion = 14;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 17);
+  assert.equal(migrated.schemaVersion, 18);
   assert.equal(migrated.nation.population, home.population + island.population);
   assert.equal(migrated.world.territories.find(item => item.id === island.id).population, island.population);
 });
@@ -2123,7 +2123,7 @@ test("schema 15 saves migrate to local garrisons and validated fortification lev
   const home = migrated.world.territories.find(item => item.id === "home");
   const ironmarch = migrated.world.territories.find(item => item.owner === "ironmarch");
   const neutral = migrated.world.territories.find(item => item.owner === "unclaimed");
-  assert.equal(migrated.schemaVersion, 17);
+  assert.equal(migrated.schemaVersion, 18);
   assert.equal(home.garrison, 2);
   assert.equal(ironmarch.garrison, 3);
   assert.equal(ironmarch.fortificationLevel, 1);
@@ -2198,7 +2198,7 @@ test("schema 16 campaigns migrate without inventing former-owner counterattack h
   const state = Engine.createInitialState({ seed: 76101 });
   state.schemaVersion = 16;
   const migrated = Engine.migrateSave(state);
-  assert.equal(migrated.schemaVersion, 17);
+  assert.equal(migrated.schemaVersion, 18);
   assert.ok(migrated.world.territories.every(territory => territory.counterattackStatus === undefined));
   assert.doesNotThrow(() => Engine.validateSave(JSON.parse(Engine.exportSave(migrated))));
 });
@@ -2384,4 +2384,82 @@ test("a peace accord withdraws an active rival counterattack without changing is
   assert.equal(target.counterattackStatus, "withdrawn");
   assert.equal(target.counterattackForce, 0);
   assert.doesNotThrow(() => Engine.validateSave(JSON.parse(Engine.exportSave(state))));
+});
+
+
+test("citizens receive deterministic, bounded home-island coordinates", () => {
+  const first = Engine.createInitialState({ seed: 92001 });
+  const repeat = Engine.createInitialState({ seed: 92001 });
+  assert.deepEqual(first.citizens.map(c => c.location), repeat.citizens.map(c => c.location));
+  for (const citizen of first.citizens) {
+    assert.ok(Number.isFinite(citizen.location.x));
+    assert.ok(Number.isFinite(citizen.location.z));
+    assert.ok(Math.hypot(citizen.location.x, citizen.location.z) <= 11.5);
+    assert.equal(citizen.destination, null);
+  }
+});
+
+test("citizen exploration waypoints are assigned, saved, and completed at their destination", () => {
+  const state = Engine.createInitialState({ seed: 92002 });
+  const citizen = state.citizens[0];
+  const destination = { x: 9.25, z: 4.5 };
+  Engine.assignCitizenDestination(state, citizen.id, destination);
+  assert.deepEqual(citizen.destination, destination);
+  assert.equal(citizen.activity, "walking to waypoint");
+  assert.equal(citizen.goal, "explore the home island");
+  assert.match(citizen.memory.at(-1).text, /explore/);
+
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  const savedCitizen = restored.citizens.find(item => item.id === citizen.id);
+  assert.deepEqual(savedCitizen.destination, destination);
+  assert.deepEqual(savedCitizen.location, citizen.location);
+
+  Engine.completeCitizenJourney(restored, citizen.id, destination);
+  assert.deepEqual(savedCitizen.location, destination);
+  assert.equal(savedCitizen.destination, null);
+  assert.equal(savedCitizen.activity, "exploring the home island");
+  assert.equal(savedCitizen.goal, "record a discovery");
+  assert.match(savedCitizen.memory.at(-1).text, /Reached/);
+  const roundTrip = Engine.migrateSave(JSON.parse(Engine.exportSave(restored)));
+  assert.deepEqual(roundTrip.citizens.find(item => item.id === citizen.id).location, destination);
+  assert.equal(roundTrip.citizens.find(item => item.id === citizen.id).destination, null);
+});
+
+test("citizen exploration rejects unknown residents, remote-island coordinates, duplicate orders, and false arrivals", () => {
+  const state = Engine.createInitialState({ seed: 92003 });
+  const citizen = state.citizens[0];
+  assert.throws(() => Engine.assignCitizenDestination(state, "citizen-missing", { x: 5, z: 5 }), /could not be found/);
+  assert.throws(() => Engine.assignCitizenDestination(state, citizen.id, { x: 12, z: 0 }), /safe home-island terrain/);
+  assert.throws(() => Engine.assignCitizenDestination(state, citizen.id, { x: citizen.location.x, z: citizen.location.z }), /farther away/);
+  const destination = { x: 8, z: 2 };
+  Engine.assignCitizenDestination(state, citizen.id, destination);
+  assert.throws(() => Engine.assignCitizenDestination(state, citizen.id, { x: -8, z: 2 }), /already travelling/);
+  assert.throws(() => Engine.completeCitizenJourney(state, citizen.id, { x: -8, z: 2 }), /does not match/);
+  assert.throws(() => Engine.completeCitizenJourney(state, "citizen-missing", destination), /no active exploration waypoint/);
+  state.status = "defeat";
+  assert.throws(() => Engine.assignCitizenDestination(state, state.citizens[1].id, { x: 8, z: 2 }), /unavailable/);
+});
+
+test("schema 17 citizen saves migrate to deterministic home-island navigation defaults", () => {
+  const state = Engine.createInitialState({ seed: 92004 });
+  state.schemaVersion = 17;
+  for (const citizen of state.citizens) {
+    delete citizen.location;
+    delete citizen.destination;
+  }
+  const migrated = Engine.migrateSave(state);
+  assert.equal(migrated.schemaVersion, 18);
+  for (let i = 0; i < migrated.citizens.length; i++) {
+    assert.deepEqual(migrated.citizens[i].location, Engine.createCitizens(100, state.seed)[i].location);
+    assert.equal(migrated.citizens[i].destination, null);
+  }
+});
+
+test("save validation resets malformed citizen navigation coordinates safely", () => {
+  const state = Engine.createInitialState({ seed: 92005 });
+  state.citizens[0].location = { x: 99, z: 0 };
+  state.citizens[1].destination = { x: 0, z: Infinity };
+  const normalized = Engine.validateSave(state);
+  assert.deepEqual(normalized.citizens[0].location, Engine.createCitizens(100, state.seed)[0].location);
+  assert.equal(normalized.citizens[1].destination, null);
 });
