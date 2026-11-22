@@ -442,6 +442,24 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     return true;
   }
 
+  function showCitizenInspector(citizen){
+    if(!citizen)return false;
+    let panel=document.getElementById("world3d-citizen-inspector");
+    if(!panel){panel=document.createElement("aside");panel.id="world3d-citizen-inspector";panel.className="world3d-citizen-inspector";panel.setAttribute("aria-live","polite");host.appendChild(panel);}
+    const esc=value=>String(value??"").replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+    const needs=citizen.needs||{};
+    const bars=Object.entries(needs).map(([key,value])=>'<div class="citizen-need"><span>'+esc(key)+'</span><b>'+Math.max(0,Math.min(100,Number(value)||0))+'%</b><i><em style="width:'+Math.max(0,Math.min(100,Number(value)||0))+'%"></em></i></div>').join("");
+    const memories=(citizen.memory||[]).slice(-4).reverse().map(m=>'<li>Turn '+Number(m.turn||0)+': '+esc(m.text)+'</li>').join("")||"<li>No recorded memories yet.</li>";
+    const location=citizen.location||{x:0,z:0},destination=citizen.destination;
+    const route=destination?'<p class="citizen-route-status">Travelling to '+Number(destination.x).toFixed(1)+', '+Number(destination.z).toFixed(1)+'. The saved order resumes when the world is reopened.</p>':'<button type="button" class="citizen-waypoint-action" data-citizen-waypoint="'+esc(citizen.id)+'">Set exploration waypoint</button>';
+    panel.innerHTML='<button type="button" class="citizen-inspector-close" aria-label="Close citizen details">×</button><span class="eyebrow">CITIZEN PROFILE · '+esc(citizen.id)+'</span><h3>'+esc(citizen.name)+'</h3><p>'+esc(citizen.role)+' · '+esc(citizen.activity)+'</p><small class="citizen-location">Island position '+Number(location.x).toFixed(1)+', '+Number(location.z).toFixed(1)+'</small><strong class="citizen-mood">'+Math.max(0,Math.min(100,Number(citizen.mood)||0))+'% mood</strong><div class="citizen-needs">'+bars+'</div>'+route+'<h4>Recent memories</h4><ul>'+memories+'</ul>';
+    panel.querySelector(".citizen-inspector-close").addEventListener("click",()=>panel.remove());
+    return true;
+  }
+  function inspectCitizenById(citizenId){
+    const citizen=(lastState?.citizens||[]).find(item=>item.id===citizenId);
+    return showCitizenInspector(citizen);
+  }
   function inspectCitizen(event){
     if(!renderer||!camera||!peopleGroup||!lastState)return;
     const rect=renderer.domElement.getBoundingClientRect();
@@ -452,21 +470,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     let avatar=hit.object;
     while(avatar&&avatar.parent!==peopleGroup)avatar=avatar.parent;
     const id=avatar?.userData?.citizenId;
-    const citizen=(lastState.citizens||[]).find(c=>c.id===id);
-    if(!citizen)return;
-    let panel=document.getElementById("world3d-citizen-inspector");
-    if(!panel){
-      panel=document.createElement("aside");panel.id="world3d-citizen-inspector";panel.className="world3d-citizen-inspector";
-      panel.setAttribute("aria-live","polite");host.appendChild(panel);
-    }
-    const esc=value=>String(value??"").replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
-    const needs=citizen.needs||{};
-    const bars=Object.entries(needs).map(([key,value])=>'<div class="citizen-need"><span>'+esc(key)+'</span><b>'+Math.max(0,Math.min(100,Number(value)||0))+'%</b><i><em style="width:'+Math.max(0,Math.min(100,Number(value)||0))+'%"></em></i></div>').join("");
-    const memories=(citizen.memory||[]).slice(-4).reverse().map(m=>'<li>Turn '+Number(m.turn||0)+': '+esc(m.text)+'</li>').join("")||"<li>No recorded memories yet.</li>";
-    const location=citizen.location||{x:0,z:0},destination=citizen.destination;
-    const route=destination?'<p class="citizen-route-status">Travelling to '+Number(destination.x).toFixed(1)+', '+Number(destination.z).toFixed(1)+'. The saved order resumes when the world is reopened.</p>':'<button type="button" class="citizen-waypoint-action" data-citizen-waypoint="'+esc(citizen.id)+'">Set exploration waypoint</button>';
-    panel.innerHTML='<button type="button" class="citizen-inspector-close" aria-label="Close citizen details">×</button><span class="eyebrow">CITIZEN PROFILE · '+esc(citizen.id)+'</span><h3>'+esc(citizen.name)+'</h3><p>'+esc(citizen.role)+' · '+esc(citizen.activity)+'</p><small class="citizen-location">Island position '+Number(location.x).toFixed(1)+', '+Number(location.z).toFixed(1)+'</small><strong class="citizen-mood">'+Math.max(0,Math.min(100,Number(citizen.mood)||0))+'% mood</strong><div class="citizen-needs">'+bars+'</div>'+route+'<h4>Recent memories</h4><ul>'+memories+'</ul>';
-    panel.querySelector(".citizen-inspector-close").addEventListener("click",()=>panel.remove());
+    return inspectCitizenById(id);
   }
   function inspectResource(event){
     if(!renderer||!camera||!resourceGroup||!lastState)return false;
@@ -583,6 +587,6 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   document.addEventListener("visibilitychange",handleVisibilityChange);
   function dispose(){cancelAnimationFrame(animationId);animationId=0;document.removeEventListener("visibilitychange",handleVisibilityChange);resizeObserver?.disconnect();renderer?.dispose();controls?.dispose();}
   window.addEventListener("pagehide",dispose,{once:true});
-  try{createScene();window.KingmakerWorld3D={update,selectBuilding,setCitizenWaypointMode,cancelCitizenWaypointMode};window.dispatchEvent(new Event("kingmaker:world3d-ready"));if(lastState)update(lastState);}
+  try{createScene();window.KingmakerWorld3D={update,selectBuilding,setCitizenWaypointMode,cancelCitizenWaypointMode,inspectCitizenById};window.dispatchEvent(new Event("kingmaker:world3d-ready"));if(lastState)update(lastState);}
   catch(error){host.innerHTML='<div class="world3d-loading">3D world could not initialize. Try a browser with WebGL enabled.</div>';const status=document.getElementById("world3d-status");if(status)status.textContent="3D ENGINE UNAVAILABLE";console.error("KINGMAKER 3D:",error);}
 })();
