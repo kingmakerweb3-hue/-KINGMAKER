@@ -45,6 +45,7 @@ Open <http://127.0.0.1:4173>. The server only binds to loopback.
 - **Creator Studio** lets you publish designs into a bounded local market. Rival nations can adopt designs when their needs match, apply their effects, and pay capped in-game royalties.
 - **3D World** opens an explorable 3D island with high-density procedural terrain, varied elevation, expanded forests, detailed building facades, animated citizens and traffic, a moving ocean surface, atmospheric clouds, a day/night lighting cycle, orbit/zoom/pan controls, live terrain-surface construction, and clickable finite resource deposits whose extraction feeds the turn-based economy.
 - **3D construction and roads** let players place buildings and connect districts. Positions and roads persist in local saves; connected districts gain logistics and credits.
+- **Citizen exploration orders** let players select a visible resident, assign a terrain waypoint, and watch that citizen walk across the island. Locations, active destinations, arrival memories, and resumed journeys persist in validated campaign saves.
 - **Save export/import** moves a versioned JSON save between browsers.
 
 All current game values are simulated and have no real-world or financial value. No cryptocurrency, token, wallet connection, real-money purchase, or on-chain ownership is currently implemented.
