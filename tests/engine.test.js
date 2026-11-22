@@ -1131,7 +1131,7 @@ test("citizen exploration rejects unknown citizens, unsafe terrain, duplicate or
   const citizen = state.citizens[0];
   assert.throws(() => Engine.assignCitizenDestination(state, "citizen-missing", { x: 5, z: 5 }), /could not be found/);
   assert.throws(() => Engine.assignCitizenDestination(state, citizen.id, { x: 12, z: 0 }), /safe island terrain/);
-  assert.throws(() => Engine.assignCitizenDestination(state, citizen.id, { x: 0, z: 0 }), /farther away/);
+  assert.throws(() => Engine.assignCitizenDestination(state, citizen.id, { x: citizen.location.x, z: citizen.location.z }), /farther away/);
   const destination = { x: 8, z: 2 };
   Engine.assignCitizenDestination(state, citizen.id, destination);
   assert.throws(() => Engine.assignCitizenDestination(state, citizen.id, { x: -8, z: 2 }), /already travelling/);
