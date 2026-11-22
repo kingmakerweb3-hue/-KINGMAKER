@@ -394,7 +394,7 @@ test('home-island garrison recruitment and fortification persist in the military
     return { schemaVersion: state.schemaVersion, garrison: home.garrison, fortificationLevel: home.fortificationLevel,
       military: window.KingmakerEngine.economicSnapshot(state).military };
   });
-  expect(saved.schemaVersion).toBe(17);
+  expect(saved.schemaVersion).toBe(18);
   expect(saved.garrison).toBe(setup.initialGarrison + 1);
   expect(saved.fortificationLevel).toBe(1);
   expect(saved.military.units).toBe(setup.initialGarrison + 1);
@@ -471,6 +471,7 @@ test('the island inspector warns of a rival counterattack and shows the retaken 
 
 
 test('home-island residents accept exploration waypoints and walk to saved destinations', async ({ page }) => {
+  test.setTimeout(60000);
   await page.locator('[data-tab="world3d"]').click();
   await expect.poll(() => page.evaluate(() => !!window.KingmakerWorld3D?.inspectCitizenById), { timeout: 15000 }).toBe(true);
   const citizenId = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save_v1')).citizens[0].id);
@@ -497,10 +498,19 @@ test('home-island residents accept exploration waypoints and walk to saved desti
   }, citizenId);
   expect(travelling.destination).toEqual({ x: -10, z: 0 });
   expect(travelling.activity).toBe('walking to waypoint');
+  const initialPath = await page.evaluate(id => window.KingmakerWorld3D.inspectCitizenPath(id), citizenId);
+  expect(initialPath.length).toBeGreaterThan(0);
+  expect(initialPath.at(-1)).toEqual({ x: -10, z: 0 });
+  expect(initialPath.every(point => Math.hypot(point.x, point.z) <= 11.5)).toBe(true);
+  expect(initialPath.every(point => Math.hypot(point.x, point.z) >= 1.48)).toBe(true);
 
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.locator('[data-tab="world3d"]').click();
   await expect.poll(() => page.evaluate(() => !!window.KingmakerWorld3D), { timeout: 15000 }).toBe(true);
+  await expect.poll(() => page.evaluate(id => window.KingmakerWorld3D.inspectCitizenById(id), citizenId), { timeout: 15000 }).toBe(true);
+  const restoredPath = await page.evaluate(id => window.KingmakerWorld3D.inspectCitizenPath(id), citizenId);
+  expect(restoredPath.length).toBeGreaterThan(0);
+  expect(restoredPath.at(-1)).toEqual({ x: -10, z: 0 });
   await expect.poll(() => page.evaluate(id => {
     const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
     return save.citizens.find(citizen => citizen.id === id).destination;
