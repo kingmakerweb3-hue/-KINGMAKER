@@ -10,7 +10,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   const shippingVessels=[];
   const windTurbineRotors=[];
   const solarTrackers=[];
-  let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,raycaster,groundPlane,previewMarker,placementPointer=null,territorySignature="",shippingSignature="",worldFitted=false;
+  let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,exploreMode=false,selectedCitizenId=null,raycaster,groundPlane,previewMarker,placementPointer=null,territorySignature="",shippingSignature="",worldFitted=false,waypointGroup,lastAnimationTime=0;
   const COLORS={farm:0xc6a35d,mine:0x78838d,workshop:0x9c7652,factory:0x697b8e,transport:0x9b9b8b,market:0xc49b52,academy:0x8b80b8,power:0x75b9c9,housing:0xd6c5a3};
   const material=(color,roughness=.86)=>new THREE.MeshStandardMaterial({color,roughness});
   const boxGeo=new THREE.BoxGeometry(1,1,1);
@@ -330,8 +330,20 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     person.userData.activity=String(citizen?.activity||"walking");
     person.userData.mood=Number(citizen?.mood)||0;
     person.userData.phase=index*.53;
-    person.userData.radius=2.6+(index%5)*.36;
+    person.userData.idleRadius=.22+(index%4)*.07;
     person.userData.walkFactor=/rest|study|care|seek/i.test(person.userData.activity)?.35:1;
+    const location=citizen?.location&&Number.isFinite(citizen.location.x)&&Number.isFinite(citizen.location.z)?citizen.location:{x:0,z:0};
+    const prior=person.userData.syncedLocation;
+    if(!prior||Math.hypot(location.x-prior.x,location.z-prior.z)>.05){
+      person.position.set(location.x,heightAt(location.x,location.z),location.z);
+      person.userData.syncedLocation={x:location.x,z:location.z};
+    }
+    const destination=citizen?.destination&&Number.isFinite(citizen.destination.x)&&Number.isFinite(citizen.destination.z)?citizen.destination:null;
+    const previous=person.userData.destination;
+    if(!previous||!destination||Math.hypot(destination.x-previous.x,destination.z-previous.z)>.05){
+      person.userData.destination=destination?{x:destination.x,z:destination.z}:null;
+      person.userData.awaitingArrival=false;
+    }
   }
   function syncCitizenPopulation(citizens){
     if(!peopleGroup)return;
@@ -346,6 +358,19 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
       peopleGroup.add(createCitizenAvatar(i,residents[i]));
     }
     residents.forEach((citizen,i)=>syncCitizenAvatar(peopleGroup.children[i],i,citizen));
+  }
+
+  function syncWaypointMarkers(citizens){
+    if(!waypointGroup)return;
+    clearGroup(waypointGroup);
+    for(const citizen of Array.isArray(citizens)?citizens:[]){
+      const target=citizen?.destination;
+      if(!target||!Number.isFinite(target.x)||!Number.isFinite(target.z))continue;
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(.48,.055,8,24),new THREE.MeshStandardMaterial({color:0xffd36e,emissive:0x6b430d,emissiveIntensity:.65,roughness:.35}));
+      ring.rotation.x=Math.PI/2;
+      ring.position.set(target.x,heightAt(target.x,target.z)+.12,target.z);
+      waypointGroup.add(ring);
+    }
   }
 
   function createHarbor(){
@@ -503,7 +528,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     for(let ring=0;ring<=waterRings;ring++){const radius=42*ring/waterRings;for(let seg=0;seg<=waterSegments;seg++){const angle=seg/waterSegments*Math.PI*2;waterVerts.push(Math.cos(angle)*radius,-.5,Math.sin(angle)*radius);if(ring<waterRings&&seg<waterSegments){const a=ring*(waterSegments+1)+seg,b=a+1,c=a+waterSegments+1,d=c+1;waterIndices.push(a,c,b,b,c,d);}}}
     waterGeo.setAttribute("position",new THREE.Float32BufferAttribute(waterVerts,3));waterGeo.setIndex(waterIndices);waterGeo.computeVertexNormals();
     waterMesh=new THREE.Mesh(waterGeo,new THREE.MeshPhysicalMaterial({color:0x286b80,roughness:.23,metalness:.12,clearcoat:.8,clearcoatRoughness:.16,transparent:true,opacity:.94,side:THREE.DoubleSide}));scene.add(waterMesh);waterPositions=waterMesh.geometry.attributes.position.array.slice();
-    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();territoryGroup=new THREE.Group();shippingGroup=new THREE.Group();cloudGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,territoryGroup,shippingGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup);createHarbor();createCoastalLighthouse();createWindFarm();createSolarFarm();createPowerNetwork();
+    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();territoryGroup=new THREE.Group();shippingGroup=new THREE.Group();cloudGroup=new THREE.Group();waypointGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,territoryGroup,shippingGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup,waypointGroup);createHarbor();createCoastalLighthouse();createWindFarm();createSolarFarm();createPowerNetwork();
     const n=176,verts=[],indices=[],colors=[];
     for(let iz=0;iz<=n;iz++)for(let ix=0;ix<=n;ix++){
       const x=(ix/n-.5)*30,z=(iz/n-.5)*30,d=Math.hypot(x,z),y=heightAt(x,z);verts.push(x,y,z);
