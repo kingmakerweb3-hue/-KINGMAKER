@@ -216,10 +216,26 @@
   worldBuildPalette?.addEventListener("click",event=>{const button=event.target.closest("[data-world-build]");if(!button)return;window.KingmakerWorld3D?.selectBuilding(button.dataset.worldBuild);});
   window.addEventListener("kingmaker:inspect-resource",event=>{selectedResourceId=String(event.detail?.id||"");renderResourceInspector();});
   window.addEventListener("kingmaker:world3d-ready",()=>{if(state){renderResourceInspector();window.KingmakerWorld3D?.update(state);}});
+  window.addEventListener("kingmaker:citizen-waypoint",event=>{
+    const detail=event.detail||{};
+    const citizen=(state.citizens||[]).find(item=>item.id===detail.citizenId);
+    let assigned=false;
+    act(()=>{E.assignCitizenDestination(state,String(detail.citizenId||""),{x:Number(detail.x),z:Number(detail.z)});assigned=true;});
+    if(assigned)toast((citizen?.name||"Citizen")+" is travelling to the new waypoint.","success");
+  });
+  window.addEventListener("kingmaker:citizen-arrived",event=>{
+    const detail=event.detail||{};
+    const citizen=(state.citizens||[]).find(item=>item.id===detail.citizenId);
+    let completed=false;
+    act(()=>{E.completeCitizenJourney(state,String(detail.citizenId||""),{x:Number(detail.x),z:Number(detail.z)});completed=true;});
+    if(completed)toast((citizen?.name||"Citizen")+" reached the exploration waypoint.","success");
+  });
   window.addEventListener("kingmaker:place-building",event=>{const type=event.detail?.type;if(!E.BUILDINGS[type])return;let built=false;act(()=>{E.build(state,type);state.world.placedBuildings=state.world.placedBuildings||[];state.world.placedBuildings.push({type,x:Number(event.detail.x),z:Number(event.detail.z)});if(totalBuildings()>=10&&!state.achievements.includes("builder"))state.achievements.push("builder");built=true;});if(built)toast(E.BUILDINGS[type].name+" constructed in your nation.","success");});
   window.addEventListener("kingmaker:place-road",event=>{const {from,to}=event.detail||{};if(!from||!to)return;act(()=>{state.world.placedRoads=state.world.placedRoads||[];if(state.world.placedRoads.length>=10000)throw Error("Your road network has reached its construction limit.");state.world.placedRoads.push({from:{x:Number(from.x),z:Number(from.z)},to:{x:Number(to.x),z:Number(to.z)}});});toast("Road segment added to your nation.","success");});
   window.addEventListener("kingmaker:place-district",event=>{const {type,x,z,radius}=event.detail||{};if(!["residential","commercial","industrial","agricultural"].includes(type)||![x,z,radius].every(Number.isFinite)||Math.abs(x)>10.5||Math.abs(z)>10.5||radius<1.5||radius>3.5)return;let placed=false;act(()=>{state.world.placedDistricts=state.world.placedDistricts||[];if(state.world.placedDistricts.length>=100)throw Error("Your nation has reached its district limit.");state.world.placedDistricts.push({type,x,z,radius});placed=true;});if(placed)toast(type[0].toUpperCase()+type.slice(1)+" district zoned.","success");});
   document.addEventListener("click",event=>{
+    const waypoint=event.target.closest("[data-citizen-waypoint]");
+    if(waypoint){if(!window.KingmakerWorld3D?.setCitizenWaypointMode(waypoint.dataset.citizenWaypoint))toast("This resident cannot accept another waypoint yet.","warning");return;}
     const t=event.target.closest("[data-tab]");if(t)return tab(t.dataset.tab);
     const node=event.target.closest("[data-focus]");if(node){const id=node.dataset.focus;if(id!=="player"){tab("diplomacy");toast(state.rivals[id].name+" · Relations "+state.rivals[id].relation+" · "+state.rivals[id].stance);}return;}
     const b=event.target.closest("[data-action]");if(!b)return;
