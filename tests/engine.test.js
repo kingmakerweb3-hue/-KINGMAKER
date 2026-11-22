@@ -1086,3 +1086,81 @@ test("depleted operational extraction sites remain valid in saves and produce no
   assert.equal(saved.world.resourceNodes.find(item => item.id === node.id).depleted, true);
   assert.doesNotThrow(() => Engine.validateSave(saved));
 });
+
+
+test("citizens receive deterministic, bounded 3D island locations", () => {
+  const first = Engine.createInitialState({ seed: 91001 });
+  const repeat = Engine.createInitialState({ seed: 91001 });
+  assert.deepEqual(first.citizens.map(c => c.location), repeat.citizens.map(c => c.location));
+  for (const citizen of first.citizens) {
+    assert.ok(Number.isFinite(citizen.location.x));
+    assert.ok(Number.isFinite(citizen.location.z));
+    assert.ok(Math.hypot(citizen.location.x, citizen.location.z) <= 11.5);
+    assert.equal(citizen.destination, null);
+  }
+});
+
+test("citizen exploration waypoints are assigned, saved, and completed at their destination", () => {
+  const state = Engine.createInitialState({ seed: 91002 });
+  const citizen = state.citizens[0];
+  const destination = { x: 9.25, z: 4.5 };
+  Engine.assignCitizenDestination(state, citizen.id, destination);
+  assert.deepEqual(citizen.destination, destination);
+  assert.equal(citizen.activity, "walking to waypoint");
+  assert.equal(citizen.goal, "explore the island");
+  assert.match(citizen.memory.at(-1).text, /explore/);
+
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  const savedCitizen = restored.citizens.find(item => item.id === citizen.id);
+  assert.deepEqual(savedCitizen.destination, destination);
+  assert.deepEqual(savedCitizen.location, citizen.location);
+
+  Engine.completeCitizenJourney(restored, citizen.id, destination);
+  assert.deepEqual(savedCitizen.location, destination);
+  assert.equal(savedCitizen.destination, null);
+  assert.equal(savedCitizen.activity, "exploring the island");
+  assert.equal(savedCitizen.goal, "record a discovery");
+  assert.match(savedCitizen.memory.at(-1).text, /Reached/);
+  const roundTrip = Engine.migrateSave(JSON.parse(Engine.exportSave(restored)));
+  assert.deepEqual(roundTrip.citizens.find(item => item.id === citizen.id).location, destination);
+  assert.equal(roundTrip.citizens.find(item => item.id === citizen.id).destination, null);
+});
+
+test("citizen exploration rejects unknown citizens, unsafe terrain, duplicate orders, and false arrivals", () => {
+  const state = Engine.createInitialState({ seed: 91003 });
+  const citizen = state.citizens[0];
+  assert.throws(() => Engine.assignCitizenDestination(state, "citizen-missing", { x: 5, z: 5 }), /could not be found/);
+  assert.throws(() => Engine.assignCitizenDestination(state, citizen.id, { x: 12, z: 0 }), /safe island terrain/);
+  assert.throws(() => Engine.assignCitizenDestination(state, citizen.id, { x: 0, z: 0 }), /farther away/);
+  const destination = { x: 8, z: 2 };
+  Engine.assignCitizenDestination(state, citizen.id, destination);
+  assert.throws(() => Engine.assignCitizenDestination(state, citizen.id, { x: -8, z: 2 }), /already travelling/);
+  assert.throws(() => Engine.completeCitizenJourney(state, citizen.id, { x: -8, z: 2 }), /does not match/);
+  assert.throws(() => Engine.completeCitizenJourney(state, "citizen-missing", destination), /no active exploration waypoint/);
+  state.status = "defeat";
+  assert.throws(() => Engine.assignCitizenDestination(state, state.citizens[1].id, { x: 8, z: 2 }), /unavailable/);
+});
+
+test("schema 9 citizen saves migrate to deterministic navigation defaults", () => {
+  const state = Engine.createInitialState({ seed: 91004 });
+  state.schemaVersion = 9;
+  for (const citizen of state.citizens) {
+    delete citizen.location;
+    delete citizen.destination;
+  }
+  const migrated = Engine.migrateSave(state);
+  assert.equal(migrated.schemaVersion, 10);
+  for (let i = 0; i < migrated.citizens.length; i++) {
+    assert.deepEqual(migrated.citizens[i].location, Engine.createCitizens(100, state.seed)[i].location);
+    assert.equal(migrated.citizens[i].destination, null);
+  }
+});
+
+test("save validation resets malformed citizen navigation coordinates safely", () => {
+  const state = Engine.createInitialState({ seed: 91005 });
+  state.citizens[0].location = { x: 99, z: 0 };
+  state.citizens[1].destination = { x: 0, z: Infinity };
+  const normalized = Engine.validateSave(state);
+  assert.deepEqual(normalized.citizens[0].location, Engine.createCitizens(100, state.seed)[0].location);
+  assert.equal(normalized.citizens[1].destination, null);
+});
