@@ -106,11 +106,10 @@ test('3D residents accept exploration waypoints and persist their arrival locati
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.locator('[data-tab="world3d"]').click();
   await expect.poll(() => page.evaluate(() => !!window.KingmakerWorld3D)).toBe(true);
-  await page.evaluate(({ citizenId, destination }) => {
-    window.dispatchEvent(new CustomEvent('kingmaker:citizen-arrived', {
-      detail: { citizenId, x: destination.x, z: destination.z }
-    }));
-  }, { citizenId, destination });
+  await expect.poll(() => page.evaluate(id => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    return save.citizens.find(citizen => citizen.id === id).destination;
+  }, citizenId), { timeout: 15000 }).toBeNull();
 
   const arrived = await page.evaluate(id => {
     const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
