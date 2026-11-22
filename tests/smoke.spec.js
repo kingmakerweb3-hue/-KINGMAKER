@@ -468,3 +468,50 @@ test('the island inspector warns of a rival counterattack and shows the retaken 
   expect(saved.status).toBe('retaken');
   expect(saved.population).toBeGreaterThan(1);
 });
+
+
+test('home-island residents accept exploration waypoints and walk to saved destinations', async ({ page }) => {
+  await page.locator('[data-tab="world3d"]').click();
+  await expect.poll(() => page.evaluate(() => !!window.KingmakerWorld3D?.inspectCitizenById), { timeout: 15000 }).toBe(true);
+  const citizenId = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save_v1')).citizens[0].id);
+  expect(await page.evaluate(id => window.KingmakerWorld3D.inspectCitizenById(id), citizenId)).toBe(true);
+
+  const inspector = page.locator('#world3d-citizen-inspector');
+  const cancelWaypoint = page.locator('#world3d-explore-cancel');
+  await expect(inspector).toContainText('Set exploration waypoint');
+  await inspector.locator('[data-citizen-waypoint]').click();
+  await expect(cancelWaypoint).toBeVisible();
+  await cancelWaypoint.click();
+  await expect(cancelWaypoint).toBeHidden();
+
+  expect(await page.evaluate(id => window.KingmakerWorld3D.inspectCitizenById(id), citizenId)).toBe(true);
+  await inspector.locator('[data-citizen-waypoint]').click();
+  await expect(cancelWaypoint).toBeVisible();
+  const destination = { x: -10, z: 0, territoryId: 'home' };
+  expect(await page.evaluate(point => window.KingmakerWorld3D.commitCitizenWaypoint(point), destination)).toBe(true);
+  await expect(cancelWaypoint).toBeHidden();
+
+  const travelling = await page.evaluate(id => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    return save.citizens.find(citizen => citizen.id === id);
+  }, citizenId);
+  expect(travelling.destination).toEqual({ x: -10, z: 0 });
+  expect(travelling.activity).toBe('walking to waypoint');
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="world3d"]').click();
+  await expect.poll(() => page.evaluate(() => !!window.KingmakerWorld3D), { timeout: 15000 }).toBe(true);
+  await expect.poll(() => page.evaluate(id => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    return save.citizens.find(citizen => citizen.id === id).destination;
+  }, citizenId), { timeout: 15000 }).toBeNull();
+
+  const arrived = await page.evaluate(id => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    return save.citizens.find(citizen => citizen.id === id);
+  }, citizenId);
+  expect(arrived.location).toEqual({ x: -10, z: 0 });
+  expect(arrived.destination).toBeNull();
+  expect(arrived.activity).toBe('exploring the home island');
+  expect(arrived.memory.at(-1).text).toContain('Reached');
+});
