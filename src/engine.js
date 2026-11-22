@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 9;
+  const SAVE_VERSION = 10;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -197,12 +197,21 @@
 
   const CITIZEN_ROLES = ["farmer", "builder", "engineer", "merchant", "researcher", "medic", "courier", "artisan"];
   const CITIZEN_NAMES = ["Ari", "Mira", "Soren", "Nia", "Tarin", "Lena", "Oren", "Zara", "Kian", "Elia", "Ravi", "Noor", "Dara", "Ilan", "Sana", "Theo", "Amira", "Eren", "Milo", "Aya", "Ronan", "Iris", "Juno", "Kai"];
+  function citizenSpawnLocation(index) {
+    const angle = index * 2.399963229728653;
+    const radius = 2.8 + (index % 5) * 0.34;
+    return { x: Number((Math.cos(angle) * radius).toFixed(3)), z: Number((Math.sin(angle) * radius).toFixed(3)) };
+  }
+  function validCitizenPoint(point) {
+    return !!point && typeof point === "object" && Number.isFinite(point.x) && Number.isFinite(point.z) &&
+      Math.abs(point.x) <= 11.5 && Math.abs(point.z) <= 11.5 && Math.hypot(point.x, point.z) <= 11.5;
+  }
   function createCitizens(population, seed) {
     const count = clamp(Math.ceil(population / 5), 12, 48);
     const citizens = Array.from({ length: count }, (_, i) => ({
       id: "citizen-" + (i + 1), name: CITIZEN_NAMES[(i + (seed % CITIZEN_NAMES.length)) % CITIZEN_NAMES.length] + " " + (i + 1),
       role: CITIZEN_ROLES[i % CITIZEN_ROLES.length], home: "residential-" + (i % 3 + 1),
-      workplace: "district-" + (i % 4 + 1),
+      workplace: "district-" + (i % 4 + 1), location: citizenSpawnLocation(i), destination: null,
       needs: { food: 70 + (i * 7) % 25, energy: 65 + (i * 11) % 30, safety: 72 + (i * 5) % 24, belonging: 60 + (i * 13) % 35 },
       mood: 65 + (i * 3) % 25, goal: ["improve home", "master profession", "support community", "save resources"][i % 4],
       memory: [{ turn: 1, text: "Joined the new civilization." }], activity: "working", age: 18 + (i * 7) % 48,
@@ -230,6 +239,13 @@
       c.role = CITIZEN_ROLES.includes(c.role) ? c.role : CITIZEN_ROLES[i % CITIZEN_ROLES.length];
       c.home = typeof c.home === "string" ? c.home.slice(0, 40) : "residential-1";
       c.workplace = typeof c.workplace === "string" ? c.workplace.slice(0, 40) : "district-1";
+      if (!validCitizenPoint(c.location)) c.location = citizenSpawnLocation(i);
+      else c.location = { x: Number(c.location.x.toFixed(2)), z: Number(c.location.z.toFixed(2)) };
+      if (c.destination === null || c.destination === undefined || !validCitizenPoint(c.destination)) c.destination = null;
+      else {
+        c.destination = { x: Number(c.destination.x.toFixed(2)), z: Number(c.destination.z.toFixed(2)) };
+        if (Math.hypot(c.destination.x - c.location.x, c.destination.z - c.location.z) < 0.25) c.destination = null;
+      }
       c.needs = c.needs && typeof c.needs === "object" ? c.needs : {};
       for (const key of ["food", "energy", "safety", "belonging"]) c.needs[key] = safeInt(c.needs[key], 70, 100);
       c.mood = safeInt(c.mood, 65, 100);
@@ -241,6 +257,40 @@
       return true;
     });
   }
+  function assignCitizenDestination(state, citizenId, point) {
+    if (!state || state.status !== "playing") throw new Error("Citizen orders are unavailable after a campaign ends.");
+    const citizen = (state.citizens || []).find(item => item.id === citizenId);
+    if (!citizen) throw new Error("That citizen could not be found.");
+    if (citizen.destination) throw new Error(citizen.name + " is already travelling to a waypoint.");
+    if (!validCitizenPoint(point)) throw new Error("Choose a destination on safe island terrain.");
+    const destination = { x: Number(point.x.toFixed(2)), z: Number(point.z.toFixed(2)) };
+    if (Math.hypot(destination.x - citizen.location.x, destination.z - citizen.location.z) < 0.75) {
+      throw new Error("Choose a destination farther away.");
+    }
+    citizen.destination = destination;
+    citizen.activity = "walking to waypoint";
+    citizen.goal = "explore the island";
+    citizen.memory.push({ turn: state.turn, text: "Set out to explore a new location." });
+    citizen.memory = citizen.memory.slice(-8);
+    addEvent(state, citizen.name + " set out to explore the island.", "world");
+    return citizen;
+  }
+  function completeCitizenJourney(state, citizenId, point) {
+    const citizen = (state?.citizens || []).find(item => item.id === citizenId);
+    if (!citizen || !citizen.destination) throw new Error("That citizen has no active exploration waypoint.");
+    if (!validCitizenPoint(point) || Math.hypot(point.x - citizen.destination.x, point.z - citizen.destination.z) > 0.3) {
+      throw new Error("The arrival point does not match the saved waypoint.");
+    }
+    citizen.location = { ...citizen.destination };
+    citizen.destination = null;
+    citizen.activity = "exploring the island";
+    citizen.goal = "record a discovery";
+    citizen.memory.push({ turn: state.turn, text: "Reached a new location and explored the island." });
+    citizen.memory = citizen.memory.slice(-8);
+    addEvent(state, citizen.name + " reached a new location on the island.", "world");
+    return citizen;
+  }
+
   function updateCitizenRelationships(state) {
     const citizens = state.citizens || [];
     const byId = new Map(citizens.map(c => [c.id, c]));
@@ -339,6 +389,8 @@
     if (!input.nation || typeof input.nation !== "object" || !input.resources || !input.buildings) throw new Error("Save is missing nation, resources, or building data.");
     const normalized = copy(input);
     normalizeCitizens(normalized);
+    if (normalized.citizens.some(c => !validCitizenPoint(c.location) ||
+        (c.destination !== null && !validCitizenPoint(c.destination)))) throw new Error("Citizen navigation data is invalid.");
     normalized.world = normalized.world || { nextEventId: 1, activeEvents: [], processedEventIds: [] };
     if (!Array.isArray(normalized.world.placedBuildings)) normalized.world.placedBuildings = [];
     if (!Array.isArray(normalized.world.placedRoads)) normalized.world.placedRoads = [];
@@ -490,7 +542,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6, 7, 8].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -1597,7 +1649,7 @@
   return {
     SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, RENEWABLE_POWER_OUTPUT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, createResourceDeposits, resourceSiteEffects, developResourceSite, productionFor, build, trade,
+    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, assignCitizenDestination, completeCitizenJourney, createResourceDeposits, resourceSiteEffects, developResourceSite, productionFor, build, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
