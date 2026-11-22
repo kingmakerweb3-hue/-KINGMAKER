@@ -202,3 +202,12 @@ button{min-height:40px}
 
 .international-trade-form h5{grid-column:1/-1;margin:8px 0 0;color:var(--gold);font-size:.75rem}
 .international-trade-form h5:not(:first-child){padding-top:9px;border-top:1px solid #5a5036}
+
+
+/* Persistent citizen exploration orders */
+.citizen-location{display:block;margin:0 0 9px;color:#9eb1c5;font-size:.75rem;font-variant-numeric:tabular-nums}
+.citizen-waypoint-action{width:100%;margin:10px 0;padding:10px 12px;border:1px solid rgba(229,189,106,.55);border-radius:9px;background:rgba(184,139,57,.16);color:#f2d28e;font-weight:700}
+.citizen-waypoint-action:hover{background:rgba(184,139,57,.28);border-color:#f2d28e}
+.citizen-route-status{padding:9px 10px;border-left:3px solid #e7bd68;background:rgba(231,189,104,.09);border-radius:0 7px 7px 0}
+#world3d-explore-cancel[hidden]{display:none}
+@media(max-width:480px){.world3d-citizen-inspector{right:8px;bottom:8px;width:calc(100% - 16px);max-height:64%;padding:13px}.citizen-waypoint-action{min-height:44px}}
