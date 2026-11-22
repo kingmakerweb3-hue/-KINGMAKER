@@ -240,7 +240,7 @@
       c.home = typeof c.home === "string" ? c.home.slice(0, 40) : "residential-1";
       c.workplace = typeof c.workplace === "string" ? c.workplace.slice(0, 40) : "district-1";
       if (!validCitizenPoint(c.location)) c.location = citizenSpawnLocation(i);
-      else c.location = { x: Number(c.location.x.toFixed(2)), z: Number(c.location.z.toFixed(2)) };
+      else c.location = { x: Number(c.location.x.toFixed(3)), z: Number(c.location.z.toFixed(3)) };
       if (c.destination === null || c.destination === undefined || !validCitizenPoint(c.destination)) c.destination = null;
       else {
         c.destination = { x: Number(c.destination.x.toFixed(2)), z: Number(c.destination.z.toFixed(2)) };
