@@ -9,7 +9,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   const trafficVehicles=[];
   const windTurbineRotors=[];
   const solarTrackers=[];
-  let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,raycaster,groundPlane,previewMarker,placementPointer=null;
+  let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,exploreMode=false,selectedCitizenId=null,raycaster,groundPlane,previewMarker,placementPointer=null,waypointGroup;
   const COLORS={farm:0xc6a35d,mine:0x78838d,workshop:0x9c7652,factory:0x697b8e,transport:0x9b9b8b,market:0xc49b52,academy:0x8b80b8,power:0x75b9c9,housing:0xd6c5a3};
   const material=(color,roughness=.86)=>new THREE.MeshStandardMaterial({color,roughness});
   const boxGeo=new THREE.BoxGeometry(1,1,1);
@@ -179,8 +179,20 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     person.userData.activity=String(citizen?.activity||"walking");
     person.userData.mood=Number(citizen?.mood)||0;
     person.userData.phase=index*.53;
-    person.userData.radius=2.6+(index%5)*.36;
+    person.userData.idleRadius=.22+(index%4)*.07;
     person.userData.walkFactor=/rest|study|care|seek/i.test(person.userData.activity)?.35:1;
+    const location=citizen?.location&&Number.isFinite(citizen.location.x)&&Number.isFinite(citizen.location.z)?citizen.location:{x:0,z:0};
+    const prior=person.userData.syncedLocation;
+    if(!prior||Math.hypot(location.x-prior.x,location.z-prior.z)>.05){
+      person.position.set(location.x,heightAt(location.x,location.z),location.z);
+      person.userData.syncedLocation={x:location.x,z:location.z};
+    }
+    const destination=citizen?.destination&&Number.isFinite(citizen.destination.x)&&Number.isFinite(citizen.destination.z)?citizen.destination:null;
+    const previous=person.userData.destination;
+    if(!previous||!destination||Math.hypot(destination.x-previous.x,destination.z-previous.z)>.05){
+      person.userData.destination=destination?{x:destination.x,z:destination.z}:null;
+      person.userData.awaitingArrival=false;
+    }
   }
   function syncCitizenPopulation(citizens){
     if(!peopleGroup)return;
@@ -195,6 +207,19 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
       peopleGroup.add(createCitizenAvatar(i,residents[i]));
     }
     residents.forEach((citizen,i)=>syncCitizenAvatar(peopleGroup.children[i],i,citizen));
+  }
+
+  function syncWaypointMarkers(citizens){
+    if(!waypointGroup)return;
+    clearGroup(waypointGroup);
+    for(const citizen of Array.isArray(citizens)?citizens:[]){
+      const target=citizen?.destination;
+      if(!target||!Number.isFinite(target.x)||!Number.isFinite(target.z))continue;
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(.48,.055,8,24),new THREE.MeshStandardMaterial({color:0xffd36e,emissive:0x6b430d,emissiveIntensity:.65,roughness:.35}));
+      ring.rotation.x=Math.PI/2;
+      ring.position.set(target.x,heightAt(target.x,target.z)+.12,target.z);
+      waypointGroup.add(ring);
+    }
   }
 
   function createHarbor(){
@@ -352,7 +377,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     for(let ring=0;ring<=waterRings;ring++){const radius=42*ring/waterRings;for(let seg=0;seg<=waterSegments;seg++){const angle=seg/waterSegments*Math.PI*2;waterVerts.push(Math.cos(angle)*radius,-.5,Math.sin(angle)*radius);if(ring<waterRings&&seg<waterSegments){const a=ring*(waterSegments+1)+seg,b=a+1,c=a+waterSegments+1,d=c+1;waterIndices.push(a,c,b,b,c,d);}}}
     waterGeo.setAttribute("position",new THREE.Float32BufferAttribute(waterVerts,3));waterGeo.setIndex(waterIndices);waterGeo.computeVertexNormals();
     waterMesh=new THREE.Mesh(waterGeo,new THREE.MeshPhysicalMaterial({color:0x286b80,roughness:.23,metalness:.12,clearcoat:.8,clearcoatRoughness:.16,transparent:true,opacity:.94,side:THREE.DoubleSide}));scene.add(waterMesh);waterPositions=waterMesh.geometry.attributes.position.array.slice();
-    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();cloudGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup);createHarbor();createCoastalLighthouse();createWindFarm();createSolarFarm();createPowerNetwork();
+    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();cloudGroup=new THREE.Group();waypointGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,buildingGroup,peopleGroup,trafficGroup,cloudGroup,waypointGroup);createHarbor();createCoastalLighthouse();createWindFarm();createSolarFarm();createPowerNetwork();
     const n=176,verts=[],indices=[],colors=[];
     for(let iz=0;iz<=n;iz++)for(let ix=0;ix<=n;ix++){
       const x=(ix/n-.5)*30,z=(iz/n-.5)*30,d=Math.hypot(x,z),y=heightAt(x,z);verts.push(x,y,z);
@@ -381,12 +406,14 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     previewMarker=new THREE.Mesh(new THREE.RingGeometry(.55,.78,32),new THREE.MeshBasicMaterial({color:0xffd36e,side:THREE.DoubleSide}));previewMarker.rotation.x=-Math.PI/2;previewMarker.visible=false;scene.add(previewMarker);
     renderer.domElement.addEventListener("pointermove",updatePlacementPreview);
     renderer.domElement.addEventListener("pointerdown",event=>{placementPointer={x:event.clientX,y:event.clientY};});
-    renderer.domElement.addEventListener("pointerup",event=>{if(placementPointer&&Math.hypot(event.clientX-placementPointer.x,event.clientY-placementPointer.y)<5){if(roadMode)placeRoadPoint(event);else if(districtMode)placeSelectedDistrict(event);else if(selectedBuilding)placeSelectedBuilding(event);else if(!inspectResource(event))inspectCitizen(event);}placementPointer=null;});
+    renderer.domElement.addEventListener("pointerup",event=>{if(placementPointer&&Math.hypot(event.clientX-placementPointer.x,event.clientY-placementPointer.y)<5){if(roadMode)placeRoadPoint(event);else if(districtMode)placeSelectedDistrict(event);else if(selectedBuilding)placeSelectedBuilding(event);else if(exploreMode)placeCitizenWaypoint(event);else if(!inspectResource(event))inspectCitizen(event);}placementPointer=null;});
     resizeObserver=new ResizeObserver(resize);resizeObserver.observe(host);resize();
     document.getElementById("world3d-home")?.addEventListener("click",()=>{camera.position.set(17,15,20);controls.target.set(0,0,0);controls.update();});
+    document.getElementById("world3d-explore-cancel")?.addEventListener("click",cancelCitizenWaypointMode);
     document.getElementById("world3d-rotate")?.addEventListener("click",e=>{autoRotate=!autoRotate;controls.autoRotate=autoRotate;e.currentTarget.setAttribute("aria-pressed",String(autoRotate));e.currentTarget.textContent="Auto-rotate: "+(autoRotate?"on":"off");});
-    document.getElementById("world3d-road")?.addEventListener("click",e=>{roadMode=!roadMode;roadStart=null;districtMode=false;selectedDistrict=null;selectedBuilding=null;if(previewMarker)previewMarker.visible=false;e.currentTarget.classList.toggle("selected",roadMode);e.currentTarget.setAttribute("aria-pressed",String(roadMode));e.currentTarget.textContent=roadMode?"Cancel road":"Build road";const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent=roadMode?"Tap two points on the island to connect them. Tap again to draw another segment.":"Select a structure or build a road.";if(renderer)renderer.domElement.style.cursor=roadMode?"crosshair":"grab";});
+    document.getElementById("world3d-road")?.addEventListener("click",e=>{cancelCitizenWaypointMode();roadMode=!roadMode;roadStart=null;districtMode=false;selectedDistrict=null;selectedBuilding=null;if(previewMarker)previewMarker.visible=false;e.currentTarget.classList.toggle("selected",roadMode);e.currentTarget.setAttribute("aria-pressed",String(roadMode));e.currentTarget.textContent=roadMode?"Cancel road":"Build road";const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent=roadMode?"Tap two points on the island to connect them. Tap again to draw another segment.":"Select a structure or build a road.";if(renderer)renderer.domElement.style.cursor=roadMode?"crosshair":"grab";});
     document.querySelectorAll("[data-world-district]").forEach(button=>button.addEventListener("click",()=>{
+      cancelCitizenWaypointMode();
       const togglingOff=districtMode&&selectedDistrict===button.dataset.worldDistrict;
       selectedDistrict=togglingOff?null:button.dataset.worldDistrict;districtMode=!togglingOff;
       roadMode=false;roadStart=null;selectedBuilding=null;
@@ -400,6 +427,21 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     }));
     animate();
   }
+  function setCitizenWaypointMode(citizenId){
+    const citizen=(lastState?.citizens||[]).find(item=>item.id===citizenId);
+    if(!citizen||citizen.destination)return false;
+    selectedCitizenId=citizenId;exploreMode=true;roadMode=false;roadStart=null;districtMode=false;selectedDistrict=null;selectedBuilding=null;
+    document.getElementById("world3d-road")?.classList.remove("selected");
+    document.getElementById("world3d-road")?.setAttribute("aria-pressed","false");
+    const roadButton=document.getElementById("world3d-road");if(roadButton)roadButton.textContent="Build road";
+    document.querySelectorAll("[data-world-build],[data-world-district]").forEach(button=>button.classList.remove("selected"));
+    document.getElementById("world3d-citizen-inspector")?.remove();
+    const cancel=document.getElementById("world3d-explore-cancel");if(cancel)cancel.hidden=false;
+    if(renderer)renderer.domElement.style.cursor="crosshair";
+    const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Choose a destination for "+citizen.name+". Click open terrain inside the island.";
+    return true;
+  }
+
   function inspectCitizen(event){
     if(!renderer||!camera||!peopleGroup||!lastState)return;
     const rect=renderer.domElement.getBoundingClientRect();
@@ -421,8 +463,10 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const needs=citizen.needs||{};
     const bars=Object.entries(needs).map(([key,value])=>'<div class="citizen-need"><span>'+esc(key)+'</span><b>'+Math.max(0,Math.min(100,Number(value)||0))+'%</b><i><em style="width:'+Math.max(0,Math.min(100,Number(value)||0))+'%"></em></i></div>').join("");
     const memories=(citizen.memory||[]).slice(-4).reverse().map(m=>'<li>Turn '+Number(m.turn||0)+': '+esc(m.text)+'</li>').join("")||"<li>No recorded memories yet.</li>";
-    panel.innerHTML='<button type="button" class="citizen-inspector-close" aria-label="Close citizen details">×</button><span class="eyebrow">CITIZEN PROFILE · '+esc(citizen.id)+'</span><h3>'+esc(citizen.name)+'</h3><p>'+esc(citizen.role)+' · '+esc(citizen.activity)+'</p><strong class="citizen-mood">'+Math.max(0,Math.min(100,Number(citizen.mood)||0))+'% mood</strong><div class="citizen-needs">'+bars+'</div><h4>Recent memories</h4><ul>'+memories+'</ul>';
-    panel.querySelector("button").addEventListener("click",()=>panel.remove());
+    const location=citizen.location||{x:0,z:0},destination=citizen.destination;
+    const route=destination?'<p class="citizen-route-status">Travelling to '+Number(destination.x).toFixed(1)+', '+Number(destination.z).toFixed(1)+'. The saved order resumes when the world is reopened.</p>':'<button type="button" class="citizen-waypoint-action" data-citizen-waypoint="'+esc(citizen.id)+'">Set exploration waypoint</button>';
+    panel.innerHTML='<button type="button" class="citizen-inspector-close" aria-label="Close citizen details">×</button><span class="eyebrow">CITIZEN PROFILE · '+esc(citizen.id)+'</span><h3>'+esc(citizen.name)+'</h3><p>'+esc(citizen.role)+' · '+esc(citizen.activity)+'</p><small class="citizen-location">Island position '+Number(location.x).toFixed(1)+', '+Number(location.z).toFixed(1)+'</small><strong class="citizen-mood">'+Math.max(0,Math.min(100,Number(citizen.mood)||0))+'% mood</strong><div class="citizen-needs">'+bars+'</div>'+route+'<h4>Recent memories</h4><ul>'+memories+'</ul>';
+    panel.querySelector(".citizen-inspector-close").addEventListener("click",()=>panel.remove());
   }
   function inspectResource(event){
     if(!renderer||!camera||!resourceGroup||!lastState)return false;
@@ -438,12 +482,36 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     window.dispatchEvent(new CustomEvent("kingmaker:inspect-resource",{detail:{id}}));
     return true;
   }
-  function updatePlacementPreview(event){if(!selectedBuilding||!renderer||!terrainMesh)return;const rect=renderer.domElement.getBoundingClientRect();const pointer=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-((event.clientY-rect.top)/rect.height)*2+1);raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObject(terrainMesh,false)[0];if(hit&&Math.hypot(hit.point.x,hit.point.z)<13.2){previewMarker.position.copy(hit.point);previewMarker.position.y+=.045;previewMarker.visible=true;}else previewMarker.visible=false;}
+  function updatePlacementPreview(event){if((!selectedBuilding&&!exploreMode)||!renderer||!terrainMesh)return;const rect=renderer.domElement.getBoundingClientRect();const pointer=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-((event.clientY-rect.top)/rect.height)*2+1);raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObject(terrainMesh,false)[0],limit=exploreMode?11.5:13.2;if(hit&&Math.hypot(hit.point.x,hit.point.z)<=limit){previewMarker.position.copy(hit.point);previewMarker.position.y+=.045;previewMarker.visible=true;}else previewMarker.visible=false;}
   function getGroundPoint(event){const rect=renderer.domElement.getBoundingClientRect();const pointer=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-((event.clientY-rect.top)/rect.height)*2+1);raycaster.setFromCamera(pointer,camera);const hit=terrainMesh?raycaster.intersectObject(terrainMesh,false)[0]:null;return hit&&Math.hypot(hit.point.x,hit.point.z)<=13.2?hit.point:null;}
   function placeSelectedBuilding(event){if(!selectedBuilding||event.button!==0)return;const point=getGroundPoint(event);if(!point)return;window.dispatchEvent(new CustomEvent("kingmaker:place-building",{detail:{type:selectedBuilding,x:point.x,z:point.z}}));}
   function placeSelectedDistrict(event){if(!selectedDistrict||event.button!==0)return;const point=getGroundPoint(event);if(!point)return;if(Math.abs(point.x)>10.5||Math.abs(point.z)>10.5){const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Districts must be placed farther inside the island.";return;}window.dispatchEvent(new CustomEvent("kingmaker:place-district",{detail:{type:selectedDistrict,x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2)),radius:2.6}}));}
+  function placeCitizenWaypoint(event){
+    if(event.button!==0||!exploreMode||!selectedCitizenId)return;
+    const point=getGroundPoint(event);
+    if(!point||Math.hypot(point.x,point.z)>11.5){
+      const hint=document.getElementById("world3d-build-hint");
+      if(hint)hint.textContent="Choose open ground inside the island boundary.";
+      return;
+    }
+    const citizenId=selectedCitizenId;
+    exploreMode=false;selectedCitizenId=null;
+    if(previewMarker)previewMarker.visible=false;
+    const cancel=document.getElementById("world3d-explore-cancel");if(cancel)cancel.hidden=true;
+    if(renderer)renderer.domElement.style.cursor="grab";
+    const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Waypoint assigned. The resident is travelling across the island.";
+    window.dispatchEvent(new CustomEvent("kingmaker:citizen-waypoint",{detail:{citizenId,x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2))}}));
+  }
+  function cancelCitizenWaypointMode(){
+    exploreMode=false;selectedCitizenId=null;
+    if(previewMarker)previewMarker.visible=false;
+    const cancel=document.getElementById("world3d-explore-cancel");if(cancel)cancel.hidden=true;
+    if(renderer)renderer.domElement.style.cursor="grab";
+    const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Select a resident in the 3D world to issue an exploration order.";
+  }
   function placeRoadPoint(event){if(event.button!==0)return;const point=getGroundPoint(event);if(!point)return;const spot={x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2))};if(!roadStart){roadStart=spot;const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Start selected. Tap the road destination.";return;}if(Math.hypot(spot.x-roadStart.x,spot.z-roadStart.z)<1){roadStart=spot;return;}window.dispatchEvent(new CustomEvent("kingmaker:place-road",{detail:{from:roadStart,to:spot}}));roadStart=null;const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Road built. Tap two points to add another segment."; }
   function selectBuilding(type){
+    cancelCitizenWaypointMode();
     selectedBuilding=type&&selectedBuilding!==type?type:null;
     roadMode=false;roadStart=null;districtMode=false;selectedDistrict=null;
     const roadButton=document.getElementById("world3d-road");
@@ -458,11 +526,29 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   }
   function resize(){if(!renderer||!host.clientWidth)return;const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
   function animate(){
-    animationId=requestAnimationFrame(animate);const t=clock.getElapsedTime();controls.update();
+    animationId=requestAnimationFrame(animate);const delta=Math.min(clock.getDelta(),.05),t=clock.elapsedTime;controls.update();
     const daylight=THREE.MathUtils.clamp(Math.sin(t*.035)*.5+.5,0,1),nightSky=new THREE.Color(0x101d35),daySky=new THREE.Color(0x9bb8c7);scene.background.lerpColors(nightSky,daySky,daylight);if(auroraMesh){auroraMesh.material.uniforms.uTime.value=t;auroraMesh.material.uniforms.uDaylight.value=daylight;}if(starField)starField.material.opacity=Math.pow(1-daylight,1.7)*.92;if(moonObject)moonObject.material.opacity=Math.pow(1-daylight,1.5)*.88;if(scene.fog)scene.fog.color.copy(scene.background);sunLight.intensity=.22+daylight*3.15;sunLight.position.set(Math.cos(t*.035)*25,Math.max(3,Math.sin(t*.035)*28),14);sunLight.color.setRGB(1,.72+daylight*.2,.52+daylight*.42);
     if(waterMesh){const attr=waterMesh.geometry.attributes.position;for(let i=0;i<attr.count;i++){const x=waterPositions[i*3],z=waterPositions[i*3+2];attr.array[i*3+1]=waterPositions[i*3+1]+Math.sin(x*.32+t*.65)*.055+Math.cos(z*.27-t*.48)*.04;}attr.needsUpdate=true;waterMesh.geometry.computeVertexNormals();}
     cloudGroup.children.forEach((cloud,i)=>{cloud.position.x+=.0012+Math.sin(t*.025+i)*.0005;if(cloud.position.x>24)cloud.position.x=-24;});
-    peopleGroup.children.forEach((p,i)=>{const a=t*(.12+.05*p.userData.walkFactor)+p.userData.phase,step=t*(2.1+1.2*p.userData.walkFactor)+p.userData.phase;p.position.x=Math.cos(a)*p.userData.radius;p.position.z=Math.sin(a)*p.userData.radius;p.position.y=heightAt(p.position.x,p.position.z);p.rotation.y=-a;for(const limb of p.userData.limbs){const swing=Math.sin(step)*.42*limb.side;limb.arm.rotation.x=-swing;limb.leg.rotation.x=swing;}});
+    peopleGroup.children.forEach((p,i)=>{
+      const destination=p.userData.destination;
+      let moving=false,heading=0;
+      if(destination&&!p.userData.awaitingArrival){
+        const dx=destination.x-p.position.x,dz=destination.z-p.position.z,distance=Math.hypot(dx,dz);
+        if(distance<=.08){
+          p.position.x=destination.x;p.position.z=destination.z;p.userData.awaitingArrival=true;p.userData.destination=null;
+          window.dispatchEvent(new CustomEvent("kingmaker:citizen-arrived",{detail:{citizenId:p.userData.citizenId,x:destination.x,z:destination.z}}));
+        }else{
+          const step=Math.min(distance,delta*2.2);p.position.x+=dx/distance*step;p.position.z+=dz/distance*step;heading=Math.atan2(dx,dz);moving=true;
+        }
+      }else{
+        const location=p.userData.syncedLocation||{x:0,z:0},a=t*(.12+.05*p.userData.walkFactor)+p.userData.phase;
+        p.position.x=location.x+Math.cos(a)*p.userData.idleRadius;p.position.z=location.z+Math.sin(a)*p.userData.idleRadius;heading=-a;
+      }
+      p.position.y=heightAt(p.position.x,p.position.z);p.rotation.y=heading;
+      const swingPhase=moving?t*7+p.userData.phase:t*(2.1+1.2*p.userData.walkFactor)+p.userData.phase;
+      for(const limb of p.userData.limbs){const swing=Math.sin(swingPhase)*(moving?.5:.42)*limb.side;limb.arm.rotation.x=-swing;limb.leg.rotation.x=swing;}
+    });
     trafficVehicles.forEach(v=>{const p=(t*v.speed+v.phase)%1;const x=v.a.x+(v.b.x-v.a.x)*p,z=v.a.z+(v.b.z-v.a.z)*p;v.mesh.position.set(x,heightAt(x,z)+.055,z);v.mesh.rotation.y=Math.atan2(v.b.x-v.a.x,v.b.z-v.a.z);});
     if(cargoShip){cargoShip.position.x=12.1+Math.sin(t*.12)*.42;cargoShip.position.z=12.4+Math.cos(t*.12)*.32;cargoShip.position.y=-.13+Math.sin(t*1.35)*.045;cargoShip.rotation.y=.75+Math.sin(t*.12)*.035;}
     if(lighthouseBeacon)lighthouseBeacon.rotation.y=-t*.42;
@@ -473,6 +559,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   function update(state){
     if(!state)return;lastState=state;
     syncCitizenPopulation(state.citizens||[]);
+    syncWaypointMarkers(state.citizens||[]);
     const total=Object.values(state.buildings||{}).reduce((sum,n)=>sum+(Number(n)||0),0);
     const status=document.getElementById("world3d-status");if(status)status.textContent="TURN "+state.turn+" · "+total+" BUILDING LEVELS";
     const stats=document.getElementById("world3d-stats");
@@ -496,6 +583,6 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   document.addEventListener("visibilitychange",handleVisibilityChange);
   function dispose(){cancelAnimationFrame(animationId);animationId=0;document.removeEventListener("visibilitychange",handleVisibilityChange);resizeObserver?.disconnect();renderer?.dispose();controls?.dispose();}
   window.addEventListener("pagehide",dispose,{once:true});
-  try{createScene();window.KingmakerWorld3D={update,selectBuilding};window.dispatchEvent(new Event("kingmaker:world3d-ready"));if(lastState)update(lastState);}
+  try{createScene();window.KingmakerWorld3D={update,selectBuilding,setCitizenWaypointMode,cancelCitizenWaypointMode};window.dispatchEvent(new Event("kingmaker:world3d-ready"));if(lastState)update(lastState);}
   catch(error){host.innerHTML='<div class="world3d-loading">3D world could not initialize. Try a browser with WebGL enabled.</div>';const status=document.getElementById("world3d-status");if(status)status.textContent="3D ENGINE UNAVAILABLE";console.error("KINGMAKER 3D:",error);}
 })();
