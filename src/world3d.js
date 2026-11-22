@@ -491,6 +491,17 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   function getGroundPoint(event){const rect=renderer.domElement.getBoundingClientRect();const pointer=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-((event.clientY-rect.top)/rect.height)*2+1);raycaster.setFromCamera(pointer,camera);const hit=terrainMesh?raycaster.intersectObject(terrainMesh,false)[0]:null;return hit&&Math.hypot(hit.point.x,hit.point.z)<=13.2?hit.point:null;}
   function placeSelectedBuilding(event){if(!selectedBuilding||event.button!==0)return;const point=getGroundPoint(event);if(!point)return;window.dispatchEvent(new CustomEvent("kingmaker:place-building",{detail:{type:selectedBuilding,x:point.x,z:point.z}}));}
   function placeSelectedDistrict(event){if(!selectedDistrict||event.button!==0)return;const point=getGroundPoint(event);if(!point)return;if(Math.abs(point.x)>10.5||Math.abs(point.z)>10.5){const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Districts must be placed farther inside the island.";return;}window.dispatchEvent(new CustomEvent("kingmaker:place-district",{detail:{type:selectedDistrict,x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2)),radius:2.6}}));}
+  function commitCitizenWaypoint(point){
+    if(!exploreMode||!selectedCitizenId||!point||!Number.isFinite(point.x)||!Number.isFinite(point.z)||Math.hypot(point.x,point.z)>11.5)return false;
+    const citizenId=selectedCitizenId;
+    exploreMode=false;selectedCitizenId=null;
+    if(previewMarker)previewMarker.visible=false;
+    const cancel=document.getElementById("world3d-explore-cancel");if(cancel)cancel.hidden=true;
+    if(renderer)renderer.domElement.style.cursor="grab";
+    const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Waypoint assigned. The resident is travelling across the island.";
+    window.dispatchEvent(new CustomEvent("kingmaker:citizen-waypoint",{detail:{citizenId,x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2))}}));
+    return true;
+  }
   function placeCitizenWaypoint(event){
     if(event.button!==0||!exploreMode||!selectedCitizenId)return;
     const point=getGroundPoint(event);
@@ -499,13 +510,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
       if(hint)hint.textContent="Choose open ground inside the island boundary.";
       return;
     }
-    const citizenId=selectedCitizenId;
-    exploreMode=false;selectedCitizenId=null;
-    if(previewMarker)previewMarker.visible=false;
-    const cancel=document.getElementById("world3d-explore-cancel");if(cancel)cancel.hidden=true;
-    if(renderer)renderer.domElement.style.cursor="grab";
-    const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Waypoint assigned. The resident is travelling across the island.";
-    window.dispatchEvent(new CustomEvent("kingmaker:citizen-waypoint",{detail:{citizenId,x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2))}}));
+    commitCitizenWaypoint(point);
   }
   function cancelCitizenWaypointMode(){
     exploreMode=false;selectedCitizenId=null;
@@ -588,6 +593,6 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   document.addEventListener("visibilitychange",handleVisibilityChange);
   function dispose(){cancelAnimationFrame(animationId);animationId=0;document.removeEventListener("visibilitychange",handleVisibilityChange);resizeObserver?.disconnect();renderer?.dispose();controls?.dispose();}
   window.addEventListener("pagehide",dispose,{once:true});
-  try{createScene();window.KingmakerWorld3D={update,selectBuilding,setCitizenWaypointMode,cancelCitizenWaypointMode,inspectCitizenById};window.dispatchEvent(new Event("kingmaker:world3d-ready"));if(lastState)update(lastState);}
+  try{createScene();window.KingmakerWorld3D={update,selectBuilding,setCitizenWaypointMode,cancelCitizenWaypointMode,commitCitizenWaypoint,inspectCitizenById};window.dispatchEvent(new Event("kingmaker:world3d-ready"));if(lastState)update(lastState);}
   catch(error){host.innerHTML='<div class="world3d-loading">3D world could not initialize. Try a browser with WebGL enabled.</div>';const status=document.getElementById("world3d-status");if(status)status.textContent="3D ENGINE UNAVAILABLE";console.error("KINGMAKER 3D:",error);}
 })();
