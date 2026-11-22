@@ -148,3 +148,12 @@ button,a,[role="button"],input,select{touch-action:manipulation}
 button{min-height:40px}
 @media(max-width:720px){.topbar{padding-top:calc(10px + var(--km-safe-top));padding-left:14px;padding-right:14px}.top-actions{gap:7px}.top-actions button,.top-actions a{font-size:12px}.tabs{position:sticky;top:0;z-index:20;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:thin;padding:8px 4px}.tabs button{flex:0 0 auto;min-width:max-content}.world3d-viewport{min-height:360px;height:55vh;max-height:620px}.world3d-toolbar{gap:8px;flex-wrap:wrap}.world3d-toolbar>div{display:flex;flex-wrap:wrap;gap:6px}.world3d-toolbar button{min-height:42px}.panel{scroll-margin-top:70px}}
 @media(max-width:480px){.brand small{font-size:8px}.brand b{font-size:15px}.top-actions{max-width:100%;overflow-x:auto}.welcome{padding:20px 14px}.welcome h1{font-size:clamp(32px,10vw,48px)}.command-deck,.panel{border-radius:10px}.metric-card{min-width:calc(50% - 8px)}.world3d-viewport{height:50vh;min-height:300px}}
+
+
+/* Persistent citizen exploration orders */
+.citizen-location{display:block;margin:0 0 9px;color:#9eb1c5;font-size:.75rem;font-variant-numeric:tabular-nums}
+.citizen-waypoint-action{width:100%;margin:10px 0;padding:10px 12px;border:1px solid rgba(229,189,106,.55);border-radius:9px;background:rgba(184,139,57,.16);color:#f2d28e;font-weight:700}
+.citizen-waypoint-action:hover{background:rgba(184,139,57,.28);border-color:#f2d28e}
+.citizen-route-status{padding:9px 10px;border-left:3px solid #e7bd68;background:rgba(231,189,104,.09);border-radius:0 7px 7px 0}
+#world3d-explore-cancel[hidden]{display:none}
+@media(max-width:480px){.world3d-citizen-inspector{right:8px;bottom:8px;width:calc(100% - 16px);max-height:64%;padding:13px}.citizen-waypoint-action{min-height:44px}}
