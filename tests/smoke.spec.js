@@ -83,16 +83,18 @@ test('3D residents accept exploration waypoints and persist their arrival locati
 
   const inspector = page.locator('#world3d-citizen-inspector');
   await expect(inspector).toContainText('Set exploration waypoint');
+  const cancelWaypoint = page.locator('#world3d-explore-cancel');
   await inspector.locator('[data-citizen-waypoint]').click();
-  await expect(page.locator('#world3d-explore-cancel')).toBeVisible();
+  await expect(cancelWaypoint).toBeVisible();
+  await cancelWaypoint.click();
+  await expect(cancelWaypoint).toBeHidden();
 
-  const destination = { x: 8, z: 4 };
-  await page.evaluate(({ citizenId, destination }) => {
-    window.dispatchEvent(new CustomEvent('kingmaker:citizen-waypoint', {
-      detail: { citizenId, x: destination.x, z: destination.z }
-    }));
-  }, { citizenId, destination });
-  await expect(page.locator('#world3d-explore-cancel')).toBeHidden();
+  expect(await page.evaluate(id => window.KingmakerWorld3D.inspectCitizenById(id), citizenId)).toBe(true);
+  await inspector.locator('[data-citizen-waypoint]').click();
+  await expect(cancelWaypoint).toBeVisible();
+  const destination = { x: -10, z: 0 };
+  expect(await page.evaluate(point => window.KingmakerWorld3D.commitCitizenWaypoint(point), destination)).toBe(true);
+  await expect(cancelWaypoint).toBeHidden();
 
   const travelling = await page.evaluate(id => {
     const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
