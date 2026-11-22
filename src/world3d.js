@@ -436,6 +436,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const roadButton=document.getElementById("world3d-road");if(roadButton)roadButton.textContent="Build road";
     document.querySelectorAll("[data-world-build],[data-world-district]").forEach(button=>button.classList.remove("selected"));
     document.getElementById("world3d-citizen-inspector")?.remove();
+    if(previewMarker)previewMarker.visible=false;
     const cancel=document.getElementById("world3d-explore-cancel");if(cancel)cancel.hidden=false;
     if(renderer)renderer.domElement.style.cursor="crosshair";
     const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Choose a destination for "+citizen.name+". Click open terrain inside the island.";
