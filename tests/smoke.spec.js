@@ -73,3 +73,49 @@ test('mobile command deck and navigation do not create horizontal overflow', asy
   expect(dimensions.page).toBeLessThanOrEqual(dimensions.viewport + 1);
   await expect(page.getByRole('heading', { name: 'Empire status' })).toBeVisible();
 });
+
+
+test('3D residents accept exploration waypoints and persist their arrival location', async ({ page }) => {
+  await page.locator('[data-tab="world3d"]').click();
+  await expect.poll(() => page.evaluate(() => !!window.KingmakerWorld3D?.inspectCitizenById)).toBe(true);
+  const citizenId = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save_v1')).citizens[0].id);
+  expect(await page.evaluate(id => window.KingmakerWorld3D.inspectCitizenById(id), citizenId)).toBe(true);
+
+  const inspector = page.locator('#world3d-citizen-inspector');
+  await expect(inspector).toContainText('Set exploration waypoint');
+  await inspector.locator('[data-citizen-waypoint]').click();
+  await expect(page.locator('#world3d-explore-cancel')).toBeVisible();
+
+  const destination = { x: 8, z: 4 };
+  await page.evaluate(({ citizenId, destination }) => {
+    window.dispatchEvent(new CustomEvent('kingmaker:citizen-waypoint', {
+      detail: { citizenId, x: destination.x, z: destination.z }
+    }));
+  }, { citizenId, destination });
+  await expect(page.locator('#world3d-explore-cancel')).toBeHidden();
+
+  const travelling = await page.evaluate(id => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    return save.citizens.find(citizen => citizen.id === id);
+  }, citizenId);
+  expect(travelling.destination).toEqual(destination);
+  expect(travelling.activity).toBe('walking to waypoint');
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="world3d"]').click();
+  await expect.poll(() => page.evaluate(() => !!window.KingmakerWorld3D)).toBe(true);
+  await page.evaluate(({ citizenId, destination }) => {
+    window.dispatchEvent(new CustomEvent('kingmaker:citizen-arrived', {
+      detail: { citizenId, x: destination.x, z: destination.z }
+    }));
+  }, { citizenId, destination });
+
+  const arrived = await page.evaluate(id => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    return save.citizens.find(citizen => citizen.id === id);
+  }, citizenId);
+  expect(arrived.location).toEqual(destination);
+  expect(arrived.destination).toBeNull();
+  expect(arrived.activity).toBe('exploring the island');
+  expect(arrived.memory.at(-1).text).toContain('Reached');
+});
