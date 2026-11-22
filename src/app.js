@@ -49,6 +49,7 @@
     activeTab=name;
     document.querySelectorAll("[data-tab]").forEach(b=>{const on=b.dataset.tab===name;b.classList.toggle("active",on);b.setAttribute("aria-selected",String(on));});
     document.querySelectorAll(".tab-panel").forEach(p=>p.hidden=p.id!=="panel-"+name);
+    if(name==="world3d"){window.KingmakerWorld3D?.resume?.();if(state)window.KingmakerWorld3D?.update(state);}
   }
   const totalBuildings=()=>Object.values(state.buildings).reduce((a,b)=>a+b,0);
   function renderMetrics() {
