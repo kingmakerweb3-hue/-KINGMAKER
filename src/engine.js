@@ -287,12 +287,63 @@
   const CITIZEN_NAMES = ["Ari", "Mira", "Soren", "Nia", "Tarin", "Lena", "Oren", "Zara", "Kian", "Elia", "Ravi", "Noor", "Dara", "Ilan", "Sana", "Theo", "Amira", "Eren", "Milo", "Aya", "Ronan", "Iris", "Juno", "Kai"];
   function citizenSpawnLocation(index) {
     const angle = index * 2.399963229728653;
-    const radius = 2.8 + (index % 5) * 0.34;
+    // Keep the initial crowd outside the capital and the default building cluster.
+    const radius = 8.4 + (index % 4) * 0.32;
     return { x: Number((Math.cos(angle) * radius).toFixed(3)), z: Number((Math.sin(angle) * radius).toFixed(3)) };
   }
   function validCitizenPoint(point) {
     return !!point && typeof point === "object" && Number.isFinite(point.x) && Number.isFinite(point.z) &&
       Math.abs(point.x) <= 11.5 && Math.abs(point.z) <= 11.5 && Math.hypot(point.x, point.z) <= 11.5;
+  }
+  function citizenHomeObstacles(state) {
+    const obstacles = [{ x: 0, z: 0, radius: 1.3 }];
+    let index = 0;
+    for (const [type, countValue] of Object.entries(state.buildings || {})) {
+      const count = Math.min(18, Math.max(0, Number(countValue) || 0));
+      const savedItems = (state.world?.placedBuildings || []).filter(item => item.type === type);
+      for (let localIndex = 0; localIndex < count; localIndex++) {
+        const saved = savedItems[localIndex], angle = index * 2.399963, ring = 2.7 + Math.floor(index / 9) * 1.7;
+        const territoryId = saved?.territoryId || "home";
+        const x = Number.isFinite(saved?.x) ? saved.x : Math.cos(angle) * ring;
+        const z = Number.isFinite(saved?.z) ? saved.z : Math.sin(angle) * ring;
+        if (territoryId === "home") obstacles.push({ x, z, radius: type === "farm" ? 0.92 : type === "factory" ? 0.84 : 0.72 });
+        index++;
+      }
+    }
+    const home = (state.world?.territories || []).find(item => item.id === "home");
+    if (home?.garrison > 0) obstacles.push({ x: -home.radius * 0.13, z: home.radius * 0.12, radius: 0.52 });
+    if (home?.fortificationLevel > 0) {
+      const count = Math.min(6, home.fortificationLevel * 2), radius = home.radius * 0.52;
+      for (let i = 0; i < count; i++) {
+        const angle = (home.phase || 0) + i * Math.PI * 2 / count;
+        obstacles.push({ x: Math.cos(angle) * radius, z: Math.sin(angle) * radius, radius: 0.3 });
+      }
+    }
+    return obstacles;
+  }
+  function safeCitizenSpawnLocation(index, obstacles) {
+    for (let attempt = 0; attempt < 96; attempt++) {
+      const candidateIndex = index + attempt * 17;
+      const angle = candidateIndex * 2.399963229728653;
+      const radius = 8.4 + (candidateIndex % 4) * 0.32;
+      const point = { x: Number((Math.cos(angle) * radius).toFixed(3)), z: Number((Math.sin(angle) * radius).toFixed(3)) };
+      if (validCitizenPoint(point) && !obstacles.some(item => Math.hypot(point.x - item.x, point.z - item.z) < item.radius + 0.18)) return point;
+    }
+    return citizenSpawnLocation(index);
+  }
+  function repairCitizenLocations(state) {
+    const obstacles = citizenHomeObstacles(state);
+    const blocked = point => !!point && obstacles.some(item => Math.hypot(point.x - item.x, point.z - item.z) < item.radius + 0.18);
+    (state.citizens || []).forEach((citizen, index) => {
+      if (blocked(citizen.location)) citizen.location = safeCitizenSpawnLocation(index, obstacles);
+      if (blocked(citizen.destination)) {
+        citizen.destination = null;
+        if (citizen.activity === "walking to waypoint") {
+          citizen.activity = "working";
+          citizen.goal = "support community";
+        }
+      }
+    });
   }
   function createCitizens(population, seed) {
     const count = clamp(Math.ceil(population / 5), 12, 48);
@@ -507,6 +558,8 @@
       }
       if (territory.fortificationLevel === undefined) territory.fortificationLevel = territory.owner === "ironmarch" ? 1 : 0;
     }
+    // Older saves may have residents standing inside the initial building cluster.
+    repairCitizenLocations(normalized);
     if (normalized.world.resourceNodes === undefined) normalized.world.resourceNodes = createResourceDeposits(normalized.seed, normalized.world.territories);
     if (!Array.isArray(normalized.world.resourceNodes)) throw new Error("Resource deposit data is invalid.");
     normalized.world.resourceNodes.forEach(node => { if (node && node.territoryId === undefined) node.territoryId = "home"; });
