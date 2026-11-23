@@ -2463,3 +2463,13 @@ test("save validation resets malformed citizen navigation coordinates safely", (
   assert.deepEqual(normalized.citizens[0].location, Engine.createCitizens(100, state.seed)[0].location);
   assert.equal(normalized.citizens[1].destination, null);
 });
+
+test("save validation relocates residents trapped inside the initial building footprint", () => {
+  const state = Engine.createInitialState({ seed: 92006 });
+  state.citizens[0].location = { x: 2.8, z: 0 };
+  state.citizens[0].destination = null;
+  const repaired = Engine.validateSave(state);
+  const location = repaired.citizens[0].location;
+  assert.ok(Math.hypot(location.x - 2.7, location.z) >= 1.1);
+  assert.ok(Math.hypot(location.x, location.z) <= 11.5);
+});
