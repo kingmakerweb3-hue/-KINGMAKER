@@ -2,6 +2,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const C = require("../src/citizens.js");
+const Engine = require("../src/engine.js");
 
 test("population generation is deterministic and bounded", () => {
   const a=C.createPopulation(8,"alpha"), b=C.createPopulation(8,"alpha");
