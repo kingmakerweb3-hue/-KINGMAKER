@@ -60,3 +60,29 @@ test("home-island pathfinding prefers safe roads and rejects blocked or out-of-b
   assert.equal(C.findHomeIslandPath(start, { x: 0, z: 0 }, { obstacles }), null);
   assert.equal(C.findHomeIslandPath(start, { x: 12, z: 0 }), null);
 });
+
+test("a fresh resident can route from the safe spawn ring past the starting settlement", () => {
+  const state = Engine.createInitialState({ seed: 92007 });
+  const obstacles = [{ x: 0, z: 0, radius: 1.3 }];
+  let index = 0;
+  for (const [type, countValue] of Object.entries(state.buildings)) {
+    const count = Math.min(18, Math.max(0, Number(countValue) || 0));
+    for (let localIndex = 0; localIndex < count; localIndex++) {
+      const angle = index * 2.399963, ring = 2.7 + Math.floor(index / 9) * 1.7;
+      obstacles.push({
+        x: Math.cos(angle) * ring,
+        z: Math.sin(angle) * ring,
+        radius: type === "farm" ? 0.92 : type === "factory" ? 0.84 : 0.72
+      });
+      index++;
+    }
+  }
+  obstacles.push({ x: -1.95, z: 1.8, radius: 0.52 });
+  const citizen = state.citizens[0];
+  assert.ok(Math.hypot(citizen.location.x, citizen.location.z) > 8);
+  const path = C.findHomeIslandPath(citizen.location, { x: -10, z: 0 }, {
+    radius: 11.5, step: 0.5, clearance: 0.18, obstacles
+  });
+  assert.ok(Array.isArray(path) && path.length > 0);
+  assert.deepEqual(path.at(-1), { x: -10, z: 0 });
+});
