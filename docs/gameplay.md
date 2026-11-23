@@ -129,3 +129,9 @@ Counterattacks resolve over three battle rounds. The rival's assault strength us
 If the rival wins, the island and the transferable local population return to the former owner, its garrison is re-established from the surviving assault force, and shipping routes touching the island pause without discarding cargo in transit. If the player wins, the counterattack is marked repelled and its escaped force is exhausted. The player may also negotiate peace for 35 credits; this withdraws an active counterattack without changing ownership.
 
 Counterattack history is stored on the territory and active battles record their initiator and assault size. Save schema 18 validates these fields. Schema 17 and earlier campaigns migrate without inventing historical losses or counterattack forces.
+
+## Outer-island resident activity
+
+Every outer island renders a small, deterministic group of representative residents based on its local population. These agents use the island's generated terrain height and can be selected to open that island's territory inspector. Their count is a visual sample only: national and local population totals continue to come from the territory population records, so the rendered agents do not add or subtract population. Individual remote identities, needs, persistent movement orders and passenger transport between harbors are not implemented yet.
+
+Home-island residents spawn on a safe outer neighborhood ring. Save validation also relocates legacy residents if a saved position overlaps the capital, a building, a garrison installation or a fortification marker; an invalid blocked waypoint is cleared rather than leaving a resident unable to move.
