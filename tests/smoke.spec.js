@@ -529,6 +529,7 @@ test('home-island residents accept exploration waypoints and walk to saved desti
 test('outer islands render resident agents and selecting one opens its local territory inspector', async ({ page }) => {
   await page.locator('[data-tab="world3d"]').click();
   await expect.poll(() => page.evaluate(() => !!window.KingmakerWorld3D?.inspectRemoteResidents), { timeout: 15000 }).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.KingmakerWorld3D.inspectRemoteResidents().length), { timeout: 15000 }).toBeGreaterThanOrEqual(8);
   const agents = await page.evaluate(() => window.KingmakerWorld3D.inspectRemoteResidents());
   expect(agents.length).toBeGreaterThanOrEqual(8);
   expect(new Set(agents.map(agent => agent.territoryId)).size).toBe(8);
@@ -538,6 +539,7 @@ test('outer islands render resident agents and selecting one opens its local ter
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.locator('[data-tab="world3d"]').click();
   await expect.poll(() => page.evaluate(() => !!window.KingmakerWorld3D?.inspectRemoteResidents), { timeout: 15000 }).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.KingmakerWorld3D.inspectRemoteResidents().length), { timeout: 15000 }).toBeGreaterThanOrEqual(8);
   const restored = await page.evaluate(() => window.KingmakerWorld3D.inspectRemoteResidents());
   expect(restored.map(agent => [agent.id, agent.territoryId])).toEqual(agents.map(agent => [agent.id, agent.territoryId]));
 });
