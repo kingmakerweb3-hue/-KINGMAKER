@@ -152,3 +152,8 @@ The current ferry system moves aggregate resident headcounts. It does not yet pe
 ## Remote island exploration waypoints
 
 Remote resident identities are generated deterministically from the campaign seed and island records, then stored in `world.remoteCitizens`. A resident can receive an exploration order only while their island is player-controlled. Waypoints are constrained to the island's safe interior; pathfinding accounts for local building footprints, garrison and fortification markers, road preference and generated terrain height. Saves retain the last confirmed location and destination rather than a transient frame-by-frame path. On reload or after infrastructure changes, the route is recalculated. Completing a journey records a memory and updates the resident's local position without changing population headcounts. Schema 20 migrates older saves by creating deterministic representative resident records.
+
+
+## Remote resident wellbeing
+
+Saved representative residents on outer islands now update their food, shelter, safety, belonging and mood once per world turn. Their local conditions reflect the island's owner-controlled food reserves, residential/commercial districts, development, garrison and fortifications; rival residents use their own nation's food and stability rather than the player's reserves. Residents with an active exploration order keep that order while their needs update. If an island changes away from player control, an active player-issued waypoint is cleared safely. These named agents remain representative samples: their needs and memories do not add to or subtract from the island's aggregate population.
