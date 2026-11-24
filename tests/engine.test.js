@@ -2620,3 +2620,72 @@ test("schema 19 saves migrate deterministic remote resident records", () => {
   assert.ok(migrated.world.remoteCitizens.length >= 8);
   assert.deepEqual(Engine.migrateSave(JSON.parse(Engine.exportSave(migrated))).world.remoteCitizens, migrated.world.remoteCitizens);
 });
+
+
+test("remote island residents' wellbeing responds to food, housing, security and community services without changing population", () => {
+  const state = Engine.createInitialState({ seed: 93006 });
+  const territory = state.world.territories.find(item => item.owner === "unclaimed");
+  state.resources.materials = 1000;
+  state.resources.credits = 2000;
+  state.resources.influence = 100;
+  Engine.claimTerritory(state, territory.id);
+  const resident = state.world.remoteCitizens.find(item => item.territoryId === territory.id);
+  const nationalPopulation = state.nation.population;
+  const localPopulation = territory.population;
+
+  state.resources.food = 0;
+  territory.stockpile.food = 0;
+  territory.development = 10;
+  territory.garrison = 0;
+  territory.fortificationLevel = 0;
+  state.nation.stability = 20;
+  state.world.placedDistricts = [];
+  resident.needs = { food: 50, shelter: 50, safety: 50, belonging: 50 };
+  resident.destination = null;
+  Engine.updateRemoteCitizens(state);
+  assert.ok(resident.needs.food < 50);
+  assert.ok(resident.needs.shelter < 50);
+  assert.ok(resident.needs.safety < 50);
+  assert.ok(resident.needs.belonging < 50);
+  assert.ok(resident.mood < 50);
+  assert.equal(resident.activity, "seeking food");
+
+  state.resources.food = 100;
+  territory.stockpile.food = 100;
+  territory.development = 80;
+  territory.garrison = 2;
+  territory.fortificationLevel = 1;
+  state.nation.stability = 85;
+  state.world.placedDistricts = [
+    { type: "residential", territoryId: territory.id, x: territory.x, z: territory.z, radius: 2.6 },
+    { type: "commercial", territoryId: territory.id, x: territory.x + 1, z: territory.z, radius: 2.6 }
+  ];
+  resident.needs = { food: 50, shelter: 50, safety: 50, belonging: 50 };
+  resident.destination = { x: territory.x + 1, z: territory.z };
+  Engine.updateRemoteCitizens(state);
+  assert.ok(resident.needs.food > 50);
+  assert.ok(resident.needs.shelter > 50);
+  assert.ok(resident.needs.safety > 50);
+  assert.ok(resident.needs.belonging > 50);
+  assert.ok(resident.mood > 50);
+  assert.equal(resident.activity, "walking to waypoint");
+  assert.deepEqual(resident.destination, { x: territory.x + 1, z: territory.z });
+  assert.equal(state.nation.population, nationalPopulation);
+  assert.equal(territory.population, localPopulation);
+});
+
+test("remote residents use their own rival nation's food and stability signals", () => {
+  const state = Engine.createInitialState({ seed: 93007 });
+  const territory = state.world.territories.find(item => item.owner === "aurelia");
+  const resident = state.world.remoteCitizens.find(item => item.territoryId === territory.id);
+  const rival = state.rivals.aurelia;
+  state.resources.food = 0;
+  rival.resources.food = 100;
+  rival.stability = 85;
+  territory.garrison = 2;
+  territory.fortificationLevel = 1;
+  resident.needs = { food: 50, shelter: 50, safety: 50, belonging: 50 };
+  Engine.updateRemoteCitizens(state);
+  assert.ok(resident.needs.food > 50);
+  assert.ok(resident.needs.safety > 50);
+});
