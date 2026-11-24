@@ -490,6 +490,61 @@
       }
     }
   }
+
+  function updateRemoteCitizens(state) {
+    const territories = new Map((state.world?.territories || []).map(territory => [territory.id, territory]));
+    const districts = new Map();
+    for (const district of state.world?.placedDistricts || []) {
+      if (!district || !["residential", "commercial", "industrial", "agricultural"].includes(district.type)) continue;
+      const territoryId = district.territoryId || "home";
+      const counts = districts.get(territoryId) || { residential: 0, commercial: 0, industrial: 0, agricultural: 0 };
+      counts[district.type]++;
+      districts.set(territoryId, counts);
+    }
+    for (const citizen of state.world?.remoteCitizens || []) {
+      const territory = territories.get(citizen.territoryId);
+      if (!territory) continue;
+      const rival = territory.owner !== "player" && territory.owner !== "unclaimed" ? state.rivals?.[territory.owner] : null;
+      const local = districts.get(territory.id) || { residential: 0, commercial: 0, industrial: 0, agricultural: 0 };
+      const foodAvailable = (Number(territory.stockpile?.food) || 0) > 0 ||
+        (territory.owner === "player" ? state.resources.food > 0 : rival ? rival.resources.food > 0 : false);
+      const stability = territory.owner === "player" ? state.nation.stability : rival ? rival.stability : 50;
+      const housing = local.residential > 0 || territory.development >= 65;
+      const community = local.residential > 0 || local.commercial > 0 || territory.population >= 65;
+      const secure = (territory.garrison || 0) >= 2 || (territory.fortificationLevel || 0) > 0 || stability >= 70;
+
+      citizen.needs = citizen.needs && typeof citizen.needs === "object" ? citizen.needs : {};
+      citizen.needs.food = clamp((Number.isFinite(citizen.needs.food) ? citizen.needs.food : 70) + (foodAvailable ? 3 : -8), 0, 100);
+      citizen.needs.shelter = clamp((Number.isFinite(citizen.needs.shelter) ? citizen.needs.shelter : 65) + (housing ? 2 : -2), 0, 100);
+      citizen.needs.safety = clamp((Number.isFinite(citizen.needs.safety) ? citizen.needs.safety : 70) + (secure ? 2 : -4), 0, 100);
+      citizen.needs.belonging = clamp((Number.isFinite(citizen.needs.belonging) ? citizen.needs.belonging : 60) + (community ? 2 : -1), 0, 100);
+      citizen.mood = Math.round((citizen.needs.food + citizen.needs.shelter + citizen.needs.safety + citizen.needs.belonging) / 4);
+
+      if (territory.owner !== "player" && citizen.destination) {
+        citizen.destination = null;
+        citizen.memory = Array.isArray(citizen.memory) ? citizen.memory : [];
+        citizen.memory.push({ turn: state.turn, text: "Paused exploration after " + territory.name + " changed control." });
+        citizen.memory = citizen.memory.slice(-8);
+      }
+      const lowest = Object.keys(citizen.needs).sort((a, b) => citizen.needs[a] - citizen.needs[b])[0];
+      if (citizen.destination) {
+        citizen.activity = "walking to waypoint";
+        citizen.goal = "explore " + territory.name;
+      } else if (citizen.needs[lowest] < 35) {
+        citizen.activity = lowest === "food" ? "seeking food" : lowest === "shelter" ? "seeking shelter" : lowest === "safety" ? "seeking safety" : "meeting neighbors";
+        citizen.goal = "restore " + lowest;
+      } else {
+        citizen.activity = "working locally as " + String(citizen.role || "resident");
+        citizen.goal = "support local community";
+      }
+      if (state.turn % 5 === 0) {
+        citizen.memory = Array.isArray(citizen.memory) ? citizen.memory : [];
+        citizen.memory.push({ turn: state.turn, text: citizen.mood < 45 ? "Had a difficult day; local needs require attention." : "Contributed to daily life in " + territory.name + "." });
+        citizen.memory = citizen.memory.slice(-8);
+      }
+    }
+  }
+
   function createInitialState(options = {}) {
     const defaultSeed = Math.floor(Math.random() * 0xffffffff) || 1;
     const seed = safeInt(options.seed, defaultSeed, 0xffffffff) || defaultSeed;
@@ -2594,6 +2649,7 @@
     syncNationalPopulation(state);
     state.turn++;
     updateCitizens(state);
+    updateRemoteCitizens(state);
     const passengerTransport = processPassengerRoutes(state);
     state.creatorEconomy.royaltyTurn = state.turn;
     state.creatorEconomy.lastTurnRoyalties = 0;
@@ -2920,7 +2976,7 @@
   return {
     SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, SHIPPING_RESOURCES, INTERNATIONAL_TRADE_RESOURCES, INTERNATIONAL_TRADE_TARIFFS, STOCKPILE_LIMIT, PASSENGER_ROUTE_COST, PASSENGER_ROUTE_LIMIT, PASSENGER_ROUTE_UPKEEP, RENEWABLE_POWER_OUTPUT, GARRISON_RECRUIT_COST, MILITARY_UPKEEP_PER_UNIT, GARRISON_MANPOWER_PER_UNIT, MAX_FORTIFICATION_LEVEL, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, createCitizens, createRemoteCitizens, updateCitizens, assignCitizenDestination, completeCitizenJourney, assignRemoteCitizenDestination, completeRemoteCitizenJourney, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, garrisonCapacity, fortificationCost, territoryDefenseStrength, militaryEffects, recruitGarrison, buildFortification, developRivalMilitary, planRivalCounterattacks, COUNTERATTACK_WINDOW, COUNTERATTACK_COST, createShippingRoute, createInternationalTradeRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, passengerRouteCapacity, createPassengerRoute, passengerRouteEffects, processPassengerRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
+    createInitialState, validateSave, migrateSave, createCitizens, createRemoteCitizens, updateCitizens, updateRemoteCitizens, assignCitizenDestination, completeCitizenJourney, assignRemoteCitizenDestination, completeRemoteCitizenJourney, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, garrisonCapacity, fortificationCost, territoryDefenseStrength, militaryEffects, recruitGarrison, buildFortification, developRivalMilitary, planRivalCounterattacks, COUNTERATTACK_WINDOW, COUNTERATTACK_COST, createShippingRoute, createInternationalTradeRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, passengerRouteCapacity, createPassengerRoute, passengerRouteEffects, processPassengerRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects, nationalPopulationFor, syncNationalPopulation,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
