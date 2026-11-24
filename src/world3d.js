@@ -656,6 +656,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     if(!citizen)return false;
     let panel=document.getElementById("world3d-citizen-inspector");
     if(!panel){panel=document.createElement("aside");panel.id="world3d-citizen-inspector";panel.className="world3d-citizen-inspector";panel.setAttribute("aria-live","polite");host.appendChild(panel);}
+    panel.dataset.citizenId=String(citizen.id);
     const esc=value=>String(value??"").replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
     const needs=citizen.needs||{};
     const bars=Object.entries(needs).map(([key,value])=>'<div class="citizen-need"><span>'+esc(key)+'</span><b>'+Math.max(0,Math.min(100,Number(value)||0))+'%</b><i><em style="width:'+Math.max(0,Math.min(100,Number(value)||0))+'%"></em></i></div>').join("");
@@ -803,10 +804,12 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     if(!territory||territory.owner!=="player"||point.territoryId!==territoryId||Math.hypot(point.x-center.x,point.z-center.z)>radius)return false;
     const citizen=territoryId==="home"?(lastState?.citizens||[]).find(item=>item.id===selectedCitizenId):(lastState?.world?.remoteCitizens||[]).find(item=>item.id===selectedCitizenId);
     if(!citizen||!findCitizenPath(citizen.location,point,territoryId)){const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="No safe walking route reaches that point. Choose another open area.";return false;}
-    const citizenId=selectedCitizenId;exploreMode=false;selectedCitizenId=null;selectedCitizenTerritoryId=null;if(previewMarker)previewMarker.visible=false;
+    const citizenId=selectedCitizenId,detail={citizenId,territoryId,x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2)),accepted:false};
+    window.dispatchEvent(new CustomEvent("kingmaker:citizen-waypoint",{detail}));
+    if(detail.accepted!==true){const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="The resident could not accept that waypoint. Choose another open area.";return false;}
+    exploreMode=false;selectedCitizenId=null;selectedCitizenTerritoryId=null;if(previewMarker)previewMarker.visible=false;
     const cancel=document.getElementById("world3d-explore-cancel");if(cancel)cancel.hidden=true;if(renderer)renderer.domElement.style.cursor="grab";
-    const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Waypoint assigned. "+citizen.name+" is exploring "+territory.name+".";
-    window.dispatchEvent(new CustomEvent("kingmaker:citizen-waypoint",{detail:{citizenId,territoryId,x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2))}}));return true;
+    const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Waypoint assigned. "+citizen.name+" is exploring "+territory.name+".";return true;
   }
   function placeCitizenWaypoint(event){
     if(event.button!==0||!exploreMode||!selectedCitizenId)return;
@@ -840,7 +843,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   }
   function resize(){if(!renderer||!host.clientWidth)return;const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
   function animate(){
-    animationId=requestAnimationFrame(animate);const t=clock.getElapsedTime(),rawDelta=Math.max(0,t-lastAnimationTime),delta=Math.min(.05,rawDelta),movementDelta=Math.min(.6,rawDelta);lastAnimationTime=t;controls.update();
+    animationId=requestAnimationFrame(animate);const t=clock.getElapsedTime(),rawDelta=Math.max(0,t-lastAnimationTime),delta=Math.min(.05,rawDelta),movementDelta=delta;lastAnimationTime=t;controls.update();
     const daylight=THREE.MathUtils.clamp(Math.sin(t*.035)*.5+.5,0,1),nightSky=new THREE.Color(0x101d35),daySky=new THREE.Color(0x9bb8c7);scene.background.lerpColors(nightSky,daySky,daylight);if(auroraMesh){auroraMesh.material.uniforms.uTime.value=t;auroraMesh.material.uniforms.uDaylight.value=daylight;}if(starField)starField.material.opacity=Math.pow(1-daylight,1.7)*.92;if(moonObject)moonObject.material.opacity=Math.pow(1-daylight,1.5)*.88;if(scene.fog)scene.fog.color.copy(scene.background);sunLight.intensity=.22+daylight*3.15;sunLight.position.set(Math.cos(t*.035)*25,Math.max(3,Math.sin(t*.035)*28),14);sunLight.color.setRGB(1,.72+daylight*.2,.52+daylight*.42);
     if(waterMesh){const attr=waterMesh.geometry.attributes.position;for(let i=0;i<attr.count;i++){const x=waterPositions[i*3],z=waterPositions[i*3+2];attr.array[i*3+1]=waterPositions[i*3+1]+Math.sin(x*.32+t*.65)*.055+Math.cos(z*.27-t*.48)*.04;}attr.needsUpdate=true;waterMesh.geometry.computeVertexNormals();}
     cloudGroup.children.forEach((cloud,i)=>{cloud.position.x+=.0012+Math.sin(t*.025+i)*.0005;if(cloud.position.x>24)cloud.position.x=-24;});
@@ -898,6 +901,8 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   }
   function update(state){
     if(!state)return;lastState=state;
+    const citizenPanel=document.getElementById("world3d-citizen-inspector");
+    if(citizenPanel?.dataset.citizenId){const id=citizenPanel.dataset.citizenId,citizen=(state.citizens||[]).find(item=>item.id===id)||(state.world?.remoteCitizens||[]).find(item=>item.id===id);if(citizen)showCitizenInspector(citizen);else citizenPanel.remove();}
     const nextNavigationSignature=navigationSignatureFor(state),navigationChanged=nextNavigationSignature!==navigationSignature;
     navigationSignature=nextNavigationSignature;
     syncCitizenPopulation(state.citizens||[],navigationChanged);
@@ -925,7 +930,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   }
   function handleVisibilityChange(){
     if(document.hidden){cancelAnimationFrame(animationId);animationId=0;return;}
-    if(renderer&&!animationId)animate();
+    if(renderer&&!animationId){lastAnimationTime=clock?clock.getElapsedTime():0;animate();}
   }
   document.addEventListener("visibilitychange",handleVisibilityChange);
   function dispose(){cancelAnimationFrame(animationId);animationId=0;document.removeEventListener("visibilitychange",handleVisibilityChange);resizeObserver?.disconnect();renderer?.dispose();controls?.dispose();}
