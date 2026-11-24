@@ -394,7 +394,7 @@ test('home-island garrison recruitment and fortification persist in the military
     return { schemaVersion: state.schemaVersion, garrison: home.garrison, fortificationLevel: home.fortificationLevel,
       military: window.KingmakerEngine.economicSnapshot(state).military };
   });
-  expect(saved.schemaVersion).toBe(19);
+  expect(saved.schemaVersion).toBe(20);
   expect(saved.garrison).toBe(setup.initialGarrison + 1);
   expect(saved.fortificationLevel).toBe(1);
   expect(saved.military.units).toBe(setup.initialGarrison + 1);
