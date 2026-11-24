@@ -394,7 +394,7 @@ test('home-island garrison recruitment and fortification persist in the military
     return { schemaVersion: state.schemaVersion, garrison: home.garrison, fortificationLevel: home.fortificationLevel,
       military: window.KingmakerEngine.economicSnapshot(state).military };
   });
-  expect(saved.schemaVersion).toBe(18);
+  expect(saved.schemaVersion).toBe(19);
   expect(saved.garrison).toBe(setup.initialGarrison + 1);
   expect(saved.fortificationLevel).toBe(1);
   expect(saved.military.units).toBe(setup.initialGarrison + 1);
@@ -542,4 +542,66 @@ test('outer islands render resident agents and selecting one opens its local ter
   await expect.poll(() => page.evaluate(() => window.KingmakerWorld3D.inspectRemoteResidents().length), { timeout: 15000 }).toBeGreaterThanOrEqual(8);
   const restored = await page.evaluate(() => window.KingmakerWorld3D.inspectRemoteResidents());
   expect(restored.map(agent => [agent.id, agent.territoryId])).toEqual(agents.map(agent => [agent.id, agent.territoryId]));
+});
+
+
+test('passenger ferries carry local residents between claimed harbors and persist deliveries', async ({ page }) => {
+  const setup = await page.evaluate(() => {
+    const E = window.KingmakerEngine;
+    const state = E.createInitialState({ seed: 881904 });
+    const [source, destination] = state.world.territories.filter(item => item.owner === 'unclaimed');
+    state.resources.materials = 2000;
+    state.resources.credits = 3000;
+    state.resources.influence = 500;
+    state.resources.food = 1000;
+    state.resources.power = 1000;
+    state.nation.stability = 100;
+    E.claimTerritory(state, source.id);
+    E.claimTerritory(state, destination.id);
+    E.upgradeHarbor(state, source.id);
+    E.upgradeHarbor(state, destination.id);
+    source.population = 45;
+    destination.population = 20;
+    E.syncNationalPopulation(state);
+    localStorage.setItem('kingmaker_save_v1', E.exportSave(state));
+    return { sourceId: source.id, destinationId: destination.id, sourcePopulation: source.population, destinationPopulation: destination.population };
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="world3d"]').click();
+  await page.evaluate(id => window.dispatchEvent(new CustomEvent('kingmaker:inspect-territory', { detail: { id } })), setup.sourceId);
+  const inspector = page.locator('#world3d-territory-inspector');
+  await expect(inspector).toContainText('Passenger ferry network');
+  await inspector.locator('#passenger-destination').selectOption(setup.destinationId);
+  await inspector.locator('[data-action="create-passenger-route"]').click();
+  const created = await page.evaluate(() => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.passengerRoutes[0]);
+  expect(created.sourceId).toBe(setup.sourceId);
+  expect(created.destinationId).toBe(setup.destinationId);
+  expect(created.capacity).toBe(12);
+  expect(created.status).toBe('active');
+  await page.locator('#advance-turn').click();
+  const loaded = await page.evaluate(() => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    const route = save.world.passengerRoutes[0];
+    const landPopulation = save.world.territories.filter(item => item.owner === 'player').reduce((sum, item) => sum + item.population, 0);
+    return { route, source: save.world.territories.find(item => item.id === route.sourceId), nationPopulation: save.nation.population, landPopulation };
+  });
+  expect(loaded.route.inTransit.passengers).toBeGreaterThan(0);
+  expect(loaded.source.population).toBeLessThan(setup.sourcePopulation);
+  expect(loaded.nationPopulation).toBe(loaded.landPopulation + loaded.route.inTransit.passengers);
+  await expect.poll(() => page.evaluate(() => window.KingmakerWorld3D.inspectPassengerFerries().length)).toBeGreaterThan(0);
+  for (let turn = 0; turn < created.travelTurns; turn++) await page.locator('#advance-turn').click();
+  const delivered = await page.evaluate(() => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    const route = save.world.passengerRoutes[0];
+    return { route, destination: save.world.territories.find(item => item.id === route.destinationId),
+      nationalPopulation: save.nation.population, landPopulation: save.world.territories.filter(item => item.owner === 'player').reduce((sum, item) => sum + item.population, 0) };
+  });
+  expect(delivered.route.inTransit).toBeNull();
+  expect(delivered.route.deliveredTotal).toBeGreaterThan(0);
+  expect(delivered.destination.population).toBeGreaterThan(setup.destinationPopulation);
+  expect(delivered.nationalPopulation).toBe(delivered.landPopulation);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="world3d"]').click();
+  await page.evaluate(id => window.dispatchEvent(new CustomEvent('kingmaker:inspect-territory', { detail: { id } })), setup.sourceId);
+  await expect(page.locator('#world3d-territory-inspector')).toContainText('delivered');
 });

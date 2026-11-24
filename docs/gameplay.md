@@ -135,3 +135,15 @@ Counterattack history is stored on the territory and active battles record their
 Every outer island renders a small, deterministic group of representative residents based on its local population. These agents use the island's generated terrain height and can be selected to open that island's territory inspector. Their count is a visual sample only: national and local population totals continue to come from the territory population records, so the rendered agents do not add or subtract population. Individual remote identities, needs, persistent movement orders and passenger transport between harbors are not implemented yet.
 
 Home-island residents spawn on a safe outer neighborhood ring. Save validation also relocates legacy residents if a saved position overlaps the capital, a building, a garrison installation or a fortification marker; an invalid blocked waypoint is cleared rather than leaving a resident unable to move.
+
+
+## Passenger ferry network
+
+- Open a one-way ferry route between two player-controlled islands with operational harbors for 30 materials and 45 credits.
+- Harbor levels determine convoy capacity: level 1 supports 12 passengers, level 2 supports 18, and level 3 supports 24.
+- Travel time follows the same distance model as cargo shipping. Integrated Logistics shortens journeys and reduces route upkeep from 2 credits to 1 credit per turn.
+- A convoy loads residents above the source island's garrison manpower reserve and one-person local minimum. Passengers remain included in national population while at sea; delivery transfers them into the destination island's local population without creating or destroying headcount.
+- If a port is captured during a journey, the route pauses for new departures and the existing passengers divert to the surviving player-controlled endpoint. If neither endpoint remains player-controlled, passengers remain safely recorded in transit until a port becomes available.
+- Ferry routes, passenger manifests, travel timers and delivery totals persist in save schema 19. Schema 18 and older saves migrate with an empty passenger network.
+
+The current ferry system moves aggregate resident headcounts. It does not yet persist named individual citizens or simulate per-person boarding animations.

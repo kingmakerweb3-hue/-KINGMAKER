@@ -5,12 +5,13 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   "use strict";
   const host=document.getElementById("world3d-viewport");
   if(!host)return;
-  let scene,camera,renderer,controls,sunLight,starField,moonObject,auroraMesh,landGroup,buildingGroup,peopleGroup,remotePeopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup,resourceGroup,territoryGroup,shippingGroup,cloudGroup,harborGroup,cargoShip,lighthouseBeacon,windFarmGroup,solarFarmGroup,waterMesh,waterPositions,terrainMesh;
+  let scene,camera,renderer,controls,sunLight,starField,moonObject,auroraMesh,landGroup,buildingGroup,peopleGroup,remotePeopleGroup,roadGroup,playerRoadGroup,districtGroup,trafficGroup,resourceGroup,territoryGroup,shippingGroup,passengerGroup,cloudGroup,harborGroup,cargoShip,lighthouseBeacon,windFarmGroup,solarFarmGroup,waterMesh,waterPositions,terrainMesh;
   const trafficVehicles=[];
   const shippingVessels=[];
+  const passengerVessels=[];
   const windTurbineRotors=[];
   const solarTrackers=[];
-  let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,exploreMode=false,selectedCitizenId=null,raycaster,groundPlane,previewMarker,placementPointer=null,territorySignature="",shippingSignature="",navigationSignature="",remoteResidentSignature="",worldFitted=false,waypointGroup,lastAnimationTime=0;
+  let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,exploreMode=false,selectedCitizenId=null,raycaster,groundPlane,previewMarker,placementPointer=null,territorySignature="",shippingSignature="",passengerSignature="",navigationSignature="",remoteResidentSignature="",worldFitted=false,waypointGroup,lastAnimationTime=0;
   const COLORS={farm:0xc6a35d,mine:0x78838d,workshop:0x9c7652,factory:0x697b8e,transport:0x9b9b8b,market:0xc49b52,academy:0x8b80b8,power:0x75b9c9,housing:0xd6c5a3};
   const material=(color,roughness=.86)=>new THREE.MeshStandardMaterial({color,roughness});
   const boxGeo=new THREE.BoxGeometry(1,1,1);
@@ -248,6 +249,38 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
       shippingGroup.add(vessel);
       shippingVessels.push({mesh:vessel,curve,phase:index*.31,speed:.018+Math.min(.012,1/Math.max(1,route.travelTurns)*.012)});
     });
+  }
+  function syncPassengerRoutes(routes,territories){
+    if(!passengerGroup||!Array.isArray(routes))return;
+    const signature=routes.map(route=>[route.id,route.sourceId,route.destinationId,route.status,route.capacity,route.travelTurns,route.inTransit?.passengers||0,route.inTransit?.remainingTurns||0,route.inTransit?.returning?1:0].join(":")).join("|");
+    if(signature===passengerSignature)return;
+    clearGroup(passengerGroup);passengerVessels.length=0;passengerSignature=signature;
+    const byId=new Map((territories||[]).map(territory=>[territory.id,territory]));
+    routes.filter(route=>route.status==="active").forEach((route,index)=>{
+      const source=byId.get(route.sourceId),destination=byId.get(route.destinationId);
+      if(!source||!destination||source.owner!=="player"||destination.owner!=="player"||source.harborLevel<1||destination.harborLevel<1)return;
+      const distance=Math.hypot(destination.x-source.x,destination.z-source.z);
+      const curve=new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(source.x,.5,source.z),
+        new THREE.Vector3((source.x+destination.x)/2,2.2+distance*.06,(source.z+destination.z)/2),
+        new THREE.Vector3(destination.x,.5,destination.z)
+      );
+      const line=new THREE.Mesh(new THREE.TubeGeometry(curve,48,.045,6,false),new THREE.MeshStandardMaterial({color:0x7fd8c7,emissive:0x2c8879,emissiveIntensity:.28,transparent:true,opacity:.72,roughness:.42}));
+      line.userData.passengerRouteId=route.id;passengerGroup.add(line);
+      const ferry=new THREE.Group();
+      const hull=new THREE.Mesh(new THREE.BoxGeometry(.62,.22,1.2),material(0x315d67,.48));hull.position.y=0;ferry.add(hull);
+      const deck=new THREE.Mesh(new THREE.BoxGeometry(.54,.1,.92),material(0x9b805c));deck.position.y=.15;ferry.add(deck);
+      const cabin=new THREE.Mesh(new THREE.BoxGeometry(.36,.34,.42),material(0xe8e2d3,.72));cabin.position.set(0,.36,-.18);ferry.add(cabin);
+      const windowMat=material(0x6ca8b1,.35);
+      for(const side of [-1,1]){const windowMesh=new THREE.Mesh(new THREE.BoxGeometry(.035,.12,.2),windowMat);windowMesh.position.set(side*.19,.39,-.18);ferry.add(windowMesh);}
+      const passengerMat=material(0xffd98a,.62);
+      for(let seat=0;seat<3;seat++){const passenger=new THREE.Mesh(new THREE.SphereGeometry(.075,8,6),passengerMat);passenger.position.set((seat-1)*.14,.28,.2);ferry.add(passenger);}
+      passengerGroup.add(ferry);
+      passengerVessels.push({mesh:ferry,curve,phase:index*.23,speed:.018+Math.min(.01,1/Math.max(1,route.travelTurns)*.01),routeId:route.id,passengers:route.inTransit?.passengers||0});
+    });
+  }
+  function inspectPassengerFerries(){
+    return passengerVessels.map(vessel=>({routeId:vessel.routeId,passengers:vessel.passengers,position:{x:Number(vessel.mesh.position.x.toFixed(2)),z:Number(vessel.mesh.position.z.toFixed(2))}}));
   }
   function makeDistrict(d){
     const surface=(x,z)=>heightAtWorld(x,z,d.territoryId||"home");
@@ -615,7 +648,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     for(let ring=0;ring<=waterRings;ring++){const radius=42*ring/waterRings;for(let seg=0;seg<=waterSegments;seg++){const angle=seg/waterSegments*Math.PI*2;waterVerts.push(Math.cos(angle)*radius,-.5,Math.sin(angle)*radius);if(ring<waterRings&&seg<waterSegments){const a=ring*(waterSegments+1)+seg,b=a+1,c=a+waterSegments+1,d=c+1;waterIndices.push(a,c,b,b,c,d);}}}
     waterGeo.setAttribute("position",new THREE.Float32BufferAttribute(waterVerts,3));waterGeo.setIndex(waterIndices);waterGeo.computeVertexNormals();
     waterMesh=new THREE.Mesh(waterGeo,new THREE.MeshPhysicalMaterial({color:0x286b80,roughness:.23,metalness:.12,clearcoat:.8,clearcoatRoughness:.16,transparent:true,opacity:.94,side:THREE.DoubleSide}));scene.add(waterMesh);waterPositions=waterMesh.geometry.attributes.position.array.slice();
-    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();remotePeopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();territoryGroup=new THREE.Group();shippingGroup=new THREE.Group();cloudGroup=new THREE.Group();waypointGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,territoryGroup,shippingGroup,buildingGroup,peopleGroup,remotePeopleGroup,trafficGroup,cloudGroup,waypointGroup);createHarbor();createCoastalLighthouse();createWindFarm();createSolarFarm();createPowerNetwork();
+    landGroup=new THREE.Group();buildingGroup=new THREE.Group();peopleGroup=new THREE.Group();remotePeopleGroup=new THREE.Group();roadGroup=new THREE.Group();playerRoadGroup=new THREE.Group();districtGroup=new THREE.Group();trafficGroup=new THREE.Group();resourceGroup=new THREE.Group();territoryGroup=new THREE.Group();shippingGroup=new THREE.Group();passengerGroup=new THREE.Group();cloudGroup=new THREE.Group();waypointGroup=new THREE.Group();scene.add(landGroup,roadGroup,districtGroup,playerRoadGroup,resourceGroup,territoryGroup,shippingGroup,passengerGroup,buildingGroup,peopleGroup,remotePeopleGroup,trafficGroup,cloudGroup,waypointGroup);createHarbor();createCoastalLighthouse();createWindFarm();createSolarFarm();createPowerNetwork();
     const n=176,verts=[],indices=[],colors=[];
     for(let iz=0;iz<=n;iz++)for(let ix=0;ix<=n;ix++){
       const x=(ix/n-.5)*30,z=(iz/n-.5)*30,d=Math.hypot(x,z),y=heightAt(x,z);verts.push(x,y,z);
@@ -919,7 +952,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
             window.dispatchEvent(new CustomEvent("kingmaker:citizen-arrived",{detail:{citizenId:p.userData.citizenId,x:destination.x,z:destination.z}}));
           }
         }else{
-          const step=Math.min(distance,delta*2.2);p.position.x+=dx/distance*step;p.position.z+=dz/distance*step;heading=Math.atan2(dx,dz);moving=true;
+          const step=Math.min(distance,delta*3.6);p.position.x+=dx/distance*step;p.position.z+=dz/distance*step;heading=Math.atan2(dx,dz);moving=true;
         }
       }else{
         const location=p.userData.syncedLocation||{x:0,z:0},a=t*(.12+.05*p.userData.walkFactor)+p.userData.phase;
@@ -942,6 +975,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     trafficVehicles.forEach(v=>{const p=(t*v.speed+v.phase)%1;const x=v.a.x+(v.b.x-v.a.x)*p,z=v.a.z+(v.b.z-v.a.z)*p;v.mesh.position.set(x,heightAt(x,z)+.055,z);v.mesh.rotation.y=Math.atan2(v.b.x-v.a.x,v.b.z-v.a.z);});
     if(cargoShip){cargoShip.position.x=12.1+Math.sin(t*.12)*.42;cargoShip.position.z=12.4+Math.cos(t*.12)*.32;cargoShip.position.y=-.13+Math.sin(t*1.35)*.045;cargoShip.rotation.y=.75+Math.sin(t*.12)*.035;}
     shippingVessels.forEach(vessel=>{const progress=(t*vessel.speed+vessel.phase)%1,point=vessel.curve.getPointAt(progress),tangent=vessel.curve.getTangentAt(progress);vessel.mesh.position.copy(point);vessel.mesh.position.y+=Math.sin(t*1.8+vessel.phase)*.035;vessel.mesh.rotation.y=Math.atan2(tangent.x,tangent.z);});
+    passengerVessels.forEach(vessel=>{const progress=(t*vessel.speed+vessel.phase)%1,point=vessel.curve.getPointAt(progress),tangent=vessel.curve.getTangentAt(progress);vessel.mesh.position.copy(point);vessel.mesh.position.y+=Math.sin(t*1.6+vessel.phase)*.035;vessel.mesh.rotation.y=Math.atan2(tangent.x,tangent.z);});
     if(lighthouseBeacon)lighthouseBeacon.rotation.y=-t*.42;
     windTurbineRotors.forEach(({rotor,phase,speed})=>{rotor.rotation.z=t*speed+phase;});
     solarTrackers.forEach(({rack,phase})=>{rack.rotation.z=Math.sin(t*.025+phase)*.018;});
@@ -958,10 +992,11 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const stats=document.getElementById("world3d-stats");
     const residents=Array.isArray(state.citizens)?state.citizens:[];
     const averageMood=residents.length?Math.round(residents.reduce((sum,c)=>sum+(Number(c.mood)||0),0)/residents.length):0;
-    const zones=state.world?.placedDistricts||[];const zoneCount=zones.length;const territories=state.world?.territories||[];const unclaimed=territories.filter(t=>t.owner==="unclaimed").length;const deposits=state.world?.resourceNodes||[];const activeSites=deposits.filter(n=>n.operational&&!n.depleted).length;const undevelopedSites=deposits.filter(n=>!n.operational&&!n.depleted).length;const exhaustedSites=deposits.filter(n=>n.depleted).length;if(stats)stats.innerHTML=[["Citizens",state.nation.population],["3D Agents",residents.length+" · "+averageMood+"% mood"],["Outer-island agents",(remotePeopleGroup?.children.length||0)+" visible"],["Infrastructure",total+" levels"],["Districts",zoneCount+" zones"],["Resource sites",activeSites+" active · "+undevelopedSites+" undeveloped"],["Exhausted deposits",exhaustedSites+" · "+deposits.length+" total"],["Traffic",trafficVehicles.length+" vehicles"],["Stability",state.nation.stability+"%"],["Archipelago",territories.length+" islands · "+unclaimed+" unclaimed"],["Shipping",(state.world?.shippingRoutes||[]).filter(route=>route.status==="active").length+" active routes"],["Garrisons",territories.reduce((sum,t)=>sum+(t.garrison||0),0)+" units"],["Fortifications",territories.reduce((sum,t)=>sum+(t.fortificationLevel||0),0)+" levels"]].map(([label,value])=>'<div class="world3d-stat"><b>'+String(value).replace(/[&<>]/g,"") +'</b><small>'+label+'</small></div>').join("");
+    const zones=state.world?.placedDistricts||[];const zoneCount=zones.length;const territories=state.world?.territories||[];const unclaimed=territories.filter(t=>t.owner==="unclaimed").length;const deposits=state.world?.resourceNodes||[];const activeSites=deposits.filter(n=>n.operational&&!n.depleted).length;const undevelopedSites=deposits.filter(n=>!n.operational&&!n.depleted).length;const exhaustedSites=deposits.filter(n=>n.depleted).length;if(stats)stats.innerHTML=[["Citizens",state.nation.population],["3D Agents",residents.length+" · "+averageMood+"% mood"],["Outer-island agents",(remotePeopleGroup?.children.length||0)+" visible"],["Passenger ferries",(state.world?.passengerRoutes||[]).filter(route=>route.status==="active").length+" active"],["Infrastructure",total+" levels"],["Districts",zoneCount+" zones"],["Resource sites",activeSites+" active · "+undevelopedSites+" undeveloped"],["Exhausted deposits",exhaustedSites+" · "+deposits.length+" total"],["Traffic",trafficVehicles.length+" vehicles"],["Stability",state.nation.stability+"%"],["Archipelago",territories.length+" islands · "+unclaimed+" unclaimed"],["Shipping",(state.world?.shippingRoutes||[]).filter(route=>route.status==="active").length+" active routes"],["Garrisons",territories.reduce((sum,t)=>sum+(t.garrison||0),0)+" units"],["Fortifications",territories.reduce((sum,t)=>sum+(t.fortificationLevel||0),0)+" levels"]].map(([label,value])=>'<div class="world3d-stat"><b>'+String(value).replace(/[&<>]/g,"") +'</b><small>'+label+'</small></div>').join("");
     syncTerritories(territories);
     syncRemoteResidentPopulation(territories);
     syncShippingRoutes(state.world?.shippingRoutes||[],territories);
+    syncPassengerRoutes(state.world?.passengerRoutes||[],territories);
     if(!buildingGroup)return;
     clearGroup(buildingGroup);clearGroup(playerRoadGroup);clearGroup(districtGroup);clearGroup(trafficGroup);clearGroup(resourceGroup);trafficVehicles.length=0;
     const roads=state.world?.placedRoads||[];roads.forEach((road,i)=>{const territoryId=road.territoryId||"home";makePlayerRoad(road.from,road.to,territoryId);if(territoryId==="home"&&i<30){makeTrafficVehicle(road.from,road.to,i*2);makeTrafficVehicle(road.to,road.from,i*2+1);}});
@@ -980,6 +1015,6 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   document.addEventListener("visibilitychange",handleVisibilityChange);
   function dispose(){cancelAnimationFrame(animationId);animationId=0;document.removeEventListener("visibilitychange",handleVisibilityChange);resizeObserver?.disconnect();renderer?.dispose();controls?.dispose();}
   window.addEventListener("pagehide",dispose,{once:true});
-  try{createScene();window.KingmakerWorld3D={update,resume,selectBuilding,setCitizenWaypointMode,cancelCitizenWaypointMode,commitCitizenWaypoint,inspectCitizenById,inspectCitizenPath,inspectRemoteResidents,inspectRemoteResidentById};window.dispatchEvent(new Event("kingmaker:world3d-ready"));if(lastState)update(lastState);}
+  try{createScene();window.KingmakerWorld3D={update,resume,selectBuilding,setCitizenWaypointMode,cancelCitizenWaypointMode,commitCitizenWaypoint,inspectCitizenById,inspectCitizenPath,inspectRemoteResidents,inspectRemoteResidentById,inspectPassengerFerries};window.dispatchEvent(new Event("kingmaker:world3d-ready"));if(lastState)update(lastState);}
   catch(error){host.innerHTML='<div class="world3d-loading">3D world could not initialize. Try a browser with WebGL enabled.</div>';const status=document.getElementById("world3d-status");if(status)status.textContent="3D ENGINE UNAVAILABLE";console.error("KINGMAKER 3D:",error);}
 })();

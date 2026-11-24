@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 18;
+  const SAVE_VERSION = 19;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -39,6 +39,9 @@
   const INTERNATIONAL_TRADE_RESOURCES = Object.freeze(["food", "materials", "ore", "power"]);
   const INTERNATIONAL_TRADE_TARIFFS = Object.freeze([0, 5, 10, 15, 20]);
   const STOCKPILE_LIMIT = 500;
+  const PASSENGER_ROUTE_COST = Object.freeze({ materials: 30, credits: 45 });
+  const PASSENGER_ROUTE_LIMIT = 30;
+  const PASSENGER_ROUTE_UPKEEP = Object.freeze({ standard: 2, logistics: 1 });
   const GARRISON_RECRUIT_COST = Object.freeze({ materials: 12, ore: 6, credits: 20 });
   const MILITARY_UPKEEP_PER_UNIT = 1;
   const GARRISON_MANPOWER_PER_UNIT = 10;
@@ -498,7 +501,7 @@
       campaign: { id: campaignId, completedObjectives: [], status: "active", phaseIndex: 0, buildingStart: 6, progress: { tradeVolume: 0, agreementsSigned: 0, crisesSurvived: 0, peacefulDisputes: 0 } },
       achievements: [], creations: [], events: [{ id: "history-1-0", turn: 1, text: "Your civilization was founded. The first chapter begins.", type: "milestone", details: { summary: "A new campaign begins with a developing economy and six neighboring nations.", affectedNationIds: ["player"] } }],
       creatorEconomy: { nextAdoptionId: 1, publications: [], commissions: [], adoptions: [], totalRoyalties: 0, royaltyTurn: 1, lastTurnRoyalties: 0 },
-      world: { nextEventId: 1, activeEvents: [], processedEventIds: [], placedBuildings: [], placedRoads: [], placedDistricts: [], territories, resourceNodes: createResourceDeposits(seed, territories), shippingRoutes: [] },
+      world: { nextEventId: 1, activeEvents: [], processedEventIds: [], placedBuildings: [], placedRoads: [], placedDistricts: [], territories, resourceNodes: createResourceDeposits(seed, territories), shippingRoutes: [], passengerRoutes: [] },
       status: "playing"
     };
     if (campaignId === "longwinter") {
@@ -545,6 +548,8 @@
     if (!Array.isArray(normalized.world.territories)) throw new Error("Territory data is invalid.");
     if (normalized.world.shippingRoutes === undefined) normalized.world.shippingRoutes = [];
     if (!Array.isArray(normalized.world.shippingRoutes)) throw new Error("Shipping route data is invalid.");
+    if (normalized.world.passengerRoutes === undefined) normalized.world.passengerRoutes = [];
+    if (!Array.isArray(normalized.world.passengerRoutes)) throw new Error("Passenger route data is invalid.");
     normalized.world.shippingRoutes.forEach(route => {
       if (route && route.ownerId === undefined) route.ownerId = "player";
     });
@@ -631,7 +636,10 @@
     if (!homeTerritory || homeTerritory.owner !== "player" || homeTerritory.x !== 0 || homeTerritory.z !== 0 || homeTerritory.harborLevel < 1) throw new Error("Home territory data is invalid.");
     const ownedPopulation = normalized.world.territories.filter(territory => territory.owner === "player")
       .reduce((sum, territory) => sum + territory.population, 0);
-    if (ownedPopulation < 1 || ownedPopulation > RESOURCE_LIMIT || normalized.nation.population !== ownedPopulation) {
+    const passengerPopulation = normalized.world.passengerRoutes.reduce((sum, route) =>
+      sum + safeInt(route?.inTransit?.passengers, 0, RESOURCE_LIMIT), 0);
+    if (ownedPopulation + passengerPopulation < 1 || ownedPopulation + passengerPopulation > RESOURCE_LIMIT ||
+        normalized.nation.population !== ownedPopulation + passengerPopulation) {
       throw new Error("National population does not match player-controlled territories.");
     }
     const territoryById = new Map(normalized.world.territories.map(territory => [territory.id, territory]));
@@ -671,6 +679,30 @@
       routeIds.add(route.id);
       return false;
     })) throw new Error("Shipping route data is invalid.");
+    const passengerRouteIds = new Set();
+    const passengerRoutePairs = new Set();
+    if (normalized.world.passengerRoutes.length > PASSENGER_ROUTE_LIMIT || normalized.world.passengerRoutes.some(route => {
+      if (!route) return true;
+      const source = territoryById.get(route.sourceId), destination = territoryById.get(route.destinationId);
+      const pair = route.sourceId + ">" + route.destinationId;
+      if (typeof route.id !== "string" || !route.id || route.id.length > 64 || passengerRouteIds.has(route.id) ||
+          !source || !destination || route.sourceId === route.destinationId || passengerRoutePairs.has(pair) ||
+          !["active", "paused"].includes(route.status) ||
+          (route.status === "active" && (source.owner !== "player" || destination.owner !== "player" || source.harborLevel < 1 || destination.harborLevel < 1)) ||
+          !Number.isInteger(route.capacity) || route.capacity < 12 || route.capacity > 24 ||
+          !Number.isInteger(route.travelTurns) || route.travelTurns < 1 || route.travelTurns > 5 ||
+          !Number.isInteger(route.createdTurn) || route.createdTurn < 1 || route.createdTurn > normalized.turn ||
+          !Number.isInteger(route.loadedTotal) || route.loadedTotal < 0 || route.loadedTotal > RESOURCE_LIMIT ||
+          !Number.isInteger(route.deliveredTotal) || route.deliveredTotal < 0 || route.deliveredTotal > RESOURCE_LIMIT ||
+          (route.lastLoadedTurn !== null && (!Number.isInteger(route.lastLoadedTurn) || route.lastLoadedTurn < route.createdTurn || route.lastLoadedTurn > normalized.turn)) ||
+          (route.lastDeliveredTurn !== null && (!Number.isInteger(route.lastDeliveredTurn) || route.lastDeliveredTurn < route.createdTurn || route.lastDeliveredTurn > normalized.turn)) ||
+          (route.inTransit !== null && (!route.inTransit || !Number.isInteger(route.inTransit.passengers) || route.inTransit.passengers < 1 || route.inTransit.passengers > route.capacity ||
+            !Number.isInteger(route.inTransit.remainingTurns) || route.inTransit.remainingTurns < 1 || route.inTransit.remainingTurns > route.travelTurns ||
+            (route.inTransit.returning !== undefined && typeof route.inTransit.returning !== "boolean")))) return true;
+      passengerRouteIds.add(route.id);
+      passengerRoutePairs.add(pair);
+      return false;
+    })) throw new Error("Passenger ferry route data is invalid.");
     const placementLimit = (territory, margin = 0.75) => territory.id === "home" ? 13.2 : Math.max(1, territory.radius - margin);
     const pointIsInside = (territory, x, z, margin = 0.75) =>
       Math.hypot(x - territory.x, z - territory.z) <= placementLimit(territory, margin);
@@ -818,7 +850,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -1089,8 +1121,11 @@
   function nationalPopulationFor(state) {
     const territories = state.world?.territories;
     if (!Array.isArray(territories)) return safeInt(state.nation?.population, 1, RESOURCE_LIMIT) || 1;
-    return territories.filter(territory => territory?.owner === "player")
+    const onLand = territories.filter(territory => territory?.owner === "player")
       .reduce((sum, territory) => sum + safeInt(territory.population, 0, RESOURCE_LIMIT), 0);
+    const atSea = (state.world?.passengerRoutes || []).reduce((sum, route) =>
+      sum + safeInt(route?.inTransit?.passengers, 0, RESOURCE_LIMIT), 0);
+    return Math.min(RESOURCE_LIMIT, onLand + atSea);
   }
   function syncNationalPopulation(state) {
     for (const territory of state.world?.territories || []) {
@@ -1125,6 +1160,15 @@
       territory.population -= loss;
       remaining -= loss;
       if (!remaining) break;
+    }
+    if (remaining > 0) {
+      for (const route of state.world?.passengerRoutes || []) {
+        if (!route.inTransit || remaining <= 0) continue;
+        const loss = Math.min(remaining, route.inTransit.passengers);
+        route.inTransit.passengers -= loss;
+        remaining -= loss;
+        if (route.inTransit.passengers <= 0) route.inTransit = null;
+      }
     }
     return syncNationalPopulation(state);
   }
@@ -1652,6 +1696,106 @@
       production, activeRoutes: playerActiveRoutes, rivalActiveRoutes,
       upkeep: playerActiveRoutes * (hasTech(state, "logistics") ? 1 : 2)
     };
+  }
+  function passengerRouteCapacity(source, destination) {
+    const level = Math.min(safeInt(source?.harborLevel, 0, 3), safeInt(destination?.harborLevel, 0, 3));
+    return level > 0 ? Math.min(24, 6 + level * 6) : 0;
+  }
+  function createPassengerRoute(state, sourceId, destinationId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const territories = state.world?.territories || [];
+    const source = territories.find(item => item.id === sourceId);
+    const destination = territories.find(item => item.id === destinationId);
+    if (!source || !destination || source.id === destination.id) throw new Error("Choose two different island ports.");
+    if (source.owner !== "player" || destination.owner !== "player") throw new Error("Passenger ferries can only connect islands you control.");
+    if (source.harborLevel < 1 || destination.harborLevel < 1) throw new Error("Build an operational harbor at both ends before opening a ferry route.");
+    const routes = state.world.passengerRoutes || (state.world.passengerRoutes = []);
+    if (routes.length >= PASSENGER_ROUTE_LIMIT) throw new Error("Your passenger network has reached its 30-route limit.");
+    if (routes.some(route => route.sourceId === source.id && route.destinationId === destination.id)) throw new Error("This passenger ferry route already exists.");
+    if (state.resources.materials < PASSENGER_ROUTE_COST.materials || state.resources.credits < PASSENGER_ROUTE_COST.credits) {
+      throw new Error("Opening a passenger ferry requires 30 materials and 45 credits.");
+    }
+    state.resources.materials -= PASSENGER_ROUTE_COST.materials;
+    state.resources.credits -= PASSENGER_ROUTE_COST.credits;
+    const distance = Math.hypot(destination.x - source.x, destination.z - source.z);
+    const travelTurns = clamp(Math.ceil(distance / 18) - (hasTech(state, "logistics") ? 1 : 0), 1, 5);
+    const route = {
+      id: "ferry-" + state.turn + "-" + (routes.length + 1), sourceId: source.id, destinationId: destination.id,
+      capacity: passengerRouteCapacity(source, destination), travelTurns, status: "active", inTransit: null,
+      createdTurn: state.turn, loadedTotal: 0, deliveredTotal: 0, lastLoadedTurn: null, lastDeliveredTurn: null
+    };
+    routes.push(route);
+    addEvent(state, "Opened a passenger ferry from " + source.name + " to " + destination.name + ".", "economy");
+    return route;
+  }
+  function passengerRouteEffects(state) {
+    const territories = new Map((state.world?.territories || []).map(item => [item.id, item]));
+    const routes = state.world?.passengerRoutes || [];
+    const active = routes.filter(route => {
+      const source = territories.get(route.sourceId), destination = territories.get(route.destinationId);
+      return route.status === "active" && source?.owner === "player" && destination?.owner === "player" &&
+        source.harborLevel > 0 && destination.harborLevel > 0;
+    });
+    return {
+      activeRoutes: active.length,
+      passengersInTransit: routes.reduce((sum, route) => sum + (route.inTransit?.passengers || 0), 0),
+      upkeep: active.length * (hasTech(state, "logistics") ? PASSENGER_ROUTE_UPKEEP.logistics : PASSENGER_ROUTE_UPKEEP.standard),
+      loadedTotal: routes.reduce((sum, route) => sum + route.loadedTotal, 0),
+      deliveredTotal: routes.reduce((sum, route) => sum + route.deliveredTotal, 0)
+    };
+  }
+  function processPassengerRoutes(state) {
+    const territories = new Map((state.world?.territories || []).map(item => [item.id, item]));
+    let activeRoutes = 0, upkeep = 0, loadedThisTurn = 0, deliveredThisTurn = 0;
+    for (const route of state.world?.passengerRoutes || []) {
+      const source = territories.get(route.sourceId), destination = territories.get(route.destinationId);
+      const endpointsOwned = source?.owner === "player" && destination?.owner === "player" &&
+        source.harborLevel > 0 && destination.harborLevel > 0;
+      route.status = endpointsOwned ? "active" : "paused";
+      if (endpointsOwned) {
+        route.capacity = passengerRouteCapacity(source, destination);
+        activeRoutes++;
+        upkeep += hasTech(state, "logistics") ? PASSENGER_ROUTE_UPKEEP.logistics : PASSENGER_ROUTE_UPKEEP.standard;
+      }
+      let deliveredOnRoute = false;
+      if (route.inTransit) {
+        if (!endpointsOwned) {
+          if (source?.owner === "player") route.inTransit.returning = true;
+          else if (destination?.owner === "player") route.inTransit.returning = false;
+        }
+        const target = route.inTransit.returning ? source : destination;
+        const targetAvailable = target?.owner === "player";
+        if (endpointsOwned || targetAvailable) {
+          route.inTransit.remainingTurns = Math.max(0, route.inTransit.remainingTurns - 1);
+          if (route.inTransit.remainingTurns === 0 && targetAvailable) {
+            const passengers = route.inTransit.passengers;
+            target.population = Math.min(RESOURCE_LIMIT, target.population + passengers);
+            route.deliveredTotal = clamp(route.deliveredTotal + passengers, 0, RESOURCE_LIMIT);
+            route.lastDeliveredTurn = state.turn;
+            deliveredThisTurn += passengers;
+            addEvent(state, passengers + " residents arrived at " + target.name + " by passenger ferry.", "world");
+            route.inTransit = null;
+            deliveredOnRoute = true;
+            syncNationalPopulation(state);
+          }
+        }
+      }
+      if (!endpointsOwned || route.inTransit || deliveredOnRoute) continue;
+      const protectedResidents = Math.max(1, (source.garrison || 0) * GARRISON_MANPOWER_PER_UNIT + 1);
+      const available = Math.max(0, source.population - protectedResidents);
+      const passengers = Math.min(route.capacity, available);
+      if (passengers > 0) {
+        source.population -= passengers;
+        route.inTransit = { passengers, remainingTurns: route.travelTurns, returning: false };
+        route.loadedTotal = clamp(route.loadedTotal + passengers, 0, RESOURCE_LIMIT);
+        route.lastLoadedTurn = state.turn;
+        loadedThisTurn += passengers;
+        syncNationalPopulation(state);
+        addEvent(state, passengers + " residents boarded a passenger ferry at " + source.name + ".", "world");
+      }
+    }
+    syncNationalPopulation(state);
+    return { activeRoutes, upkeep, loadedThisTurn, deliveredThisTurn, passengersInTransit: passengerRouteEffects(state).passengersInTransit };
   }
   function processRivalResourceSites(state) {
     const territories = new Map((state.world?.territories || []).map(territory => [territory.id, territory]));
@@ -2480,8 +2624,9 @@
     for (const [resource, amount] of Object.entries(resourceSiteEffects(state, true))) output[resource] += amount;
     processRivalResourceSites(state);
     const shipping = processShippingRoutes(state);
+    const passengerTransport = processPassengerRoutes(state);
     for (const [resource, amount] of Object.entries(shipping.production)) output[resource] += amount;
-    output.logistics += shipping.activeRoutes;
+    output.logistics += shipping.activeRoutes + passengerTransport.activeRoutes;
     const territorialOutput = territoryEffects(state);
     output.credits += territorialOutput.credits;
     if (worldEventActiveThisTurn(state, "industrial_revolution")) output.goods = Math.floor(output.goods * 1.3);
@@ -2499,7 +2644,7 @@
     state.resources.science = clamp(state.resources.science + activeTreaties.filter(t => t.kind === "research").length * 2, 0, RESOURCE_LIMIT);
     state.resources.influence = clamp(state.resources.influence + activeTreaties.filter(t => t.kind === "alliance").length + creator.influence + territorialOutput.influence, 0, RESOURCE_LIMIT);
     const civilianEmployed = Math.max(0, employed - military.manpower);
-    const wageExpense = Math.ceil(civilianEmployed / 10 * (worldEventActiveThisTurn(state, "financial_crisis") ? 1.15 : 1) * (hasTech(state, "urbanism") ? 0.9 : 1)) + shipping.upkeep + military.upkeep;
+    const wageExpense = Math.ceil(civilianEmployed / 10 * (worldEventActiveThisTurn(state, "financial_crisis") ? 1.15 : 1) * (hasTech(state, "urbanism") ? 0.9 : 1)) + shipping.upkeep + passengerTransport.upkeep + military.upkeep;
     state.resources.credits = clamp(state.resources.credits + income - wageExpense, 0, RESOURCE_LIMIT);
     const previousPhase = state.economy.phase;
     let phase = previousPhase, deficitTurns = state.economy.deficitTurns, recoveryTurns = state.economy.recoveryTurns;
@@ -2664,6 +2809,16 @@
             for (const route of state.world.shippingRoutes || []) {
               if (route.sourceId === defendedTerritory.id || route.destinationId === defendedTerritory.id) route.status = "paused";
             }
+            for (const route of state.world.passengerRoutes || []) {
+              if (route.sourceId !== defendedTerritory.id && route.destinationId !== defendedTerritory.id) continue;
+              route.status = "paused";
+              if (route.inTransit) {
+                const source = state.world.territories.find(territory => territory.id === route.sourceId);
+                const destination = state.world.territories.find(territory => territory.id === route.destinationId);
+                if (source?.owner === "player") route.inTransit.returning = true;
+                else if (destination?.owner === "player") route.inTransit.returning = false;
+              }
+            }
             syncNationalPopulation(state);
             rival.relation = -65;
             rival.stance = "Recovered lost territory";
@@ -2755,9 +2910,9 @@
   }
 
   return {
-    SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, SHIPPING_RESOURCES, INTERNATIONAL_TRADE_RESOURCES, INTERNATIONAL_TRADE_TARIFFS, STOCKPILE_LIMIT, RENEWABLE_POWER_OUTPUT, GARRISON_RECRUIT_COST, MILITARY_UPKEEP_PER_UNIT, GARRISON_MANPOWER_PER_UNIT, MAX_FORTIFICATION_LEVEL, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
+    SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, SHIPPING_RESOURCES, INTERNATIONAL_TRADE_RESOURCES, INTERNATIONAL_TRADE_TARIFFS, STOCKPILE_LIMIT, PASSENGER_ROUTE_COST, PASSENGER_ROUTE_LIMIT, PASSENGER_ROUTE_UPKEEP, RENEWABLE_POWER_OUTPUT, GARRISON_RECRUIT_COST, MILITARY_UPKEEP_PER_UNIT, GARRISON_MANPOWER_PER_UNIT, MAX_FORTIFICATION_LEVEL, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, assignCitizenDestination, completeCitizenJourney, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, garrisonCapacity, fortificationCost, territoryDefenseStrength, militaryEffects, recruitGarrison, buildFortification, developRivalMilitary, planRivalCounterattacks, COUNTERATTACK_WINDOW, COUNTERATTACK_COST, createShippingRoute, createInternationalTradeRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
+    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, assignCitizenDestination, completeCitizenJourney, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, garrisonCapacity, fortificationCost, territoryDefenseStrength, militaryEffects, recruitGarrison, buildFortification, developRivalMilitary, planRivalCounterattacks, COUNTERATTACK_WINDOW, COUNTERATTACK_COST, createShippingRoute, createInternationalTradeRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, passengerRouteCapacity, createPassengerRoute, passengerRouteEffects, processPassengerRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects, nationalPopulationFor, syncNationalPopulation,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,

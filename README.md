@@ -84,3 +84,8 @@ Current saves use schema version 18. The importer validates bounded creator publ
 ## Development status
 
 The current development branch includes three playable local campaigns, six rival nations, a demand-driven Creator Studio economy, ten research technologies with prerequisites, a deterministic nine-island archipelago, neutral-territory claims, rival expansion behavior, finite resource extraction, versioned save migration, and automated engine tests. The 3D archipelago is an incremental prototype: full rival territorial economies, ground-level traversal and territorial conflict are still future work. Desktop and mobile browser acceptance, extended balance review, visual-performance validation, Web3 architecture, and release verification remain outstanding. KINGMAKER is in active development and is not declared a finished release.
+
+
+## Passenger ferry logistics
+
+Claimed islands with operational harbors can be connected by one-way passenger ferry services. Convoys move up to 12–24 residents according to harbor levels, preserve national population while at sea, protect garrison manpower and return passengers to a surviving player port if the destination is captured. Active routes cost 2 credits per turn, reduced to 1 by Integrated Logistics. Ferry routes are saved in schema 19.

@@ -281,6 +281,29 @@
     }
     return '<div class="shipping-panel military-panel"><h4>Island defence</h4><div class="territory-infrastructure"><span>' + units + ' garrison units / ' + capacity + ' capacity</span><span>Fortification level ' + territory.fortificationLevel + '</span><span>Defence rating ' + defense + '</span><span>' + num(manpower) + ' residents reserved</span><span>' + upkeep + ' credits / turn upkeep</span></div>' + controls + '<small class="muted">Each garrison unit reserves ten local residents and costs one credit per turn. Fortification levels add twelve defensive strength each.</small></div>';
   }
+  function renderPassengerTransportPanel(territory) {
+    if (!territory || territory.owner !== "player") return "";
+    const routes = (state.world.passengerRoutes || []).filter(route => route.sourceId === territory.id || route.destinationId === territory.id);
+    const routeList = routes.length ? '<div class="shipping-route-list">' + routes.map(route => {
+      const source = state.world.territories.find(item => item.id === route.sourceId);
+      const destination = state.world.territories.find(item => item.id === route.destinationId);
+      const transit = route.inTransit ? ' · ' + route.inTransit.passengers + ' passengers ' + (route.inTransit.returning ? 'returning to source' : 'at sea') + ' · ' + route.inTransit.remainingTurns + ' turns remaining' : ' · awaiting passengers';
+      return '<span><b>' + esc(source?.name || route.sourceId) + ' → ' + esc(destination?.name || route.destinationId) + '</b><small>Capacity ' + route.capacity + ' · ' + route.travelTurns + ' travel turns · ' + esc(route.status) + transit + ' · delivered ' + num(route.deliveredTotal) + '</small></span>';
+    }).join("") + '</div>' : '<small class="muted">No passenger ferry routes touch this island yet.</small>';
+    const destinations = (state.world.territories || []).filter(item => item.id !== territory.id && item.owner === "player" && item.harborLevel > 0);
+    let form = "";
+    if (territory.harborLevel < 1) form = '<small class="muted">Build an operational harbor before opening a passenger ferry.</small>';
+    else if (!destinations.length) form = '<small class="muted">Claim another island and build its harbor to create a passenger route.</small>';
+    else {
+      const cost = E.PASSENGER_ROUTE_COST;
+      const disabled = state.status !== "playing" || state.resources.materials < cost.materials || state.resources.credits < cost.credits;
+      form = '<div class="shipping-route-form passenger-route-form"><label for="passenger-destination">Destination island</label><select id="passenger-destination">' +
+        destinations.map(item => '<option value="' + esc(item.id) + '">' + esc(item.name) + ' · harbor level ' + item.harborLevel + '</option>').join("") +
+        '</select><button type="button" data-action="create-passenger-route" data-id="' + esc(territory.id) + '" ' + (disabled ? 'disabled' : '') + '>Open passenger ferry · 30 materials / 45 credits</button>' +
+        '<small class="muted">Each convoy carries 12–24 residents, based on harbor levels. Active routes cost 2 credits per turn (1 with Logistics). Passengers remain in your national population while at sea; garrison manpower and one local resident are protected. If a port is captured, the ferry diverts passengers to the surviving player-controlled endpoint.</small></div>';
+    }
+    return '<div class="shipping-panel passenger-transport-panel"><h4>Passenger ferry network</h4><div class="shipping-routes"><b>Connected ferry routes</b>' + routeList + '</div>' + form + '</div>';
+  }
   function renderTerritoryInspector() {
     const panel = $("world3d-territory-inspector");
     if (!panel || !state) return;
@@ -366,6 +389,7 @@
       const military = renderMilitaryPanel(territory, false);
       action = '<p class="muted">Controlled by ' + esc(owner) + (rival ? ' · Relations ' + rival.relation + ' · ' + esc(rival.stance) : '') + (alliance ? ' · Active alliance' : '') + '. Rival infrastructure produces resources locally and sends cargo along autonomous shipping lanes.</p>' + military + maritime + '<button type="button" data-action="view-territory-diplomacy" data-id="' + esc(territory.owner) + '">Open diplomacy</button>';
     }
+    if (territory.owner === "player") action += renderPassengerTransportPanel(territory);
     const populationScope = territory.owner === "player"
       ? ' · National population: ' + num(state.nation.population)
       : territory.owner === "unclaimed" ? ' · Not yet in your national total' : ' · Rival national population';
@@ -427,6 +451,7 @@
       if(action==="build-fortification"){const territory=E.buildFortification(state,id);toast(territory.name+" fortified to level "+territory.fortificationLevel+".","success");}
       if(action==="upgrade-harbor"){const territory=E.upgradeHarbor(state,id);toast(territory.name+" harbor upgraded to level "+territory.harborLevel+".","success");}
       if(action==="create-shipping-route"){const route=E.createShippingRoute(state,id,$("shipping-destination")?.value,$("shipping-resource")?.value);toast("Shipping route opened. First cargo will load when local stock is available.","success");}
+      if(action==="create-passenger-route"){const route=E.createPassengerRoute(state,id,$("passenger-destination")?.value);toast("Passenger ferry opened. Up to "+route.capacity+" residents can travel per convoy.","success");}
       if(action==="create-international-export-route"||action==="create-international-import-route"){
         const exporting=action==="create-international-export-route";
         const sourceId=$("international-"+(exporting?"export":"import")+"-source-"+id)?.value;

@@ -1061,7 +1061,7 @@ test("schema 8 saves migrate to version 18 with deterministic archipelago deposi
   state.schemaVersion = 8;
   delete state.world.resourceNodes;
   const migrated = Engine.migrateSave(state);
-  assert.equal(migrated.schemaVersion, 18);
+  assert.equal(migrated.schemaVersion, 19);
   assert.deepEqual(migrated.world.resourceNodes, Engine.createResourceDeposits(state.seed, state.world.territories));
   const roundTrip = Engine.migrateSave(JSON.parse(Engine.exportSave(migrated)));
   assert.deepEqual(roundTrip.world.resourceNodes, migrated.world.resourceNodes);
@@ -1154,7 +1154,7 @@ test("Duneward expands into a neutral island unless an active alliance protects 
   assert.equal(protectedState.world.territories.filter(item => item.owner === "unclaimed").length, 2);
 });
 
-test("version 9 saves migrate to schema 18 without losing existing extraction progress", () => {
+test("version 9 saves migrate to schema 19 without losing existing extraction progress", () => {
   const legacy = Engine.createInitialState({ seed: 52007 });
   legacy.schemaVersion = 9;
   delete legacy.world.territories;
@@ -1166,7 +1166,7 @@ test("version 9 saves migrate to schema 18 without losing existing extraction pr
   legacy.world.resourceNodes[0].operational = true;
   legacy.world.resourceNodes[0].operatedSinceTurn = 1;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 18);
+  assert.equal(migrated.schemaVersion, 19);
   assert.equal(migrated.world.territories.length, 9);
   assert.equal(migrated.world.resourceNodes.length, 16);
   assert.equal(migrated.world.resourceNodes[0].operational, true);
@@ -1279,14 +1279,14 @@ test("outer-island construction rejects unowned land and positions outside its c
   }), /shore/);
 });
 
-test("version 10 home placements migrate into schema 18 without changing their location", () => {
+test("version 10 home placements migrate into schema 19 without changing their location", () => {
   const legacy = Engine.createInitialState({ seed: 62003 });
   legacy.schemaVersion = 10;
   legacy.world.placedBuildings.push({ type: "farm", x: 3, z: 4 });
   legacy.world.placedRoads.push({ from: { x: -2, z: 0 }, to: { x: 2, z: 0 } });
   legacy.world.placedDistricts.push({ type: "residential", x: 1, z: 1, radius: 2.6 });
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 18);
+  assert.equal(migrated.schemaVersion, 19);
   assert.equal(migrated.world.placedBuildings[0].territoryId, "home");
   assert.equal(migrated.world.placedRoads[0].territoryId, "home");
   assert.equal(migrated.world.placedDistricts[0].territoryId, "home");
@@ -1303,7 +1303,7 @@ test("version 11 saves migrate with default harbor levels, local stockpiles and 
     delete territory.stockpile;
   }
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 18);
+  assert.equal(migrated.schemaVersion, 19);
   assert.equal(migrated.world.shippingRoutes.length, 0);
   assert.equal(migrated.world.territories.find(item => item.id === "home").harborLevel, 1);
   assert.ok(migrated.world.territories.filter(item => item.id !== "home").every(item => item.harborLevel === 0));
@@ -1591,7 +1591,7 @@ test("schema 12 player shipping routes migrate with explicit player ownership", 
   legacy.schemaVersion = 12;
   delete legacy.world.shippingRoutes[0].ownerId;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 18);
+  assert.equal(migrated.schemaVersion, 19);
   assert.equal(migrated.world.shippingRoutes[0].ownerId, "player");
 });
 
@@ -1776,7 +1776,7 @@ test("schema 13 saves migrate to version 18 while preserving domestic shipping r
   legacy.nation.population = legacy.world.territories.find(item => item.id === "home").population;
   legacy.schemaVersion = 13;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 18);
+  assert.equal(migrated.schemaVersion, 19);
   assert.equal(migrated.nation.population, migrated.world.territories.filter(item => item.owner === "player").reduce((sum, item) => sum + item.population, 0));
   assert.deepEqual(migrated.world.shippingRoutes, legacy.world.shippingRoutes);
 });
@@ -1791,7 +1791,7 @@ test("schema 14 saves add existing player-island residents to the national popul
   legacy.nation.population = home.population;
   legacy.schemaVersion = 14;
   const migrated = Engine.migrateSave(legacy);
-  assert.equal(migrated.schemaVersion, 18);
+  assert.equal(migrated.schemaVersion, 19);
   assert.equal(migrated.nation.population, home.population + island.population);
   assert.equal(migrated.world.territories.find(item => item.id === island.id).population, island.population);
 });
@@ -2123,7 +2123,7 @@ test("schema 15 saves migrate to local garrisons and validated fortification lev
   const home = migrated.world.territories.find(item => item.id === "home");
   const ironmarch = migrated.world.territories.find(item => item.owner === "ironmarch");
   const neutral = migrated.world.territories.find(item => item.owner === "unclaimed");
-  assert.equal(migrated.schemaVersion, 18);
+  assert.equal(migrated.schemaVersion, 19);
   assert.equal(home.garrison, 2);
   assert.equal(ironmarch.garrison, 3);
   assert.equal(ironmarch.fortificationLevel, 1);
@@ -2198,7 +2198,7 @@ test("schema 16 campaigns migrate without inventing former-owner counterattack h
   const state = Engine.createInitialState({ seed: 76101 });
   state.schemaVersion = 16;
   const migrated = Engine.migrateSave(state);
-  assert.equal(migrated.schemaVersion, 18);
+  assert.equal(migrated.schemaVersion, 19);
   assert.ok(migrated.world.territories.every(territory => territory.counterattackStatus === undefined));
   assert.doesNotThrow(() => Engine.validateSave(JSON.parse(Engine.exportSave(migrated))));
 });
@@ -2448,7 +2448,7 @@ test("schema 17 citizen saves migrate to deterministic home-island navigation de
     delete citizen.destination;
   }
   const migrated = Engine.migrateSave(state);
-  assert.equal(migrated.schemaVersion, 18);
+  assert.equal(migrated.schemaVersion, 19);
   for (let i = 0; i < migrated.citizens.length; i++) {
     assert.deepEqual(migrated.citizens[i].location, Engine.createCitizens(100, state.seed)[i].location);
     assert.equal(migrated.citizens[i].destination, null);
@@ -2472,4 +2472,88 @@ test("save validation relocates residents trapped inside the initial building fo
   const location = repaired.citizens[0].location;
   assert.ok(Math.hypot(location.x - 2.7, location.z) >= 1.1);
   assert.ok(Math.hypot(location.x, location.z) <= 11.5);
+});
+
+
+test("passenger ferries transfer residents between owned harbors without changing national headcount", () => {
+  const state = Engine.createInitialState({ seed: 881901 });
+  const [source, destination] = state.world.territories.filter(item => item.owner === "unclaimed");
+  state.resources.materials = 2000;
+  state.resources.credits = 3000;
+  state.resources.influence = 500;
+  state.resources.food = 1000;
+  Engine.claimTerritory(state, source.id);
+  Engine.claimTerritory(state, destination.id);
+  Engine.upgradeHarbor(state, source.id);
+  Engine.upgradeHarbor(state, destination.id);
+  source.population = 45;
+  destination.population = 20;
+  Engine.syncNationalPopulation(state);
+  const baseline = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  const route = Engine.createPassengerRoute(state, source.id, destination.id);
+  assert.equal(route.capacity, 12);
+  assert.equal(route.travelTurns, Math.max(1, Math.min(5, Math.ceil(Math.hypot(destination.x - source.x, destination.z - source.z) / 18))));
+  assert.equal(state.resources.materials, 2000 - 120 - 80 - Engine.PASSENGER_ROUTE_COST.materials);
+  assert.equal(state.resources.credits, 3000 - 200 - 130 - Engine.PASSENGER_ROUTE_COST.credits);
+  Engine.advanceTurn(state);
+  Engine.advanceTurn(baseline);
+  assert.equal(state.economy.lastExpenses, baseline.economy.lastExpenses + Engine.PASSENGER_ROUTE_UPKEEP.standard);
+  assert.equal(route.inTransit.passengers, 12);
+  assert.equal(source.population, 33);
+  assert.equal(state.nation.population, Engine.nationalPopulationFor(state));
+  assert.equal(Engine.passengerRouteEffects(state).passengersInTransit, 12);
+  for (let i = 0; i < route.travelTurns; i++) {
+    state.turn++;
+    Engine.processPassengerRoutes(state);
+  }
+  assert.equal(route.inTransit, null);
+  assert.equal(destination.population, 32);
+  assert.equal(route.deliveredTotal, 12);
+  assert.equal(state.nation.population, Engine.nationalPopulationFor(state));
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(restored.world.passengerRoutes, state.world.passengerRoutes);
+});
+
+test("a ferry returns passengers to its surviving port when the destination is captured", () => {
+  const state = Engine.createInitialState({ seed: 881902 });
+  const [source, destination] = state.world.territories.filter(item => item.owner === "unclaimed");
+  state.resources.materials = 2000;
+  state.resources.credits = 3000;
+  state.resources.influence = 500;
+  Engine.claimTerritory(state, source.id);
+  Engine.claimTerritory(state, destination.id);
+  Engine.upgradeHarbor(state, source.id);
+  Engine.upgradeHarbor(state, destination.id);
+  source.population = 45;
+  destination.population = 20;
+  Engine.syncNationalPopulation(state);
+  const sourcePopulation = source.population;
+  const route = Engine.createPassengerRoute(state, source.id, destination.id);
+  Engine.processPassengerRoutes(state);
+  assert.ok(route.inTransit && route.inTransit.passengers > 0);
+  destination.owner = "aurelia";
+  Engine.syncNationalPopulation(state);
+  const populationAfterCapture = state.nation.population;
+  state.turn++;
+  Engine.processPassengerRoutes(state);
+  assert.equal(route.status, "paused");
+  assert.equal(route.inTransit.returning, true);
+  for (let i = 1; i < route.travelTurns; i++) {
+    state.turn++;
+    Engine.processPassengerRoutes(state);
+  }
+  assert.equal(route.inTransit, null);
+  assert.equal(source.population, sourcePopulation);
+  assert.equal(destination.population, 20);
+  assert.equal(state.nation.population, populationAfterCapture);
+});
+
+test("schema 18 saves migrate with an empty passenger ferry network", () => {
+  const legacy = Engine.createInitialState({ seed: 881903 });
+  legacy.schemaVersion = 18;
+  delete legacy.world.passengerRoutes;
+  const migrated = Engine.migrateSave(legacy);
+  assert.equal(migrated.schemaVersion, 19);
+  assert.deepEqual(migrated.world.passengerRoutes, []);
+  assert.deepEqual(Engine.migrateSave(JSON.parse(Engine.exportSave(migrated))).world.passengerRoutes, []);
 });
