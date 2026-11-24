@@ -369,7 +369,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   function findCitizenPath(start,destination,territoryId="home"){const options=citizenNavigationContext(territoryId);return window.KingmakerCitizens?.findTerritoryPath?.(start,destination,options)||window.KingmakerCitizens?.findHomeIslandPath?.(start,destination,options)||null;}
   function navigationSignatureFor(state){return JSON.stringify({buildings:state.buildings||{},placedBuildings:(state.world?.placedBuildings||[]).map(item=>[item.type,item.x,item.z,item.territoryId||"home"]),roads:(state.world?.placedRoads||[]).map(item=>[item.from?.x,item.from?.z,item.to?.x,item.to?.z,item.territoryId||"home"]),defenses:(state.world?.territories||[]).map(item=>[item.id,item.garrison||0,item.fortificationLevel||0])});}
 
-  function syncCitizenAvatar  function syncCitizenAvatar(person,index,citizen,forcePath=false){
+  function syncCitizenAvatar(person,index,citizen,forcePath=false){
     const role=String(citizen?.role||"citizen");
     person.userData.citizenId=citizen?.id||"citizen-"+(index+1);
     person.userData.citizenName=citizen?.name||"Resident "+(index+1);
@@ -418,7 +418,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     remote.forEach((citizen,index)=>{const avatar=remotePeopleGroup.children[index];if(avatar)syncCitizenAvatar(avatar,index,citizen,forcePath);});
   }
 
-  function syncWaypointMarkers  function syncWaypointMarkers(citizens){
+  function syncWaypointMarkers(citizens){
     if(!waypointGroup)return;
     clearGroup(waypointGroup);
     for(const citizen of Array.isArray(citizens)?citizens:[]){
@@ -426,7 +426,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
       if(!target||!Number.isFinite(target.x)||!Number.isFinite(target.z))continue;
       const ring=new THREE.Mesh(new THREE.TorusGeometry(.48,.055,8,24),new THREE.MeshStandardMaterial({color:0xffd36e,emissive:0x6b430d,emissiveIntensity:.65,roughness:.35}));
       ring.rotation.x=Math.PI/2;
-      ring.position.set(target.x,heightAt(target.x,target.z)+.12,target.z);
+      ring.position.set(target.x,heightAtWorld(target.x,target.z,citizen.territoryId||"home")+.12,target.z);
       waypointGroup.add(ring);
     }
   }
@@ -645,14 +645,14 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const cancel=document.getElementById("world3d-explore-cancel");if(cancel)cancel.hidden=false;if(renderer)renderer.domElement.style.cursor="crosshair";
     const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Choose open ground for "+citizen.name+" on "+territory.name+".";return true;
   }
-  function cancelCitizenWaypointMode()  function cancelCitizenWaypointMode(){
+  function cancelCitizenWaypointMode(){
     exploreMode=false;selectedCitizenId=null;selectedCitizenTerritoryId=null;
     if(previewMarker)previewMarker.visible=false;
     const cancel=document.getElementById("world3d-explore-cancel");if(cancel)cancel.hidden=true;
     if(renderer)renderer.domElement.style.cursor="grab";
     const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Select a resident in the 3D world to issue an exploration order.";
   }
-  function showCitizenInspector  function showCitizenInspector(citizen){
+  function showCitizenInspector(citizen){
     if(!citizen)return false;
     let panel=document.getElementById("world3d-citizen-inspector");
     if(!panel){panel=document.createElement("aside");panel.id="world3d-citizen-inspector";panel.className="world3d-citizen-inspector";panel.setAttribute("aria-live","polite");host.appendChild(panel);}
@@ -808,13 +808,13 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Waypoint assigned. "+citizen.name+" is exploring "+territory.name+".";
     window.dispatchEvent(new CustomEvent("kingmaker:citizen-waypoint",{detail:{citizenId,territoryId,x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2))}}));return true;
   }
-  function placeCitizenWaypoint(event)  function placeCitizenWaypoint(event){
+  function placeCitizenWaypoint(event){
     if(event.button!==0||!exploreMode||!selectedCitizenId)return;
     const target=getGroundPoint(event),territoryId=selectedCitizenTerritoryId||"home";
     if(!target||target.territoryId!==territoryId){const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="Choose open ground on the selected resident's island.";return;}
     if(!commitCitizenWaypoint({x:target.point.x,z:target.point.z,territoryId:target.territoryId})){const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="No safe walking route reaches that point. Choose another open area.";}
   }
-  function   function placeRoadPoint(event){
+  function placeRoadPoint(event){
     if(event.button!==0)return;
     const target=getGroundPoint(event);if(!target)return;
     const spot={x:Number(target.point.x.toFixed(2)),z:Number(target.point.z.toFixed(2)),territoryId:target.territoryId};
@@ -887,7 +887,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
       p.position.y=heightAtWorld(p.position.x,p.position.z,p.userData.territoryId);p.rotation.y=heading;const swingPhase=moving?t*7+p.userData.phase:t*(2.1+1.2*p.userData.walkFactor)+p.userData.phase;
       for(const limb of p.userData.limbs){const swing=Math.sin(swingPhase)*(moving?.5:.38)*limb.side;limb.arm.rotation.x=-swing;limb.leg.rotation.x=swing;}
     });
-    trafficVehicles.forEach(v=>    trafficVehicles.forEach(v=>{const p=(t*v.speed+v.phase)%1;const x=v.a.x+(v.b.x-v.a.x)*p,z=v.a.z+(v.b.z-v.a.z)*p;v.mesh.position.set(x,heightAt(x,z)+.055,z);v.mesh.rotation.y=Math.atan2(v.b.x-v.a.x,v.b.z-v.a.z);});
+    trafficVehicles.forEach(v=>{const p=(t*v.speed+v.phase)%1;const x=v.a.x+(v.b.x-v.a.x)*p,z=v.a.z+(v.b.z-v.a.z)*p;v.mesh.position.set(x,heightAt(x,z)+.055,z);v.mesh.rotation.y=Math.atan2(v.b.x-v.a.x,v.b.z-v.a.z);});
     if(cargoShip){cargoShip.position.x=12.1+Math.sin(t*.12)*.42;cargoShip.position.z=12.4+Math.cos(t*.12)*.32;cargoShip.position.y=-.13+Math.sin(t*1.35)*.045;cargoShip.rotation.y=.75+Math.sin(t*.12)*.035;}
     shippingVessels.forEach(vessel=>{const progress=(t*vessel.speed+vessel.phase)%1,point=vessel.curve.getPointAt(progress),tangent=vessel.curve.getTangentAt(progress);vessel.mesh.position.copy(point);vessel.mesh.position.y+=Math.sin(t*1.8+vessel.phase)*.035;vessel.mesh.rotation.y=Math.atan2(tangent.x,tangent.z);});
     passengerVessels.forEach(vessel=>{const progress=(t*vessel.speed+vessel.phase)%1,point=vessel.curve.getPointAt(progress),tangent=vessel.curve.getTangentAt(progress);vessel.mesh.position.copy(point);vessel.mesh.position.y+=Math.sin(t*1.6+vessel.phase)*.035;vessel.mesh.rotation.y=Math.atan2(tangent.x,tangent.z);});
@@ -901,7 +901,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const nextNavigationSignature=navigationSignatureFor(state),navigationChanged=nextNavigationSignature!==navigationSignature;
     navigationSignature=nextNavigationSignature;
     syncCitizenPopulation(state.citizens||[],navigationChanged);
-    syncWaypointMarkers(state.citizens||[]);
+    syncWaypointMarkers([...(state.citizens||[]),...(state.world?.remoteCitizens||[])]);
     const total=Object.values(state.buildings||{}).reduce((sum,n)=>sum+(Number(n)||0),0);
     const status=document.getElementById("world3d-status");if(status)status.textContent="TURN "+state.turn+" · "+total+" BUILDING LEVELS";
     const stats=document.getElementById("world3d-stats");
