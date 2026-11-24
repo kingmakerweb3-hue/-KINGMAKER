@@ -2516,22 +2516,24 @@ test("passenger ferries transfer residents between owned harbors without changin
 
 test("a ferry returns passengers to its surviving port when the destination is captured", () => {
   const state = Engine.createInitialState({ seed: 881902 });
-  const [source, destination] = state.world.territories.filter(item => item.owner === "unclaimed");
+  const source = state.world.territories.find(item => item.id === "home");
+  const destination = state.world.territories.find(item => item.owner === "unclaimed");
   state.resources.materials = 2000;
   state.resources.credits = 3000;
   state.resources.influence = 500;
-  Engine.claimTerritory(state, source.id);
   Engine.claimTerritory(state, destination.id);
-  Engine.upgradeHarbor(state, source.id);
   Engine.upgradeHarbor(state, destination.id);
-  source.population = 45;
+  source.population = 100;
   destination.population = 20;
   Engine.syncNationalPopulation(state);
   const sourcePopulation = source.population;
   const route = Engine.createPassengerRoute(state, source.id, destination.id);
+  assert.equal(route.travelTurns, 2);
   Engine.processPassengerRoutes(state);
   assert.ok(route.inTransit && route.inTransit.passengers > 0);
   destination.owner = "aurelia";
+  destination.claimedTurn = state.turn;
+  state.rivals.aurelia.population += destination.population;
   Engine.syncNationalPopulation(state);
   const populationAfterCapture = state.nation.population;
   state.turn++;
@@ -2546,6 +2548,8 @@ test("a ferry returns passengers to its surviving port when the destination is c
   assert.equal(source.population, sourcePopulation);
   assert.equal(destination.population, 20);
   assert.equal(state.nation.population, populationAfterCapture);
+  const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.equal(saved.world.passengerRoutes[0].status, "paused");
 });
 
 test("schema 18 saves migrate with an empty passenger ferry network", () => {

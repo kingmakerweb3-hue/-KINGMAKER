@@ -32,7 +32,7 @@ Population is tracked locally on each island. When an unclaimed island joins the
 
 Home-island buildings are staffed by home residents. Districts add local job positions: residential 1, commercial 3, industrial 5 and agricultural 4. District output is staffed by residents on the same island, so a small or underpopulated region cannot operate unlimited district production. Remote residential districts grow their own island when the national food reserve is healthy, stability is at least 45, the economy is not in recession, and employed workers meet national job demand. Home-island housing, medicine and residential districts determine the home population cap; remote residential districts provide a local capacity and growth allowance. A food shortage reduces home residents first, then other player-held islands, while keeping the national total synchronized.
 
-The current economy uses a pooled national food reserve for all owned territories; local food stockpiles remain cargo storage for shipping rather than separate household reserves. Schema 18 stores national population as the sum of player-owned territory populations, plus validated local garrisons, fortification levels, counterattack history and citizen navigation state. Older saves preserve the previous national figure as home-island population, then add saved populations of other player-owned islands; schema-15 saves receive deterministic local defense defaults.
+The current economy uses a pooled national food reserve for all owned territories; local food stockpiles remain cargo storage for shipping rather than separate household reserves. schema 19 stores national population as the sum of player-owned territory populations, plus validated local garrisons, fortification levels, counterattack history and citizen navigation state. Older saves preserve the previous national figure as home-island population, then add saved populations of other player-owned islands; schema-15 saves receive deterministic local defense defaults.
 
 ## Resident exploration and 3D navigation
 
@@ -128,7 +128,7 @@ Counterattacks resolve over three battle rounds. The rival's assault strength us
 
 If the rival wins, the island and the transferable local population return to the former owner, its garrison is re-established from the surviving assault force, and shipping routes touching the island pause without discarding cargo in transit. If the player wins, the counterattack is marked repelled and its escaped force is exhausted. The player may also negotiate peace for 35 credits; this withdraws an active counterattack without changing ownership.
 
-Counterattack history is stored on the territory and active battles record their initiator and assault size. Save schema 18 validates these fields. Schema 17 and earlier campaigns migrate without inventing historical losses or counterattack forces.
+Counterattack history is stored on the territory and active battles record their initiator and assault size. Save schema 19 validates these fields. Schema 17 and earlier campaigns migrate without inventing historical losses or counterattack forces.
 
 ## Outer-island resident activity
 
@@ -144,6 +144,6 @@ Home-island residents spawn on a safe outer neighborhood ring. Save validation a
 - Travel time follows the same distance model as cargo shipping. Integrated Logistics shortens journeys and reduces route upkeep from 2 credits to 1 credit per turn.
 - A convoy loads residents above the source island's garrison manpower reserve and one-person local minimum. Passengers remain included in national population while at sea; delivery transfers them into the destination island's local population without creating or destroying headcount.
 - If a port is captured during a journey, the route pauses for new departures and the existing passengers divert to the surviving player-controlled endpoint. If neither endpoint remains player-controlled, passengers remain safely recorded in transit until a port becomes available.
-- Ferry routes, passenger manifests, travel timers and delivery totals persist in save schema 19. Schema 18 and older saves migrate with an empty passenger network.
+- Ferry routes, passenger manifests, travel timers and delivery totals persist in save schema 19. schema 19 and older saves migrate with an empty passenger network.
 
 The current ferry system moves aggregate resident headcounts. It does not yet persist named individual citizens or simulate per-person boarding animations.

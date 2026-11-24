@@ -2586,6 +2586,7 @@
     syncNationalPopulation(state);
     state.turn++;
     updateCitizens(state);
+    const passengerTransport = processPassengerRoutes(state);
     state.creatorEconomy.royaltyTurn = state.turn;
     state.creatorEconomy.lastTurnRoyalties = 0;
     state.world.activeEvents = state.world.activeEvents.filter(event => event.status === "pending" || event.remainingTurns > 0);
@@ -2624,7 +2625,6 @@
     for (const [resource, amount] of Object.entries(resourceSiteEffects(state, true))) output[resource] += amount;
     processRivalResourceSites(state);
     const shipping = processShippingRoutes(state);
-    const passengerTransport = processPassengerRoutes(state);
     for (const [resource, amount] of Object.entries(shipping.production)) output[resource] += amount;
     output.logistics += shipping.activeRoutes + passengerTransport.activeRoutes;
     const territorialOutput = territoryEffects(state);
