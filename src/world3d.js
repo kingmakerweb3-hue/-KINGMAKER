@@ -934,25 +934,33 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   }
   function resize(){if(!renderer||!host.clientWidth)return;const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
   function animate(){
-    animationId=requestAnimationFrame(animate);const t=clock.getElapsedTime(),delta=Math.min(.05,Math.max(0,t-lastAnimationTime));lastAnimationTime=t;controls.update();
+    animationId=requestAnimationFrame(animate);const t=clock.getElapsedTime(),rawDelta=Math.max(0,t-lastAnimationTime),delta=Math.min(.05,rawDelta),movementDelta=Math.min(.6,rawDelta);lastAnimationTime=t;controls.update();
     const daylight=THREE.MathUtils.clamp(Math.sin(t*.035)*.5+.5,0,1),nightSky=new THREE.Color(0x101d35),daySky=new THREE.Color(0x9bb8c7);scene.background.lerpColors(nightSky,daySky,daylight);if(auroraMesh){auroraMesh.material.uniforms.uTime.value=t;auroraMesh.material.uniforms.uDaylight.value=daylight;}if(starField)starField.material.opacity=Math.pow(1-daylight,1.7)*.92;if(moonObject)moonObject.material.opacity=Math.pow(1-daylight,1.5)*.88;if(scene.fog)scene.fog.color.copy(scene.background);sunLight.intensity=.22+daylight*3.15;sunLight.position.set(Math.cos(t*.035)*25,Math.max(3,Math.sin(t*.035)*28),14);sunLight.color.setRGB(1,.72+daylight*.2,.52+daylight*.42);
     if(waterMesh){const attr=waterMesh.geometry.attributes.position;for(let i=0;i<attr.count;i++){const x=waterPositions[i*3],z=waterPositions[i*3+2];attr.array[i*3+1]=waterPositions[i*3+1]+Math.sin(x*.32+t*.65)*.055+Math.cos(z*.27-t*.48)*.04;}attr.needsUpdate=true;waterMesh.geometry.computeVertexNormals();}
     cloudGroup.children.forEach((cloud,i)=>{cloud.position.x+=.0012+Math.sin(t*.025+i)*.0005;if(cloud.position.x>24)cloud.position.x=-24;});
     peopleGroup.children.forEach((p,i)=>{
       const destination=p.userData.destination,path=Array.isArray(p.userData.path)?p.userData.path:[];
-      const target=destination?(path[p.userData.pathIndex||0]||(path.length?path[path.length-1]:destination)):null;
       let moving=false,heading=0;
-      if(destination&&target&&!p.userData.awaitingArrival){
-        const dx=target.x-p.position.x,dz=target.z-p.position.z,distance=Math.hypot(dx,dz);
-        if(distance<=.08){
-          p.position.x=target.x;p.position.z=target.z;
-          if(path.length&&p.userData.pathIndex<path.length-1)p.userData.pathIndex++;
-          else{
-            p.position.x=destination.x;p.position.z=destination.z;p.userData.awaitingArrival=true;p.userData.destination=null;
-            window.dispatchEvent(new CustomEvent("kingmaker:citizen-arrived",{detail:{citizenId:p.userData.citizenId,x:destination.x,z:destination.z}}));
+      if(destination&&path.length&&!p.userData.awaitingArrival){
+        let movementBudget=movementDelta*5.2,guard=0;
+        while(movementBudget>0&&p.userData.destination&&guard++<=path.length+1){
+          const target=path[p.userData.pathIndex||0]||path[path.length-1];
+          const dx=target.x-p.position.x,dz=target.z-p.position.z,distance=Math.hypot(dx,dz);
+          heading=Math.atan2(dx,dz);
+          if(distance<=.08||distance<=movementBudget){
+            p.position.x=target.x;p.position.z=target.z;
+            movementBudget=Math.max(0,movementBudget-distance);
+            if(p.userData.pathIndex<path.length-1)p.userData.pathIndex++;
+            else{
+              p.position.x=destination.x;p.position.z=destination.z;p.userData.awaitingArrival=true;p.userData.destination=null;
+              window.dispatchEvent(new CustomEvent("kingmaker:citizen-arrived",{detail:{citizenId:p.userData.citizenId,x:destination.x,z:destination.z}}));
+              break;
+            }
+          }else{
+            p.position.x+=dx/distance*movementBudget;p.position.z+=dz/distance*movementBudget;
+            movementBudget=0;
           }
-        }else{
-          const step=Math.min(distance,delta*3.6);p.position.x+=dx/distance*step;p.position.z+=dz/distance*step;heading=Math.atan2(dx,dz);moving=true;
+          moving=true;
         }
       }else{
         const location=p.userData.syncedLocation||{x:0,z:0},a=t*(.12+.05*p.userData.walkFactor)+p.userData.phase;
