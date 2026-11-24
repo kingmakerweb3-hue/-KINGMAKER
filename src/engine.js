@@ -515,10 +515,10 @@
 
       citizen.needs = citizen.needs && typeof citizen.needs === "object" ? citizen.needs : {};
       citizen.needs.food = clamp((Number.isFinite(citizen.needs.food) ? citizen.needs.food : 70) + (foodAvailable ? 3 : -8), 0, 100);
-      citizen.needs.shelter = clamp((Number.isFinite(citizen.needs.shelter) ? citizen.needs.shelter : 65) + (housing ? 2 : -2), 0, 100);
+      citizen.needs.energy = clamp((Number.isFinite(citizen.needs.energy) ? citizen.needs.energy : 65) + (housing ? 2 : -2), 0, 100);
       citizen.needs.safety = clamp((Number.isFinite(citizen.needs.safety) ? citizen.needs.safety : 70) + (secure ? 2 : -4), 0, 100);
       citizen.needs.belonging = clamp((Number.isFinite(citizen.needs.belonging) ? citizen.needs.belonging : 60) + (community ? 2 : -1), 0, 100);
-      citizen.mood = Math.round((citizen.needs.food + citizen.needs.shelter + citizen.needs.safety + citizen.needs.belonging) / 4);
+      citizen.mood = Math.round((citizen.needs.food + citizen.needs.energy + citizen.needs.safety + citizen.needs.belonging) / 4);
 
       if (territory.owner !== "player" && citizen.destination) {
         citizen.destination = null;
@@ -531,7 +531,7 @@
         citizen.activity = "walking to waypoint";
         citizen.goal = "explore " + territory.name;
       } else if (citizen.needs[lowest] < 35) {
-        citizen.activity = lowest === "food" ? "seeking food" : lowest === "shelter" ? "seeking shelter" : lowest === "safety" ? "seeking safety" : "meeting neighbors";
+        citizen.activity = lowest === "food" ? "seeking food" : lowest === "energy" ? "resting" : lowest === "safety" ? "seeking safety" : "meeting neighbors";
         citizen.goal = "restore " + lowest;
       } else {
         citizen.activity = "working locally as " + String(citizen.role || "resident");
