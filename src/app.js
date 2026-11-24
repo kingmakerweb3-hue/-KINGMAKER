@@ -40,7 +40,7 @@
     render();
     return true;
   }
-  function act(fn) { try { fn(); persist(); beep(); } catch(e) { toast(e.message,"error"); } }
+  function act(fn) { try { fn(); const saved=persist(); if(saved)beep(); return saved; } catch(e) { toast(e.message,"error"); return false; } }
   function beep() {
     if(!soundOn)return;
     try {const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const c=new C(),o=c.createOscillator(),g=c.createGain();o.frequency.value=520;g.gain.setValueAtTime(.035,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+.08);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+.08);o.onended=()=>c.close();}catch(_){}
@@ -422,7 +422,8 @@
   window.addEventListener("kingmaker:citizen-waypoint",event=>{
     const detail=event.detail||{},territoryId=detail.territoryId||"home";
     const citizen=territoryId==="home"?(state.citizens||[]).find(item=>item.id===detail.citizenId):(state.world?.remoteCitizens||[]).find(item=>item.id===detail.citizenId);
-    let assigned=false;act(()=>{if(territoryId==="home")E.assignCitizenDestination(state,String(detail.citizenId||""),{x:Number(detail.x),z:Number(detail.z)});else E.assignRemoteCitizenDestination(state,String(detail.citizenId||""),{x:Number(detail.x),z:Number(detail.z)});assigned=true;});
+    const assigned=act(()=>{if(territoryId==="home")E.assignCitizenDestination(state,String(detail.citizenId||""),{x:Number(detail.x),z:Number(detail.z)});else E.assignRemoteCitizenDestination(state,String(detail.citizenId||""),{x:Number(detail.x),z:Number(detail.z)});});
+    detail.accepted=assigned;
     if(assigned)toast((citizen?.name||"Citizen")+" is travelling across "+(territoryId==="home"?"the home island":"the selected island")+".","success");
   });
   window.addEventListener("kingmaker:citizen-arrived",event=>{
