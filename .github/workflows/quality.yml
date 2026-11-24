@@ -5,9 +5,11 @@ on:
     branches:
       - main
       - feature/island-resource-economy
+      - 'feature/**'
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
