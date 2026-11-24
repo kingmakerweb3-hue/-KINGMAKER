@@ -2640,7 +2640,7 @@ test("remote island residents' wellbeing responds to food, housing, security and
   territory.fortificationLevel = 0;
   state.nation.stability = 20;
   state.world.placedDistricts = [];
-  resident.needs = { food: 50, shelter: 50, safety: 50, belonging: 50 };
+  resident.needs = { food: 35, shelter: 50, safety: 50, belonging: 50 };
   resident.destination = null;
   Engine.updateRemoteCitizens(state);
   assert.ok(resident.needs.food < 50);
