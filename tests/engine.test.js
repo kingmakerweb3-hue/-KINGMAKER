@@ -2561,3 +2561,62 @@ test("schema 18 saves migrate with an empty passenger ferry network", () => {
   assert.deepEqual(migrated.world.passengerRoutes, []);
   assert.deepEqual(Engine.migrateSave(JSON.parse(Engine.exportSave(migrated))).world.passengerRoutes, []);
 });
+
+
+test("outer-island resident identities are deterministic and survive save export/import", () => {
+  const first = Engine.createInitialState({ seed: 93001 });
+  const second = Engine.createInitialState({ seed: 93001 });
+  const residents = first.world.remoteCitizens;
+  assert.ok(residents.length >= 8);
+  assert.deepEqual(residents, second.world.remoteCitizens);
+  assert.equal(new Set(residents.map(resident => resident.id)).size, residents.length);
+  assert.ok(residents.every(resident => resident.territoryId !== "home"));
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(first)));
+  assert.deepEqual(restored.world.remoteCitizens, residents);
+});
+
+test("a resident on a claimed outer island can receive and complete a saved local waypoint", () => {
+  const state = Engine.createInitialState({ seed: 93002 });
+  state.resources.materials = 1000; state.resources.credits = 2000; state.resources.influence = 100;
+  const territory = state.world.territories.find(item => item.owner === "unclaimed");
+  Engine.claimTerritory(state, territory.id);
+  const resident = state.world.remoteCitizens.find(item => item.territoryId === territory.id);
+  assert.ok(resident);
+  const destination = { x: territory.x, z: territory.z };
+  const assigned = Engine.assignRemoteCitizenDestination(state, resident.id, destination);
+  assert.deepEqual(assigned.destination, destination);
+  assert.equal(assigned.activity, "walking to waypoint");
+  assert.throws(() => Engine.assignRemoteCitizenDestination(state, resident.id, destination), /already travelling/);
+  const completed = Engine.completeRemoteCitizenJourney(state, resident.id, destination);
+  assert.deepEqual(completed.location, destination);
+  assert.equal(completed.destination, null);
+  assert.match(completed.activity, /exploring/);
+  assert.match(completed.memory.at(-1).text, /explored/);
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(restored.world.remoteCitizens, state.world.remoteCitizens);
+});
+
+test("remote residents cannot receive orders on rival or unclaimed islands or outside island bounds", () => {
+  const state = Engine.createInitialState({ seed: 93003 });
+  const rivalResident = state.world.remoteCitizens.find(item => state.world.territories.find(t => t.id === item.territoryId)?.owner !== "unclaimed");
+  assert.ok(rivalResident);
+  assert.throws(() => Engine.assignRemoteCitizenDestination(state, rivalResident.id, rivalResident.location), /player-controlled/);
+  const unclaimed = state.world.territories.find(item => item.owner === "unclaimed");
+  const resident = state.world.remoteCitizens.find(item => item.territoryId === unclaimed.id);
+  assert.throws(() => Engine.assignRemoteCitizenDestination(state, resident.id, { x: unclaimed.x, z: unclaimed.z }), /player-controlled/);
+  state.resources.materials = 1000; state.resources.credits = 2000; state.resources.influence = 100;
+  Engine.claimTerritory(state, unclaimed.id);
+  assert.throws(() => Engine.assignRemoteCitizenDestination(state, resident.id, { x: unclaimed.x + unclaimed.radius, z: unclaimed.z }), /inside/);
+  const parsed = JSON.parse(Engine.exportSave(state));
+  parsed.world.remoteCitizens.find(item => item.id === resident.id).location = { x: unclaimed.x + unclaimed.radius, z: unclaimed.z };
+  assert.throws(() => Engine.validateSave(parsed), /Remote resident navigation data is invalid/);
+});
+
+test("schema 19 saves migrate deterministic remote resident records", () => {
+  const legacy = Engine.createInitialState({ seed: 93004 });
+  legacy.schemaVersion = 19; delete legacy.world.remoteCitizens;
+  const migrated = Engine.migrateSave(legacy);
+  assert.equal(migrated.schemaVersion, 20);
+  assert.ok(migrated.world.remoteCitizens.length >= 8);
+  assert.deepEqual(Engine.migrateSave(JSON.parse(Engine.exportSave(migrated))).world.remoteCitizens, migrated.world.remoteCitizens);
+});

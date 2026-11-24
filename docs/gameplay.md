@@ -132,7 +132,7 @@ Counterattack history is stored on the territory and active battles record their
 
 ## Outer-island resident activity
 
-Every outer island renders a small, deterministic group of representative residents based on its local population. These agents use the island's generated terrain height and can be selected to open that island's territory inspector. Their count is a visual sample only: national and local population totals continue to come from the territory population records, so the rendered agents do not add or subtract population. Individual remote identities, needs, persistent movement orders and passenger transport between harbors are not implemented yet.
+Every outer island stores a deterministic group of named representative residents based on its local population. Their identities, needs, activity, location, destination and recent memories persist in the save; they remain visual samples and do not add or subtract from territory population totals. On a player-controlled island, select a resident and assign a local waypoint. The resident follows an island-centered A* route that stays inside the shoreline boundary, avoids placed buildings and fortification markers, prefers local roads, and uses the island's generated terrain elevation. Rival and unclaimed residents can be inspected but cannot receive player movement orders. Arrival updates the saved position, activity and memory. Passenger ferries still transfer aggregate headcounts; named resident boarding and disembarking remain a separate future milestone.
 
 Home-island residents spawn on a safe outer neighborhood ring. Save validation also relocates legacy residents if a saved position overlaps the capital, a building, a garrison installation or a fortification marker; an invalid blocked waypoint is cleared rather than leaving a resident unable to move.
 
@@ -147,3 +147,8 @@ Home-island residents spawn on a safe outer neighborhood ring. Save validation a
 - Ferry routes, passenger manifests, travel timers and delivery totals persist in save schema 19. schema 19 and older saves migrate with an empty passenger network.
 
 The current ferry system moves aggregate resident headcounts. It does not yet persist named individual citizens or simulate per-person boarding animations.
+
+
+## Remote island exploration waypoints
+
+Remote resident identities are generated deterministically from the campaign seed and island records, then stored in `world.remoteCitizens`. A resident can receive an exploration order only while their island is player-controlled. Waypoints are constrained to the island's safe interior; pathfinding accounts for local building footprints, garrison and fortification markers, road preference and generated terrain height. Saves retain the last confirmed location and destination rather than a transient frame-by-frame path. On reload or after infrastructure changes, the route is recalculated. Completing a journey records a memory and updates the resident's local position without changing population headcounts. Schema 20 migrates older saves by creating deterministic representative resident records.

@@ -87,8 +87,8 @@
     const radius = clamp(options.radius ?? 11.5, 3, 16);
     const step = clamp(options.step ?? 0.5, 0.25, 1);
     const clearance = clamp(options.clearance ?? 0.22, 0, 1.5);
-    const validPoint = point => !!point && Number.isFinite(point.x) && Number.isFinite(point.z) &&
-      Math.hypot(point.x, point.z) <= radius;
+    const center = options.center && Number.isFinite(options.center.x) && Number.isFinite(options.center.z) ? { x: options.center.x, z: options.center.z } : { x: 0, z: 0 };
+    const validPoint = point => !!point && Number.isFinite(point.x) && Number.isFinite(point.z) && Math.hypot(point.x - center.x, point.z - center.z) <= radius;
     if (!validPoint(start) || !validPoint(goal)) return null;
 
     const obstacles = (Array.isArray(options.obstacles) ? options.obstacles : [])
@@ -107,7 +107,7 @@
     const startKey = keyOf(startCell.x, startCell.z);
 
     const isWalkable = (x, z, allowStart = false) => {
-      if (Math.hypot(x * step, z * step) > radius + 1e-6) return false;
+      if (Math.hypot(x * step - center.x, z * step - center.z) > radius + 1e-6) return false;
       if (allowStart) return true;
       const point = { x: x * step, z: z * step };
       return !obstacles.some(item => Math.hypot(point.x - item.x, point.z - item.z) < item.radius + clearance);
@@ -236,7 +236,7 @@
       for (let index = 1; index <= samples; index++) {
         const t = index / samples;
         const point = { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t };
-        if (Math.hypot(point.x, point.z) > radius) return false;
+        if (Math.hypot(point.x - center.x, point.z - center.z) > radius) return false;
         if (t > 0.15 && obstacles.some(item =>
           Math.hypot(point.x - item.x, point.z - item.z) < item.radius + clearance)) return false;
       }
@@ -256,5 +256,6 @@
     return smooth;
   }
 
-  return { MAX_CITIZENS, MAX_MEMORY, JOBS, createPopulation, advanceCitizens, summarize, findHomeIslandPath };
+  function findTerritoryPath(start, goal, options = {}) { return findHomeIslandPath(start, goal, options); }
+  return { MAX_CITIZENS, MAX_MEMORY, JOBS, createPopulation, advanceCitizens, summarize, findHomeIslandPath, findTerritoryPath };
 });

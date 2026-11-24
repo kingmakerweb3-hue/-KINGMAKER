@@ -605,3 +605,41 @@ test('passenger ferries carry local residents between claimed harbors and persis
   await page.evaluate(id => window.dispatchEvent(new CustomEvent('kingmaker:inspect-territory', { detail: { id } })), setup.sourceId);
   await expect(page.locator('#world3d-territory-inspector')).toContainText('delivered');
 });
+
+
+test('claimed outer-island residents can explore local terrain and retain their waypoint result after reload', async ({ page }) => {
+  test.setTimeout(60000);
+  const setup = await page.evaluate(() => {
+    const E = window.KingmakerEngine, state = E.createInitialState({ seed: 93005 });
+    state.resources.materials = 1000; state.resources.credits = 2000; state.resources.influence = 100;
+    const territory = state.world.territories.find(item => item.owner === 'unclaimed');
+    E.claimTerritory(state, territory.id);
+    localStorage.setItem('kingmaker_save_v1', E.exportSave(state));
+    return { territoryId: territory.id, center: { x: territory.x, z: territory.z } };
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="world3d"]').click();
+  await expect.poll(() => page.evaluate(() => !!window.KingmakerWorld3D?.inspectRemoteResidentPath), { timeout: 15000 }).toBe(true);
+  const resident = await page.evaluate(id => window.KingmakerWorld3D.inspectRemoteResidents().find(item => item.territoryId === id), setup.territoryId);
+  expect(resident).toBeTruthy();
+  expect(await page.evaluate(id => window.KingmakerWorld3D.inspectRemoteResidentById(id), resident.id)).toBe(true);
+  await expect(page.locator('#world3d-citizen-inspector')).toContainText(resident.name);
+  expect(await page.evaluate(id => window.KingmakerWorld3D.setCitizenWaypointMode(id), resident.id)).toBe(true);
+  expect(await page.evaluate(point => window.KingmakerWorld3D.commitCitizenWaypoint(point), { ...setup.center, territoryId: setup.territoryId })).toBe(true);
+  const travelling = await page.evaluate(id => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.remoteCitizens.find(item => item.id === id), resident.id);
+  expect(travelling.destination).toEqual({ x: setup.center.x, z: setup.center.z });
+  expect(travelling.activity).toBe('walking to waypoint');
+  const path = await page.evaluate(id => window.KingmakerWorld3D.inspectRemoteResidentPath(id), resident.id);
+  expect(path.length).toBeGreaterThan(0);
+  expect(path.every(point => Math.hypot(point.x - setup.center.x, point.z - setup.center.z) <= 5)).toBe(true);
+  await expect.poll(() => page.evaluate(id => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.remoteCitizens.find(item => item.id === id).destination, resident.id), { timeout: 25000 }).toBeNull();
+  const arrived = await page.evaluate(id => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.remoteCitizens.find(item => item.id === id), resident.id);
+  expect(arrived.location).toEqual({ x: setup.center.x, z: setup.center.z });
+  expect(arrived.activity).toContain('exploring');
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="world3d"]').click();
+  const restored = await page.evaluate(id => window.KingmakerWorld3D.inspectRemoteResidents().find(item => item.id === id), resident.id);
+  expect(restored).toBeTruthy();
+  expect(restored.location).toEqual(arrived.location);
+  expect(restored.destination).toBeNull();
+});

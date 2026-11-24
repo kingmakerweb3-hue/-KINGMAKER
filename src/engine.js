@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 19;
+  const SAVE_VERSION = 20;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -224,6 +224,10 @@
       stockpile: createStockpile(), garrison: 2, fortificationLevel: 0, phase: 0, claimedTurn: 1
     }, ...outer];
   }
+  function remoteCitizenSpawnLocation(territory,index){const angle=(territory.phase||0)+index*2.399963229728653,radius=territory.radius*(.2+(index%3)*.12);return{x:Number((territory.x+Math.cos(angle)*radius).toFixed(3)),z:Number((territory.z+Math.sin(angle)*radius).toFixed(3))};}
+  function validRemoteCitizenPoint(point,territory){return !!point&&typeof point==="object"&&Number.isFinite(point.x)&&Number.isFinite(point.z)&&Math.abs(point.x)<=30&&Math.abs(point.z)<=30&&Math.hypot(point.x-territory.x,point.z-territory.z)<=territory.radius*.82;}
+  function createRemoteCitizens(seed,territories=[]){const roles=["farmer","builder","engineer","merchant","researcher","medic","courier","artisan"];return territories.filter(t=>t&&t.id!=="home").flatMap((territory,ti)=>{const count=Math.min(4,Math.ceil(Math.max(0,Number(territory.population)||0)/35));return Array.from({length:count},(_,index)=>{const hash=((seed>>>0)+Math.imul(ti+1,2654435761)+Math.imul(index+1,2246822519))>>>0;return{id:territory.id+"-resident-"+(index+1),name:territory.name+" Resident "+(index+1),role:roles[(ti+index)%roles.length],territoryId:territory.id,location:remoteCitizenSpawnLocation(territory,index),destination:null,activity:"walking",goal:"support the local community",mood:62+(hash%30),needs:{food:70+(hash%20),energy:65+((hash>>>5)%25),safety:70+((hash>>>10)%25),belonging:60+((hash>>>15)%35)},memory:[{turn:1,text:"Settled into life on "+territory.name+"."}]};});});}
+  function normalizeRemoteCitizens(state){const territories=state.world.territories||[];if(state.world.remoteCitizens===undefined)state.world.remoteCitizens=createRemoteCitizens(state.seed,territories);if(!Array.isArray(state.world.remoteCitizens)||state.world.remoteCitizens.length>32)throw new Error("Remote resident data is invalid.");const byId=new Map(territories.map(t=>[t.id,t])),ids=new Set();for(const[index,citizen]of state.world.remoteCitizens.entries()){if(!citizen||typeof citizen!=="object"||Array.isArray(citizen))throw new Error("Remote resident data is invalid.");const territory=byId.get(citizen.territoryId);if(!territory||territory.id==="home"||typeof citizen.id!=="string"||!/^[a-z0-9-]{1,64}$/.test(citizen.id)||ids.has(citizen.id)||!validRemoteCitizenPoint(citizen.location,territory)||(citizen.destination!==null&&citizen.destination!==undefined&&!validRemoteCitizenPoint(citizen.destination,territory)))throw new Error("Remote resident navigation data is invalid.");ids.add(citizen.id);citizen.name=typeof citizen.name==="string"&&citizen.name.trim()?citizen.name.slice(0,48):territory.name+" Resident "+(index+1);citizen.role=CITIZEN_ROLES.includes(citizen.role)?citizen.role:CITIZEN_ROLES[index%CITIZEN_ROLES.length];citizen.location={x:Number(citizen.location.x.toFixed(3)),z:Number(citizen.location.z.toFixed(3))};citizen.destination=citizen.destination?{x:Number(citizen.destination.x.toFixed(2)),z:Number(citizen.destination.z.toFixed(2))}:null;citizen.activity=typeof citizen.activity==="string"?citizen.activity.slice(0,64):"walking";citizen.goal=typeof citizen.goal==="string"?citizen.goal.slice(0,64):"support the local community";citizen.mood=safeInt(citizen.mood,65,100);citizen.needs=citizen.needs&&typeof citizen.needs==="object"?citizen.needs:{};for(const key of ["food","energy","safety","belonging"])citizen.needs[key]=safeInt(citizen.needs[key],65,100);citizen.memory=(Array.isArray(citizen.memory)?citizen.memory:[]).filter(m=>m&&Number.isInteger(m.turn)&&m.turn>=1&&m.turn<=state.turn&&typeof m.text==="string").slice(-8).map(m=>({turn:m.turn,text:m.text.slice(0,120)}));}}
   function createResourceDeposits(seed, territories = []) {
     let value = (seed >>> 0) || 1;
     const random = () => {
@@ -433,6 +437,9 @@
     return citizen;
   }
 
+  function assignRemoteCitizenDestination(state,citizenId,point){if(!state||state.status!=="playing")throw new Error("Citizen orders are unavailable after a campaign ends.");const citizen=(state.world?.remoteCitizens||[]).find(item=>item.id===citizenId);if(!citizen)throw new Error("That island resident could not be found.");const territory=(state.world?.territories||[]).find(item=>item.id===citizen.territoryId);if(!territory||territory.owner!=="player")throw new Error("Only residents on player-controlled islands can receive exploration orders.");if(citizen.destination)throw new Error(citizen.name+" is already travelling to a waypoint.");if(!validRemoteCitizenPoint(point,territory))throw new Error("Choose a destination inside "+territory.name+".");const destination={x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2))};if(Math.hypot(destination.x-citizen.location.x,destination.z-citizen.location.z)<.75)throw new Error("Choose a destination farther away.");citizen.destination=destination;citizen.activity="walking to waypoint";citizen.goal="explore "+territory.name;citizen.memory.push({turn:state.turn,text:"Set out to explore a new location on "+territory.name+"."});citizen.memory=citizen.memory.slice(-8);addEvent(state,citizen.name+" set out to explore "+territory.name+".","world");return citizen;}
+  function completeRemoteCitizenJourney(state,citizenId,point){const citizen=(state?.world?.remoteCitizens||[]).find(item=>item.id===citizenId);if(!citizen||!citizen.destination)throw new Error("That island resident has no active exploration waypoint.");const territory=(state.world?.territories||[]).find(item=>item.id===citizen.territoryId);if(!territory||territory.owner!=="player")throw new Error("That island is no longer under your control.");if(!validRemoteCitizenPoint(point,territory)||Math.hypot(point.x-citizen.destination.x,point.z-citizen.destination.z)>.3)throw new Error("The arrival point does not match the saved island waypoint.");citizen.location={...citizen.destination};citizen.destination=null;citizen.activity="exploring "+territory.name;citizen.goal="record a discovery";citizen.memory.push({turn:state.turn,text:"Reached a new location and explored "+territory.name+"."});citizen.memory=citizen.memory.slice(-8);addEvent(state,citizen.name+" reached a new location on "+territory.name+".","world");return citizen;}
+
   function updateCitizenRelationships(state) {
     const citizens = state.citizens || [];
     const byId = new Map(citizens.map(c => [c.id, c]));
@@ -501,7 +508,7 @@
       campaign: { id: campaignId, completedObjectives: [], status: "active", phaseIndex: 0, buildingStart: 6, progress: { tradeVolume: 0, agreementsSigned: 0, crisesSurvived: 0, peacefulDisputes: 0 } },
       achievements: [], creations: [], events: [{ id: "history-1-0", turn: 1, text: "Your civilization was founded. The first chapter begins.", type: "milestone", details: { summary: "A new campaign begins with a developing economy and six neighboring nations.", affectedNationIds: ["player"] } }],
       creatorEconomy: { nextAdoptionId: 1, publications: [], commissions: [], adoptions: [], totalRoyalties: 0, royaltyTurn: 1, lastTurnRoyalties: 0 },
-      world: { nextEventId: 1, activeEvents: [], processedEventIds: [], placedBuildings: [], placedRoads: [], placedDistricts: [], territories, resourceNodes: createResourceDeposits(seed, territories), shippingRoutes: [], passengerRoutes: [] },
+      world: { nextEventId: 1, activeEvents: [], processedEventIds: [], placedBuildings: [], placedRoads: [], placedDistricts: [], territories, resourceNodes: createResourceDeposits(seed, territories), shippingRoutes: [], passengerRoutes: [], remoteCitizens: createRemoteCitizens(seed, territories) },
       status: "playing"
     };
     if (campaignId === "longwinter") {
@@ -632,6 +639,7 @@
       territoryIds.add(territory.id);
       return false;
     })) throw new Error("Territory data is invalid.");
+    normalizeRemoteCitizens(normalized);
     const homeTerritory = normalized.world.territories.find(territory => territory.id === "home");
     if (!homeTerritory || homeTerritory.owner !== "player" || homeTerritory.x !== 0 || homeTerritory.z !== 0 || homeTerritory.harborLevel < 1) throw new Error("Home territory data is invalid.");
     const ownedPopulation = normalized.world.territories.filter(territory => territory.owner === "player")
@@ -850,7 +858,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -2912,7 +2920,7 @@
   return {
     SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, SHIPPING_RESOURCES, INTERNATIONAL_TRADE_RESOURCES, INTERNATIONAL_TRADE_TARIFFS, STOCKPILE_LIMIT, PASSENGER_ROUTE_COST, PASSENGER_ROUTE_LIMIT, PASSENGER_ROUTE_UPKEEP, RENEWABLE_POWER_OUTPUT, GARRISON_RECRUIT_COST, MILITARY_UPKEEP_PER_UNIT, GARRISON_MANPOWER_PER_UNIT, MAX_FORTIFICATION_LEVEL, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, assignCitizenDestination, completeCitizenJourney, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, garrisonCapacity, fortificationCost, territoryDefenseStrength, militaryEffects, recruitGarrison, buildFortification, developRivalMilitary, planRivalCounterattacks, COUNTERATTACK_WINDOW, COUNTERATTACK_COST, createShippingRoute, createInternationalTradeRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, passengerRouteCapacity, createPassengerRoute, passengerRouteEffects, processPassengerRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
+    createInitialState, validateSave, migrateSave, createCitizens, createRemoteCitizens, updateCitizens, assignCitizenDestination, completeCitizenJourney, assignRemoteCitizenDestination, completeRemoteCitizenJourney, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, garrisonCapacity, fortificationCost, territoryDefenseStrength, militaryEffects, recruitGarrison, buildFortification, developRivalMilitary, planRivalCounterattacks, COUNTERATTACK_WINDOW, COUNTERATTACK_COST, createShippingRoute, createInternationalTradeRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, passengerRouteCapacity, createPassengerRoute, passengerRouteEffects, processPassengerRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects, nationalPopulationFor, syncNationalPopulation,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,

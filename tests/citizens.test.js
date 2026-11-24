@@ -87,3 +87,16 @@ test("a fresh resident can route from the safe spawn ring past the starting sett
   assert.ok(Array.isArray(path) && path.length > 0);
   assert.deepEqual(path.at(-1), { x: -10, z: 0 });
 });
+
+
+test("territory pathfinding uses an island center and avoids local obstacles", () => {
+  const center = { x: 22, z: -14 }, start = { x: 18, z: -14 }, goal = { x: 26, z: -14 };
+  const path = C.findTerritoryPath(start, goal, { center, radius: 5, step: 0.5, clearance: 0.2, obstacles: [{ x: 22, z: -14, radius: 1.5 }] });
+  assert.ok(Array.isArray(path) && path.length > 1);
+  assert.deepEqual(path.at(-1), goal);
+  for (const point of path) {
+    assert.ok(Math.hypot(point.x - center.x, point.z - center.z) <= 5);
+    assert.ok(Math.hypot(point.x - center.x, point.z - center.z) >= 1.7);
+  }
+  assert.equal(C.findTerritoryPath(start, { x: 28, z: -14 }, { center, radius: 5 }), null);
+});
