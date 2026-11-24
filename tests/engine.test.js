@@ -2640,11 +2640,11 @@ test("remote island residents' wellbeing responds to food, housing, security and
   territory.fortificationLevel = 0;
   state.nation.stability = 20;
   state.world.placedDistricts = [];
-  resident.needs = { food: 35, shelter: 50, safety: 50, belonging: 50 };
+  resident.needs = { food: 35, energy: 50, safety: 50, belonging: 50 };
   resident.destination = null;
   Engine.updateRemoteCitizens(state);
   assert.ok(resident.needs.food < 50);
-  assert.ok(resident.needs.shelter < 50);
+  assert.ok(resident.needs.energy < 50);
   assert.ok(resident.needs.safety < 50);
   assert.ok(resident.needs.belonging < 50);
   assert.ok(resident.mood < 50);
@@ -2660,11 +2660,11 @@ test("remote island residents' wellbeing responds to food, housing, security and
     { type: "residential", territoryId: territory.id, x: territory.x, z: territory.z, radius: 2.6 },
     { type: "commercial", territoryId: territory.id, x: territory.x + 1, z: territory.z, radius: 2.6 }
   ];
-  resident.needs = { food: 50, shelter: 50, safety: 50, belonging: 50 };
+  resident.needs = { food: 50, energy: 50, safety: 50, belonging: 50 };
   resident.destination = { x: territory.x + 1, z: territory.z };
   Engine.updateRemoteCitizens(state);
   assert.ok(resident.needs.food > 50);
-  assert.ok(resident.needs.shelter > 50);
+  assert.ok(resident.needs.energy > 50);
   assert.ok(resident.needs.safety > 50);
   assert.ok(resident.needs.belonging > 50);
   assert.ok(resident.mood > 50);
@@ -2684,7 +2684,7 @@ test("remote residents use their own rival nation's food and stability signals",
   rival.stability = 85;
   territory.garrison = 2;
   territory.fortificationLevel = 1;
-  resident.needs = { food: 50, shelter: 50, safety: 50, belonging: 50 };
+  resident.needs = { food: 50, energy: 50, safety: 50, belonging: 50 };
   Engine.updateRemoteCitizens(state);
   assert.ok(resident.needs.food > 50);
   assert.ok(resident.needs.safety > 50);
