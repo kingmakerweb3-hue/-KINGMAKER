@@ -2591,6 +2591,7 @@ test("a ferry returns passengers to its surviving port when the destination is c
   assert.equal(route.travelTurns, 2);
   Engine.processPassengerRoutes(state);
   assert.ok(route.inTransit && route.inTransit.passengers > 0);
+  const namedPassengers = route.inTransit.citizenIds.slice();
   destination.owner = "aurelia";
   destination.claimedTurn = state.turn;
   state.rivals.aurelia.population += destination.population;
@@ -2605,6 +2606,7 @@ test("a ferry returns passengers to its surviving port when the destination is c
     Engine.processPassengerRoutes(state);
   }
   assert.equal(route.inTransit, null);
+  assert.ok(namedPassengers.every(id => state.citizens.find(citizen => citizen.id === id)?.territoryId === source.id));
   assert.equal(source.population, sourcePopulation);
   assert.equal(destination.population, 20);
   assert.equal(state.nation.population, populationAfterCapture);
