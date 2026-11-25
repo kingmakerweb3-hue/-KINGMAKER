@@ -677,7 +677,7 @@ test('named residents board passenger ferries, appear on the vessel and disembar
   expect(await page.evaluate(id => window.KingmakerWorld3D.inspectCitizenById(id), setup.passengerIds[0])).toBe(true);
   await expect(page.locator('#world3d-citizen-inspector')).toContainText('Aboard passenger ferry');
 
-  const arrival = await page.evaluate(({ routeId, travelTurns }) => {
+  const arrival = await page.evaluate(({ routeId, travelTurns, setupIds }) => {
     const E = window.KingmakerEngine, state = E.migrateSave(JSON.parse(localStorage.getItem('kingmaker_save_v1')));
     const route = state.world.passengerRoutes.find(item => item.id === routeId);
     for (let turn = 0; turn < travelTurns; turn++) { state.turn++; E.processPassengerRoutes(state); }
@@ -691,6 +691,7 @@ test('named residents board passenger ferries, appear on the vessel and disembar
   }, { routeId: setup.routeId, travelTurns: setup.travelTurns, setupIds: setup.passengerIds });
   expect(arrival.inTransit).toBeNull();
   expect(arrival.population).toBe(setup.population);
+  expect(arrival.territoryIds.every(id => id === setup.destinationId)).toBe(true);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.locator('[data-tab="world3d"]').click();
   expect(await page.evaluate(id => window.KingmakerWorld3D.inspectCitizenById(id), setup.passengerIds[0])).toBe(true);
