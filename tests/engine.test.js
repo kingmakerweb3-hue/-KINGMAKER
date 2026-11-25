@@ -2614,6 +2614,29 @@ test("a ferry returns passengers to its surviving port when the destination is c
   assert.equal(saved.world.passengerRoutes[0].status, "paused");
 });
 
+test("schema 19 ferry saves preserve at-sea population while adding empty named manifests", () => {
+  const state = Engine.createInitialState({ seed: 881910 });
+  state.resources.materials = 5000; state.resources.credits = 10000; state.resources.influence = 500;
+  const source = state.world.territories.find(item => item.id === "home");
+  const destination = state.world.territories.find(item => item.owner === "unclaimed");
+  Engine.claimTerritory(state, destination.id);
+  Engine.upgradeHarbor(state, destination.id);
+  const route = Engine.createPassengerRoute(state, source.id, destination.id);
+  Engine.processPassengerRoutes(state);
+  const population = state.nation.population, homePopulation = source.population, destinationPopulation = destination.population;
+  const passengers = route.inTransit.passengers;
+  const legacy = JSON.parse(Engine.exportSave(state));
+  legacy.schemaVersion = 19;
+  delete legacy.world.passengerRoutes[0].inTransit.citizenIds;
+  const migrated = Engine.migrateSave(legacy);
+  assert.equal(migrated.nation.population, population);
+  assert.equal(migrated.world.territories.find(item => item.id === "home").population, homePopulation);
+  assert.equal(migrated.world.territories.find(item => item.id === destination.id).population, destinationPopulation);
+  assert.equal(migrated.world.passengerRoutes[0].inTransit.passengers, passengers);
+  assert.deepEqual(migrated.world.passengerRoutes[0].inTransit.citizenIds, []);
+  assert.equal(Engine.validateSave(migrated).nation.population, population);
+});
+
 test("schema 18 saves migrate to schema 20 with an empty passenger ferry network", () => {
   const legacy = Engine.createInitialState({ seed: 881903 });
   legacy.schemaVersion = 18;
