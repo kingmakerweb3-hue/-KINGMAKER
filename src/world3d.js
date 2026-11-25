@@ -256,9 +256,10 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     if(signature===passengerSignature)return;
     clearGroup(passengerGroup);passengerVessels.length=0;passengerSignature=signature;
     const byId=new Map((territories||[]).map(territory=>[territory.id,territory]));
-    routes.filter(route=>route.status==="active").forEach((route,index)=>{
+    routes.filter(route=>route.status==="active"||route.inTransit).forEach((route,index)=>{
       const source=byId.get(route.sourceId),destination=byId.get(route.destinationId);
-      if(!source||!destination||source.owner!=="player"||destination.owner!=="player"||source.harborLevel<1||destination.harborLevel<1)return;
+      if(!source||!destination)return;
+      if(!route.inTransit&&(source.owner!=="player"||destination.owner!=="player"||source.harborLevel<1||destination.harborLevel<1))return;
       const distance=Math.hypot(destination.x-source.x,destination.z-source.z);
       const curve=new THREE.QuadraticBezierCurve3(
         new THREE.Vector3(source.x,.5,source.z),
@@ -647,7 +648,8 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   }
   function setCitizenWaypointMode(citizenId){
     const citizen=(lastState?.citizens||[]).find(item=>item.id===citizenId)||(lastState?.world?.remoteCitizens||[]).find(item=>item.id===citizenId),territoryId=citizen?.territoryId||"home",territory=(lastState?.world?.territories||[]).find(item=>item.id===territoryId);
-    if(!citizen||citizen.destination||territory?.owner!=="player")return false;
+    const inTransit=(lastState?.world?.passengerRoutes||[]).some(route=>(route.inTransit?.citizenIds||[]).includes(citizenId));
+    if(!citizen||citizen.destination||inTransit||territory?.owner!=="player")return false;
     selectedCitizenId=citizenId;selectedCitizenTerritoryId=territoryId;exploreMode=true;roadMode=false;roadStart=null;districtMode=false;selectedDistrict=null;selectedBuilding=null;
     const roadButton=document.getElementById("world3d-road");roadButton?.classList.remove("selected");roadButton?.setAttribute("aria-pressed","false");if(roadButton)roadButton.textContent="Build road · 8 materials / 12 credits";
     document.querySelectorAll("[data-world-build],[data-world-district]").forEach(button=>button.classList.remove("selected"));document.getElementById("world3d-citizen-inspector")?.remove();if(previewMarker)previewMarker.visible=false;
@@ -670,7 +672,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const needs=citizen.needs||{};
     const bars=Object.entries(needs).map(([key,value])=>'<div class="citizen-need"><span>'+esc(key)+'</span><b>'+Math.max(0,Math.min(100,Number(value)||0))+'%</b><i><em style="width:'+Math.max(0,Math.min(100,Number(value)||0))+'%"></em></i></div>').join("");
     const memories=(citizen.memory||[]).slice(-4).reverse().map(m=>'<li>Turn '+Number(m.turn||0)+': '+esc(m.text)+'</li>').join("")||"<li>No recorded memories yet.</li>";
-    const location=citizen.location||{x:0,z:0},destination=citizen.destination,territoryId=citizen.territoryId||"home",territory=(lastState?.world?.territories||[]).find(item=>item.id===territoryId),ferryRoute=(lastState?.world?.passengerRoutes||[]).find(route=>(route.inTransit?.citizenIds||[]).includes(citizen.id)),ferrySource=(lastState?.world?.territories||[]).find(item=>item.id===ferryRoute?.sourceId),ferryDestination=(lastState?.world?.territories||[]).find(item=>item.id===(ferryRoute?.returning?ferryRoute.sourceId:ferryRoute?.destinationId)),canOrder=territory?.owner==="player"&&!ferryRoute;
+    const location=citizen.location||{x:0,z:0},destination=citizen.destination,territoryId=citizen.territoryId||"home",territory=(lastState?.world?.territories||[]).find(item=>item.id===territoryId),ferryRoute=(lastState?.world?.passengerRoutes||[]).find(route=>(route.inTransit?.citizenIds||[]).includes(citizen.id)),ferrySource=(lastState?.world?.territories||[]).find(item=>item.id===(ferryRoute?.inTransit?.returning?ferryRoute.destinationId:ferryRoute?.sourceId)),ferryDestination=(lastState?.world?.territories||[]).find(item=>item.id===(ferryRoute?.inTransit?.returning?ferryRoute.sourceId:ferryRoute?.destinationId)),canOrder=territory?.owner==="player"&&!ferryRoute;
     const route=ferryRoute?'<p class="citizen-route-status">Aboard passenger ferry '+esc(ferryRoute.id)+' · '+esc(ferrySource?.name||ferryRoute.sourceId)+' → '+esc(ferryDestination?.name||ferryRoute.destinationId)+' · '+Number(ferryRoute.inTransit.remainingTurns||0)+' turns remaining.</p>':destination?'<p class="citizen-route-status">Travelling to '+Number(destination.x).toFixed(1)+', '+Number(destination.z).toFixed(1)+'. The saved order resumes when the world is reopened.</p>':canOrder?'<button type="button" class="citizen-waypoint-action" data-citizen-waypoint="'+esc(citizen.id)+'">Set exploration waypoint</button>':'<small class="muted">Exploration orders are available on player-controlled islands.</small>';
     panel.innerHTML='<button type="button" class="citizen-inspector-close" aria-label="Close citizen details">×</button><span class="eyebrow">CITIZEN PROFILE · '+esc(citizen.id)+'</span><h3>'+esc(citizen.name)+'</h3><p>'+esc(citizen.role)+' · '+esc(citizen.activity)+'</p><small class="citizen-location">'+esc(territory?.name||"Island")+' position '+Number(location.x).toFixed(1)+', '+Number(location.z).toFixed(1)+'</small><strong class="citizen-mood">'+Math.max(0,Math.min(100,Number(citizen.mood)||0))+'% mood</strong><div class="citizen-needs">'+bars+'</div>'+route+'<h4>Recent memories</h4><ul>'+memories+'</ul>';
     panel.querySelector(".citizen-inspector-close").addEventListener("click",()=>panel.remove());
@@ -810,7 +812,8 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   function commitCitizenWaypoint(point){
     if(!exploreMode||!selectedCitizenId||!point||!Number.isFinite(point.x)||!Number.isFinite(point.z))return false;
     const territoryId=selectedCitizenTerritoryId||"home",territory=(lastState?.world?.territories||[]).find(item=>item.id===territoryId),center={x:territory?.x||0,z:territory?.z||0},radius=territoryId==="home"?11.5:(territory?.radius||0)*.82;
-    if(!territory||territory.owner!=="player"||point.territoryId!==territoryId||Math.hypot(point.x-center.x,point.z-center.z)>radius)return false;
+    const inTransit=(lastState?.world?.passengerRoutes||[]).some(route=>(route.inTransit?.citizenIds||[]).includes(selectedCitizenId));
+    if(!territory||territory.owner!=="player"||inTransit||point.territoryId!==territoryId||Math.hypot(point.x-center.x,point.z-center.z)>radius)return false;
     const citizen=(lastState?.citizens||[]).find(item=>item.id===selectedCitizenId)||(lastState?.world?.remoteCitizens||[]).find(item=>item.id===selectedCitizenId);
     if(!citizen||!findCitizenPath(citizen.location,point,territoryId)){const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="No safe walking route reaches that point. Choose another open area.";return false;}
     const citizenId=selectedCitizenId,detail={citizenId,territoryId,x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2)),accepted:false};
