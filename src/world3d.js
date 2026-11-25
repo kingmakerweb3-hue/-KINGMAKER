@@ -252,7 +252,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   }
   function syncPassengerRoutes(routes,territories){
     if(!passengerGroup||!Array.isArray(routes))return;
-    const signature=routes.map(route=>[route.id,route.sourceId,route.destinationId,route.status,route.capacity,route.travelTurns,route.inTransit?.passengers||0,route.inTransit?.remainingTurns||0,route.inTransit?.returning?1:0].join(":")).join("|");
+    const signature=routes.map(route=>[route.id,route.sourceId,route.destinationId,route.status,route.capacity,route.travelTurns,route.inTransit?.passengers||0,route.inTransit?.remainingTurns||0,route.inTransit?.returning?1:0,(route.inTransit?.citizenIds||[]).join(",")].join(":")).join("|");
     if(signature===passengerSignature)return;
     clearGroup(passengerGroup);passengerVessels.length=0;passengerSignature=signature;
     const byId=new Map((territories||[]).map(territory=>[territory.id,territory]));
@@ -273,14 +273,21 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
       const cabin=new THREE.Mesh(new THREE.BoxGeometry(.36,.34,.42),material(0xe8e2d3,.72));cabin.position.set(0,.36,-.18);ferry.add(cabin);
       const windowMat=material(0x6ca8b1,.35);
       for(const side of [-1,1]){const windowMesh=new THREE.Mesh(new THREE.BoxGeometry(.035,.12,.2),windowMat);windowMesh.position.set(side*.19,.39,-.18);ferry.add(windowMesh);}
-      const passengerMat=material(0xffd98a,.62);
-      for(let seat=0;seat<3;seat++){const passenger=new THREE.Mesh(new THREE.SphereGeometry(.075,8,6),passengerMat);passenger.position.set((seat-1)*.14,.28,.2);ferry.add(passenger);}
+      const passengerIds=route.inTransit?.citizenIds||[],passengerRecords=[...(lastState?.citizens||[]),...(lastState?.world?.remoteCitizens||[])],roleColors={farmer:0x6f8954,builder:0xb77a43,engineer:0x547f9d,merchant:0x98734e,researcher:0x766b9d,medic:0x4c9b91,courier:0xc18d42,artisan:0x9a657d};
+      for(let seat=0;seat<3;seat++){
+        const citizen=passengerRecords.find(item=>item.id===passengerIds[seat]);
+        const coat=material(citizen?(roleColors[citizen.role]||0xffd98a):0xffd98a,.72);
+        const body=new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,.14,6),coat);body.position.set((seat-1)*.14,.25,.2);body.userData.citizenId=citizen?.id||null;ferry.add(body);
+        const head=new THREE.Mesh(new THREE.SphereGeometry(.04,7,6),material(0xc89d7b,.8));head.position.set((seat-1)*.14,.35,.2);head.userData.citizenId=citizen?.id||null;ferry.add(head);
+      }
+      ferry.userData.passengerIds=passengerIds.slice();ferry.userData.passengerCount=route.inTransit?.passengers||0;
       passengerGroup.add(ferry);
-      passengerVessels.push({mesh:ferry,curve,phase:index*.23,speed:.018+Math.min(.01,1/Math.max(1,route.travelTurns)*.01),routeId:route.id,passengers:route.inTransit?.passengers||0});
+      passengerVessels.push({mesh:ferry,curve,phase:index*.23,speed:.018+Math.min(.01,1/Math.max(1,route.travelTurns)*.01),routeId:route.id,passengers:route.inTransit?.passengers||0,passengerIds:passengerIds.slice()});
     });
   }
   function inspectPassengerFerries(){
-    return passengerVessels.map(vessel=>({routeId:vessel.routeId,passengers:vessel.passengers,position:{x:Number(vessel.mesh.position.x.toFixed(2)),z:Number(vessel.mesh.position.z.toFixed(2))}}));
+    const records=[...(lastState?.citizens||[]),...(lastState?.world?.remoteCitizens||[])];
+    return passengerVessels.map(vessel=>({routeId:vessel.routeId,passengers:vessel.passengers,passengerIds:vessel.passengerIds.slice(),passengerNames:vessel.passengerIds.map(id=>records.find(citizen=>citizen.id===id)?.name).filter(Boolean),position:{x:Number(vessel.mesh.position.x.toFixed(2)),z:Number(vessel.mesh.position.z.toFixed(2))}}));
   }
   function makeDistrict(d){
     const surface=(x,z)=>heightAtWorld(x,z,d.territoryId||"home");
@@ -338,7 +345,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const curve=new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(p[0],heightAt(p[0],p[1])+.035,p[1])));
     const mesh=new THREE.Mesh(new THREE.TubeGeometry(curve,100,.075,5,false),material(0xb9a88c));roadGroup.add(mesh);
   }
-  function createCitizenAvatar(index,citizen){
+  function createCitizenAvatar(index,citizen,inTransit=false){
     const person=new THREE.Group();
     const role=String(citizen?.role||"citizen");
     const palette={farmer:0x6f8954,builder:0xb77a43,engineer:0x547f9d,merchant:0x98734e,researcher:0x766b9d,medic:0x4c9b91,courier:0xc18d42,artisan:0x9a657d};
@@ -352,7 +359,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
       limbs.push({arm,leg,side});
     }
     person.userData.limbs=limbs;
-    syncCitizenAvatar(person,index,citizen);
+    syncCitizenAvatar(person,index,citizen,false,inTransit);
     return person;
   }
 
@@ -369,7 +376,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   function findCitizenPath(start,destination,territoryId="home"){const options=citizenNavigationContext(territoryId);return window.KingmakerCitizens?.findTerritoryPath?.(start,destination,options)||window.KingmakerCitizens?.findHomeIslandPath?.(start,destination,options)||null;}
   function navigationSignatureFor(state){return JSON.stringify({buildings:state.buildings||{},placedBuildings:(state.world?.placedBuildings||[]).map(item=>[item.type,item.x,item.z,item.territoryId||"home"]),roads:(state.world?.placedRoads||[]).map(item=>[item.from?.x,item.from?.z,item.to?.x,item.to?.z,item.territoryId||"home"]),defenses:(state.world?.territories||[]).map(item=>[item.id,item.garrison||0,item.fortificationLevel||0])});}
 
-  function syncCitizenAvatar(person,index,citizen,forcePath=false){
+  function syncCitizenAvatar(person,index,citizen,forcePath=false,inTransit=false){
     const role=String(citizen?.role||"citizen");
     person.userData.citizenId=citizen?.id||"citizen-"+(index+1);
     person.userData.citizenName=citizen?.name||"Resident "+(index+1);
@@ -380,12 +387,14 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     person.userData.phase=index*.53;
     person.userData.idleRadius=.22+(index%4)*.07;
     person.userData.walkFactor=/rest|study|care|seek/i.test(person.userData.activity)?.35:1;
+    person.visible=!inTransit;
     const location=citizen?.location&&Number.isFinite(citizen.location.x)&&Number.isFinite(citizen.location.z)?citizen.location:{x:0,z:0};
     const prior=person.userData.syncedLocation;
     if(!prior||Math.hypot(location.x-prior.x,location.z-prior.z)>.05){
       person.position.set(location.x,heightAtWorld(location.x,location.z,person.userData.territoryId),location.z);
       person.userData.syncedLocation={x:location.x,z:location.z};
     }
+    if(inTransit){person.userData.destination=null;person.userData.path=[];person.userData.pathIndex=0;person.userData.awaitingArrival=false;return;}
     const destination=citizen?.destination&&Number.isFinite(citizen.destination.x)&&Number.isFinite(citizen.destination.z)?citizen.destination:null;
     const previous=person.userData.destination;
     const changed=(!previous&&destination)||(previous&&!destination)||(previous&&destination&&Math.hypot(destination.x-previous.x,destination.z-previous.z)>.05);
@@ -396,7 +405,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
       person.userData.pathIndex=0;
     }
   }
-  function syncCitizenPopulation(citizens,forcePath=false){
+  function syncCitizenPopulation(citizens,forcePath=false,inTransitIds=new Set()){
     if(!peopleGroup)return;
     const residents=Array.isArray(citizens)?citizens.slice(0,48):[];
     while(peopleGroup.children.length>residents.length){
@@ -406,16 +415,16 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     }
     while(peopleGroup.children.length<residents.length){
       const i=peopleGroup.children.length;
-      peopleGroup.add(createCitizenAvatar(i,residents[i]));
+      peopleGroup.add(createCitizenAvatar(i,residents[i],inTransitIds.has(residents[i].id)));
     }
-    residents.forEach((citizen,i)=>syncCitizenAvatar(peopleGroup.children[i],i,citizen,forcePath));
+    residents.forEach((citizen,i)=>syncCitizenAvatar(peopleGroup.children[i],i,citizen,forcePath,inTransitIds.has(citizen.id)));
   }
 
-  function syncRemoteResidentPopulation(territories,residents,forcePath=false){
+  function syncRemoteResidentPopulation(territories,residents,forcePath=false,inTransitIds=new Set()){
     if(!remotePeopleGroup||!Array.isArray(territories)||!Array.isArray(residents))return;
-    const remote=residents.filter(c=>c&&c.territoryId&&c.territoryId!=="home"),signature=remote.map(c=>[c.id,c.territoryId,c.location?.x,c.location?.z,c.destination?.x??"",c.destination?.z??""].join(":")).join("|");
-    if(signature!==remoteResidentSignature){clearGroup(remotePeopleGroup);remoteResidentSignature=signature;remote.forEach((citizen,index)=>{const avatar=createCitizenAvatar(index,citizen);avatar.userData.territoryId=citizen.territoryId;avatar.userData.phase=index*.53+(territories.find(t=>t.id===citizen.territoryId)?.phase||0);avatar.userData.idleRadius=.09+(index%3)*.05;remotePeopleGroup.add(avatar);});return;}
-    remote.forEach((citizen,index)=>{const avatar=remotePeopleGroup.children[index];if(avatar)syncCitizenAvatar(avatar,index,citizen,forcePath);});
+    const remote=residents.filter(c=>c&&c.territoryId),signature=remote.map(c=>[c.id,c.territoryId,c.location?.x,c.location?.z,c.destination?.x??"",c.destination?.z??"",inTransitIds.has(c.id)?1:0].join(":")).join("|");
+    if(signature!==remoteResidentSignature){clearGroup(remotePeopleGroup);remoteResidentSignature=signature;remote.forEach((citizen,index)=>{const avatar=createCitizenAvatar(index,citizen,inTransitIds.has(citizen.id));avatar.userData.territoryId=citizen.territoryId;avatar.userData.phase=index*.53+(territories.find(t=>t.id===citizen.territoryId)?.phase||0);avatar.userData.idleRadius=.09+(index%3)*.05;remotePeopleGroup.add(avatar);});return;}
+    remote.forEach((citizen,index)=>{const avatar=remotePeopleGroup.children[index];if(avatar)syncCitizenAvatar(avatar,index,citizen,forcePath,inTransitIds.has(citizen.id));});
   }
 
   function syncWaypointMarkers(citizens){
@@ -661,8 +670,8 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const needs=citizen.needs||{};
     const bars=Object.entries(needs).map(([key,value])=>'<div class="citizen-need"><span>'+esc(key)+'</span><b>'+Math.max(0,Math.min(100,Number(value)||0))+'%</b><i><em style="width:'+Math.max(0,Math.min(100,Number(value)||0))+'%"></em></i></div>').join("");
     const memories=(citizen.memory||[]).slice(-4).reverse().map(m=>'<li>Turn '+Number(m.turn||0)+': '+esc(m.text)+'</li>').join("")||"<li>No recorded memories yet.</li>";
-    const location=citizen.location||{x:0,z:0},destination=citizen.destination,territoryId=citizen.territoryId||"home",territory=(lastState?.world?.territories||[]).find(item=>item.id===territoryId),canOrder=territory?.owner==="player";
-    const route=destination?'<p class="citizen-route-status">Travelling to '+Number(destination.x).toFixed(1)+', '+Number(destination.z).toFixed(1)+'. The saved order resumes when the world is reopened.</p>':canOrder?'<button type="button" class="citizen-waypoint-action" data-citizen-waypoint="'+esc(citizen.id)+'">Set exploration waypoint</button>':'<small class="muted">Exploration orders are available on player-controlled islands.</small>';
+    const location=citizen.location||{x:0,z:0},destination=citizen.destination,territoryId=citizen.territoryId||"home",territory=(lastState?.world?.territories||[]).find(item=>item.id===territoryId),ferryRoute=(lastState?.world?.passengerRoutes||[]).find(route=>(route.inTransit?.citizenIds||[]).includes(citizen.id)),ferrySource=(lastState?.world?.territories||[]).find(item=>item.id===ferryRoute?.sourceId),ferryDestination=(lastState?.world?.territories||[]).find(item=>item.id===(ferryRoute?.returning?ferryRoute.sourceId:ferryRoute?.destinationId)),canOrder=territory?.owner==="player"&&!ferryRoute;
+    const route=ferryRoute?'<p class="citizen-route-status">Aboard passenger ferry '+esc(ferryRoute.id)+' · '+esc(ferrySource?.name||ferryRoute.sourceId)+' → '+esc(ferryDestination?.name||ferryRoute.destinationId)+' · '+Number(ferryRoute.inTransit.remainingTurns||0)+' turns remaining.</p>':destination?'<p class="citizen-route-status">Travelling to '+Number(destination.x).toFixed(1)+', '+Number(destination.z).toFixed(1)+'. The saved order resumes when the world is reopened.</p>':canOrder?'<button type="button" class="citizen-waypoint-action" data-citizen-waypoint="'+esc(citizen.id)+'">Set exploration waypoint</button>':'<small class="muted">Exploration orders are available on player-controlled islands.</small>';
     panel.innerHTML='<button type="button" class="citizen-inspector-close" aria-label="Close citizen details">×</button><span class="eyebrow">CITIZEN PROFILE · '+esc(citizen.id)+'</span><h3>'+esc(citizen.name)+'</h3><p>'+esc(citizen.role)+' · '+esc(citizen.activity)+'</p><small class="citizen-location">'+esc(territory?.name||"Island")+' position '+Number(location.x).toFixed(1)+', '+Number(location.z).toFixed(1)+'</small><strong class="citizen-mood">'+Math.max(0,Math.min(100,Number(citizen.mood)||0))+'% mood</strong><div class="citizen-needs">'+bars+'</div>'+route+'<h4>Recent memories</h4><ul>'+memories+'</ul>';
     panel.querySelector(".citizen-inspector-close").addEventListener("click",()=>panel.remove());
     return true;
@@ -802,7 +811,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     if(!exploreMode||!selectedCitizenId||!point||!Number.isFinite(point.x)||!Number.isFinite(point.z))return false;
     const territoryId=selectedCitizenTerritoryId||"home",territory=(lastState?.world?.territories||[]).find(item=>item.id===territoryId),center={x:territory?.x||0,z:territory?.z||0},radius=territoryId==="home"?11.5:(territory?.radius||0)*.82;
     if(!territory||territory.owner!=="player"||point.territoryId!==territoryId||Math.hypot(point.x-center.x,point.z-center.z)>radius)return false;
-    const citizen=territoryId==="home"?(lastState?.citizens||[]).find(item=>item.id===selectedCitizenId):(lastState?.world?.remoteCitizens||[]).find(item=>item.id===selectedCitizenId);
+    const citizen=(lastState?.citizens||[]).find(item=>item.id===selectedCitizenId)||(lastState?.world?.remoteCitizens||[]).find(item=>item.id===selectedCitizenId);
     if(!citizen||!findCitizenPath(citizen.location,point,territoryId)){const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="No safe walking route reaches that point. Choose another open area.";return false;}
     const citizenId=selectedCitizenId,detail={citizenId,territoryId,x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2)),accepted:false};
     window.dispatchEvent(new CustomEvent("kingmaker:citizen-waypoint",{detail}));
@@ -848,6 +857,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     if(waterMesh){const attr=waterMesh.geometry.attributes.position;for(let i=0;i<attr.count;i++){const x=waterPositions[i*3],z=waterPositions[i*3+2];attr.array[i*3+1]=waterPositions[i*3+1]+Math.sin(x*.32+t*.65)*.055+Math.cos(z*.27-t*.48)*.04;}attr.needsUpdate=true;waterMesh.geometry.computeVertexNormals();}
     cloudGroup.children.forEach((cloud,i)=>{cloud.position.x+=.0012+Math.sin(t*.025+i)*.0005;if(cloud.position.x>24)cloud.position.x=-24;});
     peopleGroup.children.forEach((p,i)=>{
+      if(!p.visible)return;
       const destination=p.userData.destination,path=Array.isArray(p.userData.path)?p.userData.path:[];
       let moving=false,heading=0;
       if(destination&&path.length&&!p.userData.awaitingArrival){
@@ -875,11 +885,12 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
         const location=p.userData.syncedLocation||{x:0,z:0},a=t*(.12+.05*p.userData.walkFactor)+p.userData.phase;
         p.position.x=location.x+Math.cos(a)*p.userData.idleRadius;p.position.z=location.z+Math.sin(a)*p.userData.idleRadius;heading=-a;
       }
-      p.position.y=heightAt(p.position.x,p.position.z);p.rotation.y=heading;
+      p.position.y=heightAtWorld(p.position.x,p.position.z,p.userData.territoryId);p.rotation.y=heading;
       const swingPhase=moving?t*7+p.userData.phase:t*(2.1+1.2*p.userData.walkFactor)+p.userData.phase;
       for(const limb of p.userData.limbs){const swing=Math.sin(swingPhase)*(moving?.5:.42)*limb.side;limb.arm.rotation.x=-swing;limb.leg.rotation.x=swing;}
     });
     remotePeopleGroup.children.forEach(p=>{
+      if(!p.visible)return;
       const destination=p.userData.destination,path=Array.isArray(p.userData.path)?p.userData.path:[];let moving=false,heading=0;
       if(destination&&path.length&&!p.userData.awaitingArrival){let movementBudget=movementDelta*5.2,guard=0;while(movementBudget>0&&p.userData.destination&&guard++<=path.length+1){
         const target=path[p.userData.pathIndex||0]||path[path.length-1],dx=target.x-p.position.x,dz=target.z-p.position.z,distance=Math.hypot(dx,dz);heading=Math.atan2(dx,dz);
@@ -905,7 +916,8 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     if(citizenPanel?.dataset.citizenId){const id=citizenPanel.dataset.citizenId,citizen=(state.citizens||[]).find(item=>item.id===id)||(state.world?.remoteCitizens||[]).find(item=>item.id===id);if(citizen)showCitizenInspector(citizen);else citizenPanel.remove();}
     const nextNavigationSignature=navigationSignatureFor(state),navigationChanged=nextNavigationSignature!==navigationSignature;
     navigationSignature=nextNavigationSignature;
-    syncCitizenPopulation(state.citizens||[],navigationChanged);
+    const inTransitIds=new Set((state.world?.passengerRoutes||[]).flatMap(route=>route.inTransit?.citizenIds||[]));
+    syncCitizenPopulation(state.citizens||[],navigationChanged,inTransitIds);
     syncWaypointMarkers([...(state.citizens||[]),...(state.world?.remoteCitizens||[])]);
     const total=Object.values(state.buildings||{}).reduce((sum,n)=>sum+(Number(n)||0),0);
     const status=document.getElementById("world3d-status");if(status)status.textContent="TURN "+state.turn+" · "+total+" BUILDING LEVELS";
@@ -914,7 +926,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const averageMood=residents.length?Math.round(residents.reduce((sum,c)=>sum+(Number(c.mood)||0),0)/residents.length):0;
     const zones=state.world?.placedDistricts||[];const zoneCount=zones.length;const territories=state.world?.territories||[];const unclaimed=territories.filter(t=>t.owner==="unclaimed").length;const deposits=state.world?.resourceNodes||[];const activeSites=deposits.filter(n=>n.operational&&!n.depleted).length;const undevelopedSites=deposits.filter(n=>!n.operational&&!n.depleted).length;const exhaustedSites=deposits.filter(n=>n.depleted).length;if(stats)stats.innerHTML=[["Citizens",state.nation.population],["3D Agents",residents.length+" · "+averageMood+"% mood"],["Outer-island agents",(remotePeopleGroup?.children.length||0)+" visible"],["Passenger ferries",(state.world?.passengerRoutes||[]).filter(route=>route.status==="active").length+" active"],["Infrastructure",total+" levels"],["Districts",zoneCount+" zones"],["Resource sites",activeSites+" active · "+undevelopedSites+" undeveloped"],["Exhausted deposits",exhaustedSites+" · "+deposits.length+" total"],["Traffic",trafficVehicles.length+" vehicles"],["Stability",state.nation.stability+"%"],["Archipelago",territories.length+" islands · "+unclaimed+" unclaimed"],["Shipping",(state.world?.shippingRoutes||[]).filter(route=>route.status==="active").length+" active routes"],["Garrisons",territories.reduce((sum,t)=>sum+(t.garrison||0),0)+" units"],["Fortifications",territories.reduce((sum,t)=>sum+(t.fortificationLevel||0),0)+" levels"]].map(([label,value])=>'<div class="world3d-stat"><b>'+String(value).replace(/[&<>]/g,"") +'</b><small>'+label+'</small></div>').join("");
     syncTerritories(territories);
-    syncRemoteResidentPopulation(territories,state.world?.remoteCitizens||[],navigationChanged);
+    syncRemoteResidentPopulation(territories,state.world?.remoteCitizens||[],navigationChanged,inTransitIds);
     syncShippingRoutes(state.world?.shippingRoutes||[],territories);
     syncPassengerRoutes(state.world?.passengerRoutes||[],territories);
     if(!buildingGroup)return;
