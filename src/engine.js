@@ -415,15 +415,15 @@
     if (!territory || territory.owner !== "player") throw new Error("Only residents on player-controlled islands can receive exploration orders.");
     if (citizenInTransit(state, citizen.id)) throw new Error(citizen.name + " is aboard a passenger ferry.");
     if (citizen.destination) throw new Error(citizen.name + " is already travelling to a waypoint.");
-    if (!validRemoteCitizenPoint(point, territory)) throw new Error("Choose a destination inside " + territory.name + ".");
+    if (!validRemoteCitizenPoint(point, territory)) throw new Error(territory.id === "home" ? "Choose a destination on safe home-island terrain." : "Choose a destination inside " + territory.name + ".");
     const destination = { x: Number(point.x.toFixed(2)), z: Number(point.z.toFixed(2)) };
     if (Math.hypot(destination.x - citizen.location.x, destination.z - citizen.location.z) < 0.75) throw new Error("Choose a destination farther away.");
     citizen.destination = destination;
     citizen.activity = "walking to waypoint";
-    citizen.goal = "explore " + territory.name;
-    citizen.memory.push({ turn: state.turn, text: "Set out to explore a new location on " + territory.name + "." });
+    citizen.goal = territory.id === "home" ? "explore the home island" : "explore " + territory.name;
+    citizen.memory.push({ turn: state.turn, text: territory.id === "home" ? "Set out to explore a new location on the home island." : "Set out to explore a new location on " + territory.name + "." });
     citizen.memory = citizen.memory.slice(-8);
-    addEvent(state, citizen.name + " set out to explore " + territory.name + ".", "world");
+    addEvent(state, citizen.name + (territory.id === "home" ? " set out to explore the home island." : " set out to explore " + territory.name + "."), "world");
     return citizen;
   }
   function completeCitizenJourney(state, citizenId, point) {
@@ -435,11 +435,11 @@
     }
     citizen.location = { ...citizen.destination };
     citizen.destination = null;
-    citizen.activity = "exploring " + territory.name;
+    citizen.activity = territory.id === "home" ? "exploring the home island" : "exploring " + territory.name;
     citizen.goal = "record a discovery";
-    citizen.memory.push({ turn: state.turn, text: "Reached a new location and explored " + territory.name + "." });
+    citizen.memory.push({ turn: state.turn, text: territory.id === "home" ? "Reached a new location and explored the home island." : "Reached a new location and explored " + territory.name + "." });
     citizen.memory = citizen.memory.slice(-8);
-    addEvent(state, citizen.name + " reached a new location on " + territory.name + ".", "world");
+    addEvent(state, citizen.name + (territory.id === "home" ? " reached a new location on the home island." : " reached a new location on " + territory.name + "."), "world");
     return citizen;
   }
 
@@ -955,7 +955,7 @@
       state.schemaVersion = SAVE_VERSION;
       addIndustryDefaults(state);
       normalizeCitizens(state);
-      migrateNationalPopulation(state);
+      migrateNationalPopulation(state, input.schemaVersion);
       return validateSave(state);
     }
     if (input && !("schemaVersion" in input) && input.buildings && input.events) {
@@ -1225,7 +1225,7 @@
     state.nation.population = Math.max(1, Math.min(RESOURCE_LIMIT, nationalPopulationFor(state)));
     return state.nation.population;
   }
-  function migrateNationalPopulation(state) {
+  function migrateNationalPopulation(state, sourceSchemaVersion = 0) {
     state.seed = safeInt(state.seed, 1, 0xffffffff) || 1;
     state.world = state.world && typeof state.world === "object" ? state.world : {};
     if (!Array.isArray(state.world.territories)) {
@@ -1240,10 +1240,12 @@
     const home = state.world.territories.find(territory => territory?.id === "home");
     if (home) {
       const nationalPopulation = safeInt(state.nation?.population, home.population || 100, RESOURCE_LIMIT) || 1;
-      const otherOwnedPopulation = state.world.territories.filter(territory => territory?.id !== "home" && territory?.owner === "player")
-        .reduce((sum, territory) => sum + safeInt(territory.population, 0, RESOURCE_LIMIT), 0);
-      const passengersAtSea = (state.world.passengerRoutes || []).reduce((sum, route) => sum + safeInt(route?.inTransit?.passengers, 0, RESOURCE_LIMIT), 0);
-      home.population = Math.max(1, nationalPopulation - otherOwnedPopulation - passengersAtSea);
+      if (sourceSchemaVersion >= 19) {
+        const otherOwnedPopulation = state.world.territories.filter(territory => territory?.id !== "home" && territory?.owner === "player")
+          .reduce((sum, territory) => sum + safeInt(territory.population, 0, RESOURCE_LIMIT), 0);
+        const passengersAtSea = (state.world.passengerRoutes || []).reduce((sum, route) => sum + safeInt(route?.inTransit?.passengers, 0, RESOURCE_LIMIT), 0);
+        home.population = Math.max(1, nationalPopulation - otherOwnedPopulation - passengersAtSea);
+      } else home.population = nationalPopulation;
     }
     syncNationalPopulation(state);
   }
