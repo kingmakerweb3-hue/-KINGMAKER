@@ -645,3 +645,61 @@ test('claimed outer-island residents can explore local terrain and retain their 
   expect(restored.location).toEqual(arrived.location);
   expect(restored.destination).toBeNull();
 });
+
+
+test('named residents board passenger ferries, appear on the vessel and disembark at the destination', async ({ page }) => {
+  test.setTimeout(60000);
+  const setup = await page.evaluate(() => {
+    const E = window.KingmakerEngine, state = E.createInitialState({ seed: 881909 });
+    state.resources.materials = 5000; state.resources.credits = 10000; state.resources.influence = 500;
+    const source = state.world.territories.find(item => item.id === 'home');
+    const destination = state.world.territories.find(item => item.owner === 'unclaimed');
+    E.claimTerritory(state, destination.id);
+    E.upgradeHarbor(state, destination.id);
+    const route = E.createPassengerRoute(state, source.id, destination.id);
+    const population = state.nation.population;
+    E.processPassengerRoutes(state);
+    localStorage.setItem('kingmaker_save_v1', E.exportSave(state));
+    return {
+      routeId: route.id, sourceId: source.id, destinationId: destination.id,
+      destinationName: destination.name, travelTurns: route.travelTurns,
+      population, passengerIds: route.inTransit.citizenIds,
+      passengerNames: route.inTransit.citizenIds.map(id => state.citizens.find(citizen => citizen.id === id)?.name)
+    };
+  });
+  expect(setup.passengerIds.length).toBeGreaterThan(0);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="world3d"]').click();
+  await expect.poll(() => page.evaluate(() => window.KingmakerWorld3D?.inspectPassengerFerries?.().length || 0), { timeout: 15000 }).toBeGreaterThan(0);
+  const ferry = await page.evaluate(id => window.KingmakerWorld3D.inspectPassengerFerries().find(item => item.routeId === id), setup.routeId);
+  expect(ferry.passengerIds).toEqual(setup.passengerIds);
+  expect(ferry.passengerNames).toEqual(setup.passengerNames);
+  expect(await page.evaluate(id => window.KingmakerWorld3D.inspectCitizenById(id), setup.passengerIds[0])).toBe(true);
+  await expect(page.locator('#world3d-citizen-inspector')).toContainText('Aboard passenger ferry');
+
+  const arrival = await page.evaluate(({ routeId, travelTurns }) => {
+    const E = window.KingmakerEngine, state = E.migrateSave(JSON.parse(localStorage.getItem('kingmaker_save_v1')));
+    const route = state.world.passengerRoutes.find(item => item.id === routeId);
+    for (let turn = 0; turn < travelTurns; turn++) { state.turn++; E.processPassengerRoutes(state); }
+    localStorage.setItem('kingmaker_save_v1', E.exportSave(state));
+    return {
+      inTransit: route.inTransit,
+      population: state.nation.population,
+      travellers: route.inTransit?.citizenIds || [],
+      territoryIds: route.inTransit ? [] : state.citizens.filter(citizen => setupIds.includes(citizen.id)).map(citizen => citizen.territoryId)
+    };
+  }, { routeId: setup.routeId, travelTurns: setup.travelTurns, setupIds: setup.passengerIds });
+  expect(arrival.inTransit).toBeNull();
+  expect(arrival.population).toBe(setup.population);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="world3d"]').click();
+  expect(await page.evaluate(id => window.KingmakerWorld3D.inspectCitizenById(id), setup.passengerIds[0])).toBe(true);
+  await expect(page.locator('#world3d-citizen-inspector')).toContainText('arrived by passenger ferry');
+  await expect(page.locator('#world3d-citizen-inspector')).toContainText(setup.destinationName);
+  const restored = await page.evaluate(id => {
+    const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+    return save.citizens.find(citizen => citizen.id === id);
+  }, setup.passengerIds[0]);
+  expect(restored.territoryId).toBe(setup.destinationId);
+  expect(restored.destination).toBeNull();
+});
