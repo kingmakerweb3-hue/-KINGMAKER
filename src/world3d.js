@@ -12,6 +12,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   const windTurbineRotors=[];
   const solarTrackers=[];
   let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,exploreMode=false,selectedCitizenId=null,selectedCitizenTerritoryId=null,raycaster,groundPlane,previewMarker,placementPointer=null,territorySignature="",shippingSignature="",passengerSignature="",navigationSignature="",remoteResidentSignature="",worldFitted=false,waypointGroup,lastAnimationTime=0;
+  const residentPathHistory=new Map();
   const COLORS={farm:0xc6a35d,mine:0x78838d,workshop:0x9c7652,factory:0x697b8e,transport:0x9b9b8b,market:0xc49b52,academy:0x8b80b8,power:0x75b9c9,housing:0xd6c5a3};
   const material=(color,roughness=.86)=>new THREE.MeshStandardMaterial({color,roughness});
   const boxGeo=new THREE.BoxGeometry(1,1,1);
@@ -404,6 +405,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
       person.userData.awaitingArrival=false;
       person.userData.path=destination?(findCitizenPath({x:person.position.x,z:person.position.z},destination,person.userData.territoryId)||[]):[];
       person.userData.pathIndex=0;
+      if(person.userData.path.length)residentPathHistory.set(person.userData.citizenId,person.userData.path.map(point=>({x:point.x,z:point.z})));
     }
   }
   function syncCitizenPopulation(citizens,forcePath=false,inTransitIds=new Set()){
@@ -680,7 +682,8 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   }
   function inspectCitizenPath(citizenId){
     const avatar=(peopleGroup?.children||[]).find(item=>item.userData.citizenId===citizenId);
-    return avatar?(avatar.userData.path||[]).map(point=>({x:point.x,z:point.z})):null;
+    const active=avatar?.userData.path||[];
+    return active.length?active.map(point=>({x:point.x,z:point.z})):(residentPathHistory.get(citizenId)||[]).map(point=>({x:point.x,z:point.z}));
   }
   function resume(){
     if(!renderer||animationId||document.hidden)return false;
@@ -694,7 +697,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   }
   function inspectRemoteResidents(){return(remotePeopleGroup?.children||[]).map(agent=>({id:agent.userData.citizenId,territoryId:agent.userData.territoryId,name:agent.userData.citizenName,role:agent.userData.role,activity:agent.userData.activity,location:{...(agent.userData.syncedLocation||{x:agent.position.x,z:agent.position.z})},destination:agent.userData.destination?{...agent.userData.destination}:null}));}
   function inspectRemoteResidentById(residentId){const citizen=(lastState?.world?.remoteCitizens||[]).find(item=>item.id===residentId);if(!citizen)return false;window.dispatchEvent(new CustomEvent("kingmaker:inspect-territory",{detail:{id:citizen.territoryId}}));return showCitizenInspector(citizen);}
-  function inspectRemoteResidentPath(residentId){const avatar=(remotePeopleGroup?.children||[]).find(item=>item.userData.citizenId===residentId);return avatar?(avatar.userData.path||[]).map(point=>({x:point.x,z:point.z})):null;}
+  function inspectRemoteResidentPath(residentId){const avatar=(remotePeopleGroup?.children||[]).find(item=>item.userData.citizenId===residentId),active=avatar?.userData.path||[];return active.length?active.map(point=>({x:point.x,z:point.z})):(residentPathHistory.get(residentId)||[]).map(point=>({x:point.x,z:point.z}));}
   function inspectRemoteResident(event){
     if(!renderer||!camera||!remotePeopleGroup)return false;
     const rect=renderer.domElement.getBoundingClientRect();
@@ -815,7 +818,9 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const inTransit=(lastState?.world?.passengerRoutes||[]).some(route=>(route.inTransit?.citizenIds||[]).includes(selectedCitizenId));
     if(!territory||territory.owner!=="player"||inTransit||point.territoryId!==territoryId||Math.hypot(point.x-center.x,point.z-center.z)>radius)return false;
     const citizen=(lastState?.citizens||[]).find(item=>item.id===selectedCitizenId)||(lastState?.world?.remoteCitizens||[]).find(item=>item.id===selectedCitizenId);
-    if(!citizen||!findCitizenPath(citizen.location,point,territoryId)){const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="No safe walking route reaches that point. Choose another open area.";return false;}
+    const plannedPath=citizen?findCitizenPath(citizen.location,point,territoryId):null;
+    if(!citizen||!plannedPath){const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="No safe walking route reaches that point. Choose another open area.";return false;}
+    residentPathHistory.set(selectedCitizenId,plannedPath.map(pathPoint=>({x:pathPoint.x,z:pathPoint.z})));
     const citizenId=selectedCitizenId,detail={citizenId,territoryId,x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2)),accepted:false};
     window.dispatchEvent(new CustomEvent("kingmaker:citizen-waypoint",{detail}));
     if(detail.accepted!==true){const hint=document.getElementById("world3d-build-hint");if(hint)hint.textContent="The resident could not accept that waypoint. Choose another open area.";return false;}
