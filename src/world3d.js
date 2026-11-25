@@ -276,7 +276,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
       const windowMat=material(0x6ca8b1,.35);
       for(const side of [-1,1]){const windowMesh=new THREE.Mesh(new THREE.BoxGeometry(.035,.12,.2),windowMat);windowMesh.position.set(side*.19,.39,-.18);ferry.add(windowMesh);}
       const passengerIds=route.inTransit?.citizenIds||[],passengerRecords=[...(lastState?.citizens||[]),...(lastState?.world?.remoteCitizens||[])],roleColors={farmer:0x6f8954,builder:0xb77a43,engineer:0x547f9d,merchant:0x98734e,researcher:0x766b9d,medic:0x4c9b91,courier:0xc18d42,artisan:0x9a657d};
-      for(let seat=0;seat<3;seat++){
+      for(let seat=0;seat<(route.inTransit?.passengers?3:0);seat++){
         const citizen=passengerRecords.find(item=>item.id===passengerIds[seat]);
         const coat=material(citizen?(roleColors[citizen.role]||0xffd98a):0xffd98a,.72);
         const body=new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,.14,6),coat);body.position.set((seat-1)*.14,.25,.2);body.userData.citizenId=citizen?.id||null;ferry.add(body);
