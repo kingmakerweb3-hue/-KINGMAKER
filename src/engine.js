@@ -760,6 +760,11 @@
     })) throw new Error("Shipping route data is invalid.");
     const passengerRouteIds = new Set();
     const passengerRoutePairs = new Set();
+    const passengerCitizenById = new Map([...normalized.citizens, ...(normalized.world.remoteCitizens || [])].map(citizen => [citizen.id, citizen]));
+    const manifestCitizenIds = new Set();
+    normalized.world.passengerRoutes.forEach(route => {
+      if (route?.inTransit && typeof route.inTransit === "object" && route.inTransit.citizenIds === undefined) route.inTransit.citizenIds = [];
+    });
     if (normalized.world.passengerRoutes.length > PASSENGER_ROUTE_LIMIT || normalized.world.passengerRoutes.some(route => {
       if (!route) return true;
       const source = territoryById.get(route.sourceId), destination = territoryById.get(route.destinationId);
@@ -778,6 +783,13 @@
           (route.inTransit !== null && (!route.inTransit || !Number.isInteger(route.inTransit.passengers) || route.inTransit.passengers < 1 || route.inTransit.passengers > route.capacity ||
             !Number.isInteger(route.inTransit.remainingTurns) || route.inTransit.remainingTurns < 1 || route.inTransit.remainingTurns > route.travelTurns ||
             (route.inTransit.returning !== undefined && typeof route.inTransit.returning !== "boolean")))) return true;
+      const manifest = route.inTransit?.citizenIds ?? [];
+      if (!Array.isArray(manifest) || manifest.length > route.capacity || manifest.some(id => typeof id !== "string" || id.length > 64)) return true;
+      for (const citizenId of manifest) {
+        const citizen = passengerCitizenById.get(citizenId);
+        if (!citizen || (citizen.territoryId || "home") !== route.sourceId || manifestCitizenIds.has(citizenId)) return true;
+        manifestCitizenIds.add(citizenId);
+      }
       passengerRouteIds.add(route.id);
       passengerRoutePairs.add(pair);
       return false;
