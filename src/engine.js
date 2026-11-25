@@ -1238,7 +1238,13 @@
       }
     }
     const home = state.world.territories.find(territory => territory?.id === "home");
-    if (home) home.population = safeInt(state.nation?.population, home.population || 100, RESOURCE_LIMIT) || 1;
+    if (home) {
+      const nationalPopulation = safeInt(state.nation?.population, home.population || 100, RESOURCE_LIMIT) || 1;
+      const otherOwnedPopulation = state.world.territories.filter(territory => territory?.id !== "home" && territory?.owner === "player")
+        .reduce((sum, territory) => sum + safeInt(territory.population, 0, RESOURCE_LIMIT), 0);
+      const passengersAtSea = (state.world.passengerRoutes || []).reduce((sum, route) => sum + safeInt(route?.inTransit?.passengers, 0, RESOURCE_LIMIT), 0);
+      home.population = Math.max(1, nationalPopulation - otherOwnedPopulation - passengersAtSea);
+    }
     syncNationalPopulation(state);
   }
   function reducePlayerPopulation(state, amount) {
