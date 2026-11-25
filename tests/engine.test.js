@@ -2514,6 +2514,66 @@ test("passenger ferries transfer residents between owned harbors without changin
   assert.deepEqual(restored.world.passengerRoutes, state.world.passengerRoutes);
 });
 
+test("passenger ferries carry named home residents without double-counting population and preserve their identities", () => {
+  const state = Engine.createInitialState({ seed: 881907 });
+  state.resources.materials = 5000; state.resources.credits = 10000; state.resources.influence = 500;
+  const source = state.world.territories.find(item => item.id === "home");
+  const destination = state.world.territories.find(item => item.owner === "unclaimed");
+  Engine.claimTerritory(state, destination.id);
+  Engine.upgradeHarbor(state, destination.id);
+  const nationalPopulation = state.nation.population;
+  const route = Engine.createPassengerRoute(state, source.id, destination.id);
+  Engine.processPassengerRoutes(state);
+  const citizenIds = route.inTransit.citizenIds;
+  assert.equal(citizenIds.length, route.capacity);
+  assert.equal(new Set(citizenIds).size, citizenIds.length);
+  const first = state.citizens.find(citizen => citizen.id === citizenIds[0]);
+  assert.equal(first.territoryId, source.id);
+  assert.equal(first.activity, "aboard passenger ferry");
+  assert.throws(() => Engine.assignCitizenDestination(state, first.id, { x: 5, z: 0 }), /aboard a passenger ferry/);
+  const saved = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.deepEqual(saved.world.passengerRoutes[0].inTransit.citizenIds, citizenIds);
+  for (let turn = 0; turn < route.travelTurns; turn++) { state.turn++; Engine.processPassengerRoutes(state); }
+  assert.equal(route.inTransit, null);
+  assert.equal(state.nation.population, nationalPopulation);
+  assert.equal(Engine.nationalPopulationFor(state), nationalPopulation);
+  for (const id of citizenIds) {
+    const citizen = state.citizens.find(item => item.id === id);
+    assert.equal(citizen.territoryId, destination.id);
+    assert.equal(citizen.activity, "arrived by passenger ferry");
+    assert.equal(citizen.destination, null);
+  }
+  const waypoint = { x: Number((destination.x + destination.radius * 0.55).toFixed(2)), z: destination.z };
+  Engine.assignCitizenDestination(state, citizenIds[0], waypoint);
+  Engine.completeCitizenJourney(state, citizenIds[0], waypoint);
+  assert.deepEqual(state.citizens.find(item => item.id === citizenIds[0]).location, waypoint);
+  assert.equal(Engine.validateSave(JSON.parse(Engine.exportSave(state))).nation.population, nationalPopulation);
+});
+
+test("outer-island named residents can ferry home and continue exploring without becoming new population", () => {
+  const state = Engine.createInitialState({ seed: 881908 });
+  state.resources.materials = 5000; state.resources.credits = 10000; state.resources.influence = 500;
+  const source = state.world.territories.find(item => item.owner === "unclaimed");
+  const home = state.world.territories.find(item => item.id === "home");
+  Engine.claimTerritory(state, source.id);
+  Engine.upgradeHarbor(state, source.id);
+  const nationalPopulation = state.nation.population;
+  const route = Engine.createPassengerRoute(state, source.id, home.id);
+  Engine.processPassengerRoutes(state);
+  const citizenIds = route.inTransit.citizenIds;
+  assert.ok(citizenIds.length > 0);
+  assert.ok(citizenIds.every(id => state.world.remoteCitizens.some(citizen => citizen.id === id)));
+  for (let turn = 0; turn < route.travelTurns; turn++) { state.turn++; Engine.processPassengerRoutes(state); }
+  const citizen = state.world.remoteCitizens.find(item => item.id === citizenIds[0]);
+  assert.equal(citizen.territoryId, "home");
+  assert.equal(state.nation.population, nationalPopulation);
+  Engine.assignRemoteCitizenDestination(state, citizen.id, { x: 9, z: 0 });
+  Engine.completeRemoteCitizenJourney(state, citizen.id, { x: 9, z: 0 });
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  assert.equal(restored.world.remoteCitizens.find(item => item.id === citizen.id).territoryId, "home");
+  assert.equal(restored.nation.population, nationalPopulation);
+});
+
 test("a ferry returns passengers to its surviving port when the destination is captured", () => {
   const state = Engine.createInitialState({ seed: 881902 });
   const source = state.world.territories.find(item => item.id === "home");
