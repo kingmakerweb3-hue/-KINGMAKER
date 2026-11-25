@@ -287,7 +287,9 @@
     const routeList = routes.length ? '<div class="shipping-route-list">' + routes.map(route => {
       const source = state.world.territories.find(item => item.id === route.sourceId);
       const destination = state.world.territories.find(item => item.id === route.destinationId);
-      const transit = route.inTransit ? ' · ' + route.inTransit.passengers + ' passengers ' + (route.inTransit.returning ? 'returning to source' : 'at sea') + ' · ' + route.inTransit.remainingTurns + ' turns remaining' : ' · awaiting passengers';
+      const namedPassengers = (route.inTransit?.citizenIds || []).map(id => [...(state.citizens || []), ...(state.world.remoteCitizens || [])].find(citizen => citizen.id === id)?.name).filter(Boolean);
+      const named = namedPassengers.length ? ' · Named travellers: ' + namedPassengers.map(esc).join(', ') : '';
+      const transit = route.inTransit ? ' · ' + route.inTransit.passengers + ' passengers ' + (route.inTransit.returning ? 'returning to source' : 'at sea') + ' · ' + route.inTransit.remainingTurns + ' turns remaining' + named : ' · awaiting passengers';
       return '<span><b>' + esc(source?.name || route.sourceId) + ' → ' + esc(destination?.name || route.destinationId) + '</b><small>Capacity ' + route.capacity + ' · ' + route.travelTurns + ' travel turns · ' + esc(route.status) + transit + ' · delivered ' + num(route.deliveredTotal) + '</small></span>';
     }).join("") + '</div>' : '<small class="muted">No passenger ferry routes touch this island yet.</small>';
     const destinations = (state.world.territories || []).filter(item => item.id !== territory.id && item.owner === "player" && item.harborLevel > 0);
@@ -420,9 +422,11 @@
   window.addEventListener("kingmaker:inspect-territory",event=>{selectedTerritoryId=String(event.detail?.id||"");renderTerritoryInspector();});
   window.addEventListener("kingmaker:world3d-ready",()=>{if(state){renderResourceInspector();window.KingmakerWorld3D?.update(state);}});
   window.addEventListener("kingmaker:citizen-waypoint",event=>{
-    const detail=event.detail||{},territoryId=detail.territoryId||"home";
-    const citizen=territoryId==="home"?(state.citizens||[]).find(item=>item.id===detail.citizenId):(state.world?.remoteCitizens||[]).find(item=>item.id===detail.citizenId);
-    const assigned=act(()=>{if(territoryId==="home")E.assignCitizenDestination(state,String(detail.citizenId||""),{x:Number(detail.x),z:Number(detail.z)});else E.assignRemoteCitizenDestination(state,String(detail.citizenId||""),{x:Number(detail.x),z:Number(detail.z)});});
+    const detail=event.detail||{},citizenId=String(detail.citizenId||"");
+    const homeCitizen=(state.citizens||[]).find(item=>item.id===citizenId);
+    const remoteCitizen=(state.world?.remoteCitizens||[]).find(item=>item.id===citizenId);
+    const citizen=homeCitizen||remoteCitizen;
+    const assigned=act(()=>{if(homeCitizen)E.assignCitizenDestination(state,citizenId,{x:Number(detail.x),z:Number(detail.z)});else E.assignRemoteCitizenDestination(state,citizenId,{x:Number(detail.x),z:Number(detail.z)});});
     detail.accepted=assigned;
     if(assigned)toast((citizen?.name||"Citizen")+" is travelling across "+(territoryId==="home"?"the home island":"the selected island")+".","success");
   });
