@@ -225,9 +225,9 @@
     }, ...outer];
   }
   function remoteCitizenSpawnLocation(territory,index){const angle=(territory.phase||0)+index*2.399963229728653,radius=territory.radius*(.2+(index%3)*.12);return{x:Number((territory.x+Math.cos(angle)*radius).toFixed(3)),z:Number((territory.z+Math.sin(angle)*radius).toFixed(3))};}
-  function validRemoteCitizenPoint(point,territory){return !!point&&typeof point==="object"&&Number.isFinite(point.x)&&Number.isFinite(point.z)&&Math.abs(point.x)<=30&&Math.abs(point.z)<=30&&Math.hypot(point.x-territory.x,point.z-territory.z)<=territory.radius*.82;}
+  function validRemoteCitizenPoint(point,territory){if(!point||typeof point!=="object"||!Number.isFinite(point.x)||!Number.isFinite(point.z)||Math.abs(point.x)>30||Math.abs(point.z)>30)return false;return territory?.id==="home"?validCitizenPoint(point):!!territory&&Math.hypot(point.x-territory.x,point.z-territory.z)<=territory.radius*.82;}
   function createRemoteCitizens(seed,territories=[]){const roles=["farmer","builder","engineer","merchant","researcher","medic","courier","artisan"];return territories.filter(t=>t&&t.id!=="home").flatMap((territory,ti)=>{const count=Math.min(4,Math.ceil(Math.max(0,Number(territory.population)||0)/35));return Array.from({length:count},(_,index)=>{const hash=((seed>>>0)+Math.imul(ti+1,2654435761)+Math.imul(index+1,2246822519))>>>0;return{id:territory.id+"-resident-"+(index+1),name:territory.name+" Resident "+(index+1),role:roles[(ti+index)%roles.length],territoryId:territory.id,location:remoteCitizenSpawnLocation(territory,index),destination:null,activity:"walking",goal:"support the local community",mood:62+(hash%30),needs:{food:70+(hash%20),energy:65+((hash>>>5)%25),safety:70+((hash>>>10)%25),belonging:60+((hash>>>15)%35)},memory:[{turn:1,text:"Settled into life on "+territory.name+"."}]};});});}
-  function normalizeRemoteCitizens(state){const territories=state.world.territories||[];if(state.world.remoteCitizens===undefined)state.world.remoteCitizens=createRemoteCitizens(state.seed,territories);if(!Array.isArray(state.world.remoteCitizens)||state.world.remoteCitizens.length>32)throw new Error("Remote resident data is invalid.");const byId=new Map(territories.map(t=>[t.id,t])),ids=new Set();for(const[index,citizen]of state.world.remoteCitizens.entries()){if(!citizen||typeof citizen!=="object"||Array.isArray(citizen))throw new Error("Remote resident data is invalid.");const territory=byId.get(citizen.territoryId);if(!territory||territory.id==="home"||typeof citizen.id!=="string"||!/^[a-z0-9-]{1,64}$/.test(citizen.id)||ids.has(citizen.id)||!validRemoteCitizenPoint(citizen.location,territory)||(citizen.destination!==null&&citizen.destination!==undefined&&!validRemoteCitizenPoint(citizen.destination,territory)))throw new Error("Remote resident navigation data is invalid.");ids.add(citizen.id);citizen.name=typeof citizen.name==="string"&&citizen.name.trim()?citizen.name.slice(0,48):territory.name+" Resident "+(index+1);citizen.role=CITIZEN_ROLES.includes(citizen.role)?citizen.role:CITIZEN_ROLES[index%CITIZEN_ROLES.length];citizen.location={x:Number(citizen.location.x.toFixed(3)),z:Number(citizen.location.z.toFixed(3))};citizen.destination=citizen.destination?{x:Number(citizen.destination.x.toFixed(2)),z:Number(citizen.destination.z.toFixed(2))}:null;citizen.activity=typeof citizen.activity==="string"?citizen.activity.slice(0,64):"walking";citizen.goal=typeof citizen.goal==="string"?citizen.goal.slice(0,64):"support the local community";citizen.mood=safeInt(citizen.mood,65,100);citizen.needs=citizen.needs&&typeof citizen.needs==="object"?citizen.needs:{};for(const key of ["food","energy","safety","belonging"])citizen.needs[key]=safeInt(citizen.needs[key],65,100);citizen.memory=(Array.isArray(citizen.memory)?citizen.memory:[]).filter(m=>m&&Number.isInteger(m.turn)&&m.turn>=1&&m.turn<=state.turn&&typeof m.text==="string").slice(-8).map(m=>({turn:m.turn,text:m.text.slice(0,120)}));}}
+  function normalizeRemoteCitizens(state){const territories=state.world.territories||[];if(state.world.remoteCitizens===undefined)state.world.remoteCitizens=createRemoteCitizens(state.seed,territories);if(!Array.isArray(state.world.remoteCitizens)||state.world.remoteCitizens.length>32)throw new Error("Remote resident data is invalid.");const byId=new Map(territories.map(t=>[t.id,t])),ids=new Set();for(const[index,citizen]of state.world.remoteCitizens.entries()){if(!citizen||typeof citizen!=="object"||Array.isArray(citizen))throw new Error("Remote resident data is invalid.");const territory=byId.get(citizen.territoryId);if(!territory||typeof citizen.id!=="string"||!/^[a-z0-9-]{1,64}$/.test(citizen.id)||ids.has(citizen.id)||!validRemoteCitizenPoint(citizen.location,territory)||(citizen.destination!==null&&citizen.destination!==undefined&&!validRemoteCitizenPoint(citizen.destination,territory)))throw new Error("Remote resident navigation data is invalid.");ids.add(citizen.id);citizen.name=typeof citizen.name==="string"&&citizen.name.trim()?citizen.name.slice(0,48):territory.name+" Resident "+(index+1);citizen.role=CITIZEN_ROLES.includes(citizen.role)?citizen.role:CITIZEN_ROLES[index%CITIZEN_ROLES.length];citizen.location={x:Number(citizen.location.x.toFixed(3)),z:Number(citizen.location.z.toFixed(3))};citizen.destination=citizen.destination?{x:Number(citizen.destination.x.toFixed(2)),z:Number(citizen.destination.z.toFixed(2))}:null;citizen.activity=typeof citizen.activity==="string"?citizen.activity.slice(0,64):"walking";citizen.goal=typeof citizen.goal==="string"?citizen.goal.slice(0,64):"support the local community";citizen.mood=safeInt(citizen.mood,65,100);citizen.needs=citizen.needs&&typeof citizen.needs==="object"?citizen.needs:{};for(const key of ["food","energy","safety","belonging"])citizen.needs[key]=safeInt(citizen.needs[key],65,100);citizen.memory=(Array.isArray(citizen.memory)?citizen.memory:[]).filter(m=>m&&Number.isInteger(m.turn)&&m.turn>=1&&m.turn<=state.turn&&typeof m.text==="string").slice(-8).map(m=>({turn:m.turn,text:m.text.slice(0,120)}));}}
   function createResourceDeposits(seed, territories = []) {
     let value = (seed >>> 0) || 1;
     const random = () => {
@@ -342,6 +342,7 @@
     const obstacles = citizenHomeObstacles(state);
     const blocked = point => !!point && obstacles.some(item => Math.hypot(point.x - item.x, point.z - item.z) < item.radius + 0.18);
     (state.citizens || []).forEach((citizen, index) => {
+      if ((citizen.territoryId || "home") !== "home") return;
       if (blocked(citizen.location)) citizen.location = safeCitizenSpawnLocation(index, obstacles);
       if (blocked(citizen.destination)) {
         citizen.destination = null;
@@ -356,7 +357,7 @@
     const count = clamp(Math.ceil(population / 5), 12, 48);
     const citizens = Array.from({ length: count }, (_, i) => ({
       id: "citizen-" + (i + 1), name: CITIZEN_NAMES[(i + (seed % CITIZEN_NAMES.length)) % CITIZEN_NAMES.length] + " " + (i + 1),
-      role: CITIZEN_ROLES[i % CITIZEN_ROLES.length], home: "residential-" + (i % 3 + 1),
+      role: CITIZEN_ROLES[i % CITIZEN_ROLES.length], territoryId: "home", home: "residential-" + (i % 3 + 1),
       workplace: "district-" + (i % 4 + 1), location: citizenSpawnLocation(i), destination: null,
       needs: { food: 70 + (i * 7) % 25, energy: 65 + (i * 11) % 30, safety: 72 + (i * 5) % 24, belonging: 60 + (i * 13) % 35 },
       mood: 65 + (i * 3) % 25, goal: ["improve home", "master profession", "support community", "save resources"][i % 4],
@@ -385,9 +386,12 @@
       c.role = CITIZEN_ROLES.includes(c.role) ? c.role : CITIZEN_ROLES[i % CITIZEN_ROLES.length];
       c.home = typeof c.home === "string" ? c.home.slice(0, 40) : "residential-1";
       c.workplace = typeof c.workplace === "string" ? c.workplace.slice(0, 40) : "district-1";
-      if (!validCitizenPoint(c.location)) c.location = citizenSpawnLocation(i);
+      c.territoryId = typeof c.territoryId === "string" ? c.territoryId : "home";
+      const territory = (state.world?.territories || []).find(item => item.id === c.territoryId);
+      const validPoint = point => c.territoryId === "home" ? validCitizenPoint(point) : validRemoteCitizenPoint(point, territory);
+      if (!validPoint(c.location)) c.location = territory && c.territoryId !== "home" ? remoteCitizenSpawnLocation(territory, i) : citizenSpawnLocation(i);
       else c.location = { x: Number(c.location.x.toFixed(3)), z: Number(c.location.z.toFixed(3)) };
-      if (c.destination === null || c.destination === undefined || !validCitizenPoint(c.destination)) c.destination = null;
+      if (c.destination === null || c.destination === undefined || !validPoint(c.destination)) c.destination = null;
       else {
         c.destination = { x: Number(c.destination.x.toFixed(2)), z: Number(c.destination.z.toFixed(2)) };
         if (Math.hypot(c.destination.x - c.location.x, c.destination.z - c.location.z) < 0.25) c.destination = null;
@@ -407,37 +411,39 @@
     if (!state || state.status !== "playing") throw new Error("Citizen orders are unavailable after a campaign ends.");
     const citizen = (state.citizens || []).find(item => item.id === citizenId);
     if (!citizen) throw new Error("That citizen could not be found.");
+    const territory = (state.world?.territories || []).find(item => item.id === (citizen.territoryId || "home"));
+    if (!territory || territory.owner !== "player") throw new Error("Only residents on player-controlled islands can receive exploration orders.");
+    if (citizenInTransit(state, citizen.id)) throw new Error(citizen.name + " is aboard a passenger ferry.");
     if (citizen.destination) throw new Error(citizen.name + " is already travelling to a waypoint.");
-    if (!validCitizenPoint(point)) throw new Error("Choose a destination on safe home-island terrain.");
+    if (!validRemoteCitizenPoint(point, territory)) throw new Error("Choose a destination inside " + territory.name + ".");
     const destination = { x: Number(point.x.toFixed(2)), z: Number(point.z.toFixed(2)) };
-    if (Math.hypot(destination.x - citizen.location.x, destination.z - citizen.location.z) < 0.75) {
-      throw new Error("Choose a destination farther away.");
-    }
+    if (Math.hypot(destination.x - citizen.location.x, destination.z - citizen.location.z) < 0.75) throw new Error("Choose a destination farther away.");
     citizen.destination = destination;
     citizen.activity = "walking to waypoint";
-    citizen.goal = "explore the home island";
-    citizen.memory.push({ turn: state.turn, text: "Set out to explore a new location on the home island." });
+    citizen.goal = "explore " + territory.name;
+    citizen.memory.push({ turn: state.turn, text: "Set out to explore a new location on " + territory.name + "." });
     citizen.memory = citizen.memory.slice(-8);
-    addEvent(state, citizen.name + " set out to explore the home island.", "world");
+    addEvent(state, citizen.name + " set out to explore " + territory.name + ".", "world");
     return citizen;
   }
   function completeCitizenJourney(state, citizenId, point) {
     const citizen = (state?.citizens || []).find(item => item.id === citizenId);
     if (!citizen || !citizen.destination) throw new Error("That citizen has no active exploration waypoint.");
-    if (!validCitizenPoint(point) || Math.hypot(point.x - citizen.destination.x, point.z - citizen.destination.z) > 0.3) {
-      throw new Error("The arrival point does not match the saved waypoint.");
+    const territory = (state.world?.territories || []).find(item => item.id === (citizen.territoryId || "home"));
+    if (!territory || territory.owner !== "player" || !validRemoteCitizenPoint(point, territory) || Math.hypot(point.x - citizen.destination.x, point.z - citizen.destination.z) > 0.3) {
+      throw new Error("The arrival point does not match the saved island waypoint.");
     }
     citizen.location = { ...citizen.destination };
     citizen.destination = null;
-    citizen.activity = "exploring the home island";
+    citizen.activity = "exploring " + territory.name;
     citizen.goal = "record a discovery";
-    citizen.memory.push({ turn: state.turn, text: "Reached a new location and explored the home island." });
+    citizen.memory.push({ turn: state.turn, text: "Reached a new location and explored " + territory.name + "." });
     citizen.memory = citizen.memory.slice(-8);
-    addEvent(state, citizen.name + " reached a new location on the home island.", "world");
+    addEvent(state, citizen.name + " reached a new location on " + territory.name + ".", "world");
     return citizen;
   }
 
-  function assignRemoteCitizenDestination(state,citizenId,point){if(!state||state.status!=="playing")throw new Error("Citizen orders are unavailable after a campaign ends.");const citizen=(state.world?.remoteCitizens||[]).find(item=>item.id===citizenId);if(!citizen)throw new Error("That island resident could not be found.");const territory=(state.world?.territories||[]).find(item=>item.id===citizen.territoryId);if(!territory||territory.owner!=="player")throw new Error("Only residents on player-controlled islands can receive exploration orders.");if(citizen.destination)throw new Error(citizen.name+" is already travelling to a waypoint.");if(!validRemoteCitizenPoint(point,territory))throw new Error("Choose a destination inside "+territory.name+".");const destination={x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2))};if(Math.hypot(destination.x-citizen.location.x,destination.z-citizen.location.z)<.75)throw new Error("Choose a destination farther away.");citizen.destination=destination;citizen.activity="walking to waypoint";citizen.goal="explore "+territory.name;citizen.memory.push({turn:state.turn,text:"Set out to explore a new location on "+territory.name+"."});citizen.memory=citizen.memory.slice(-8);addEvent(state,citizen.name+" set out to explore "+territory.name+".","world");return citizen;}
+  function assignRemoteCitizenDestination(state,citizenId,point){if(!state||state.status!=="playing")throw new Error("Citizen orders are unavailable after a campaign ends.");const citizen=(state.world?.remoteCitizens||[]).find(item=>item.id===citizenId);if(!citizen)throw new Error("That island resident could not be found.");const territory=(state.world?.territories||[]).find(item=>item.id===citizen.territoryId);if(!territory||territory.owner!=="player")throw new Error("Only residents on player-controlled islands can receive exploration orders.");if(citizenInTransit(state,citizen.id))throw new Error(citizen.name+" is aboard a passenger ferry.");if(citizen.destination)throw new Error(citizen.name+" is already travelling to a waypoint.");if(!validRemoteCitizenPoint(point,territory))throw new Error("Choose a destination inside "+territory.name+".");const destination={x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2))};if(Math.hypot(destination.x-citizen.location.x,destination.z-citizen.location.z)<.75)throw new Error("Choose a destination farther away.");citizen.destination=destination;citizen.activity="walking to waypoint";citizen.goal="explore "+territory.name;citizen.memory.push({turn:state.turn,text:"Set out to explore a new location on "+territory.name+"."});citizen.memory=citizen.memory.slice(-8);addEvent(state,citizen.name+" set out to explore "+territory.name+".","world");return citizen;}
   function completeRemoteCitizenJourney(state,citizenId,point){const citizen=(state?.world?.remoteCitizens||[]).find(item=>item.id===citizenId);if(!citizen||!citizen.destination)throw new Error("That island resident has no active exploration waypoint.");const territory=(state.world?.territories||[]).find(item=>item.id===citizen.territoryId);if(!territory||territory.owner!=="player")throw new Error("That island is no longer under your control.");if(!validRemoteCitizenPoint(point,territory)||Math.hypot(point.x-citizen.destination.x,point.z-citizen.destination.z)>.3)throw new Error("The arrival point does not match the saved island waypoint.");citizen.location={...citizen.destination};citizen.destination=null;citizen.activity="exploring "+territory.name;citizen.goal="record a discovery";citizen.memory.push({turn:state.turn,text:"Reached a new location and explored "+territory.name+"."});citizen.memory=citizen.memory.slice(-8);addEvent(state,citizen.name+" reached a new location on "+territory.name+".","world");return citizen;}
 
   function updateCitizenRelationships(state) {
@@ -469,6 +475,7 @@
   }
   function updateCitizens(state) {
     for (const c of state.citizens) {
+      if (citizenInTransit(state, c.id)) { c.activity = "aboard passenger ferry"; c.goal = "travelling between islands"; continue; }
       c.needs.food = clamp(c.needs.food - (state.resources.food > 0 ? 3 : 12), 0, 100);
       c.needs.energy = clamp(c.needs.energy - 2 + (state.resources.power > 0 ? 1 : 0), 0, 100);
       c.needs.safety = clamp(c.needs.safety + (state.nation.stability >= 60 ? 2 : -4), 0, 100);
@@ -525,6 +532,11 @@
         citizen.memory = Array.isArray(citizen.memory) ? citizen.memory : [];
         citizen.memory.push({ turn: state.turn, text: "Paused exploration after " + territory.name + " changed control." });
         citizen.memory = citizen.memory.slice(-8);
+      }
+      if (citizenInTransit(state, citizen.id)) {
+        citizen.activity = "aboard passenger ferry";
+        citizen.goal = "travelling between islands";
+        continue;
       }
       const lowest = Object.keys(citizen.needs).sort((a, b) => citizen.needs[a] - citizen.needs[b])[0];
       if (citizen.destination) {
@@ -596,8 +608,6 @@
     if (!input.nation || typeof input.nation !== "object" || !input.resources || !input.buildings) throw new Error("Save is missing nation, resources, or building data.");
     const normalized = copy(input);
     normalizeCitizens(normalized);
-    if (normalized.citizens.some(c => !validCitizenPoint(c.location) ||
-        (c.destination !== null && !validCitizenPoint(c.destination)))) throw new Error("Citizen navigation data is invalid.");
     normalized.world = normalized.world || { nextEventId: 1, activeEvents: [], processedEventIds: [] };
     if (!Array.isArray(normalized.world.placedBuildings)) normalized.world.placedBuildings = [];
     if (!Array.isArray(normalized.world.placedRoads)) normalized.world.placedRoads = [];
@@ -695,6 +705,12 @@
       return false;
     })) throw new Error("Territory data is invalid.");
     normalizeRemoteCitizens(normalized);
+    const citizenTerritories = new Map(normalized.world.territories.map(territory => [territory.id, territory]));
+    if (normalized.citizens.some(citizen => {
+      const territory = citizenTerritories.get(citizen.territoryId || "home");
+      return !territory || !validRemoteCitizenPoint(citizen.location, territory) ||
+        (citizen.destination !== null && !validRemoteCitizenPoint(citizen.destination, territory));
+    })) throw new Error("Citizen navigation data is invalid.");
     const homeTerritory = normalized.world.territories.find(territory => territory.id === "home");
     if (!homeTerritory || homeTerritory.owner !== "player" || homeTerritory.x !== 0 || homeTerritory.z !== 0 || homeTerritory.harborLevel < 1) throw new Error("Home territory data is invalid.");
     const ownedPopulation = normalized.world.territories.filter(territory => territory.owner === "player")
@@ -1230,7 +1246,11 @@
         const loss = Math.min(remaining, route.inTransit.passengers);
         route.inTransit.passengers -= loss;
         remaining -= loss;
-        if (route.inTransit.passengers <= 0) route.inTransit = null;
+        if (route.inTransit.passengers <= 0) {
+          const source = (state.world?.territories || []).find(territory => territory.id === route.sourceId);
+          if (source) movePassengerCitizens(state, route, source);
+          route.inTransit = null;
+        }
       }
     }
     return syncNationalPopulation(state);
@@ -1764,6 +1784,29 @@
     const level = Math.min(safeInt(source?.harborLevel, 0, 3), safeInt(destination?.harborLevel, 0, 3));
     return level > 0 ? Math.min(24, 6 + level * 6) : 0;
   }
+  function findPassengerCitizen(state, citizenId) {
+    return (state.citizens || []).find(citizen => citizen.id === citizenId) ||
+      (state.world?.remoteCitizens || []).find(citizen => citizen.id === citizenId) || null;
+  }
+  function passengerCitizenIdsInTransit(state) {
+    return new Set((state.world?.passengerRoutes || []).flatMap(route => route.inTransit?.citizenIds || []));
+  }
+  function citizenInTransit(state, citizenId) { return passengerCitizenIdsInTransit(state).has(citizenId); }
+  function movePassengerCitizens(state, route, target) {
+    const ids = route.inTransit?.citizenIds || [];
+    ids.forEach((citizenId, index) => {
+      const citizen = findPassengerCitizen(state, citizenId);
+      if (!citizen) return;
+      citizen.territoryId = target.id;
+      citizen.location = remoteCitizenSpawnLocation(target, index);
+      citizen.destination = null;
+      citizen.activity = "arrived by passenger ferry";
+      citizen.goal = "settle in " + target.name;
+      citizen.memory = Array.isArray(citizen.memory) ? citizen.memory : [];
+      citizen.memory.push({ turn: state.turn, text: "Travelled by passenger ferry from " + (state.world.territories.find(item => item.id === route.sourceId)?.name || route.sourceId) + " to " + target.name + "." });
+      citizen.memory = citizen.memory.slice(-8);
+    });
+  }
   function createPassengerRoute(state, sourceId, destinationId) {
     if (state.status !== "playing") throw new Error("This campaign has ended.");
     const territories = state.world?.territories || [];
@@ -1802,6 +1845,7 @@
     return {
       activeRoutes: active.length,
       passengersInTransit: routes.reduce((sum, route) => sum + (route.inTransit?.passengers || 0), 0),
+      namedPassengersInTransit: routes.reduce((sum, route) => sum + (route.inTransit?.citizenIds?.length || 0), 0),
       upkeep: active.length * (hasTech(state, "logistics") ? PASSENGER_ROUTE_UPKEEP.logistics : PASSENGER_ROUTE_UPKEEP.standard),
       loadedTotal: routes.reduce((sum, route) => sum + route.loadedTotal, 0),
       deliveredTotal: routes.reduce((sum, route) => sum + route.deliveredTotal, 0)
@@ -1809,6 +1853,7 @@
   }
   function processPassengerRoutes(state) {
     const territories = new Map((state.world?.territories || []).map(item => [item.id, item]));
+    const inTransitIds = passengerCitizenIdsInTransit(state);
     let activeRoutes = 0, upkeep = 0, loadedThisTurn = 0, deliveredThisTurn = 0;
     for (const route of state.world?.passengerRoutes || []) {
       const source = territories.get(route.sourceId), destination = territories.get(route.destinationId);
@@ -1836,7 +1881,10 @@
             route.deliveredTotal = clamp(route.deliveredTotal + passengers, 0, RESOURCE_LIMIT);
             route.lastDeliveredTurn = state.turn;
             deliveredThisTurn += passengers;
-            addEvent(state, passengers + " residents arrived at " + target.name + " by passenger ferry.", "world");
+            const namedPassengers = route.inTransit.citizenIds || [];
+            movePassengerCitizens(state, route, target);
+            addEvent(state, passengers + " residents arrived at " + target.name + " by passenger ferry" +
+              (namedPassengers.length ? "; " + namedPassengers.length + " named residents disembarked." : "."), "world");
             route.inTransit = null;
             deliveredOnRoute = true;
             syncNationalPopulation(state);
@@ -1849,7 +1897,12 @@
       const passengers = Math.min(route.capacity, available);
       if (passengers > 0) {
         source.population -= passengers;
-        route.inTransit = { passengers, remainingTurns: route.travelTurns, returning: false };
+        const named = [...(state.citizens || []), ...(state.world?.remoteCitizens || [])].filter(citizen =>
+          (citizen.territoryId || "home") === source.id && !citizen.destination && !inTransitIds.has(citizen.id)
+        ).slice(0, Math.min(passengers, route.capacity));
+        const citizenIds = named.map(citizen => citizen.id);
+        route.inTransit = { passengers, remainingTurns: route.travelTurns, returning: false, citizenIds };
+        for (const citizen of named) { citizen.activity = "aboard passenger ferry"; citizen.goal = "travel to " + destination.name; inTransitIds.add(citizen.id); }
         route.loadedTotal = clamp(route.loadedTotal + passengers, 0, RESOURCE_LIMIT);
         route.lastLoadedTurn = state.turn;
         loadedThisTurn += passengers;
@@ -1858,7 +1911,7 @@
       }
     }
     syncNationalPopulation(state);
-    return { activeRoutes, upkeep, loadedThisTurn, deliveredThisTurn, passengersInTransit: passengerRouteEffects(state).passengersInTransit };
+    return { activeRoutes, upkeep, loadedThisTurn, deliveredThisTurn, passengersInTransit: passengerRouteEffects(state).passengersInTransit, namedPassengersInTransit: passengerRouteEffects(state).namedPassengersInTransit };
   }
   function processRivalResourceSites(state) {
     const territories = new Map((state.world?.territories || []).map(territory => [territory.id, territory]));
