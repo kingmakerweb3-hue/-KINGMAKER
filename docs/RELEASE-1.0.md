@@ -26,7 +26,7 @@ Release 1.0 is a complete, hosted **web game**. It is not an app-store release.
 ### World and presentation
 - Stable 3D archipelago scene with a detailed home island, selectable outer-island territories, ownership borders, finite resource deposits, ocean and lighting/day-night; buildings, roads and districts can be placed on the home island and any claimed outer island. Claimed outer islands can build harbors and ship local extraction stockpiles between player-controlled ports with travel time, capacity and upkeep.
 - Citizens and vehicles animate without breaking controls or causing unacceptable performance.
-- Home- and claimed-outer-island resident waypoints recalculate obstacle-aware paths after save reload and infrastructure changes; named passenger ferry manifests board, travel, divert and disembark without changing aggregate population; mobile controls remain usable.
+- Home- and claimed-outer-island resident waypoints recalculate obstacle-aware paths after save reload and infrastructure changes; named passenger ferry manifests board, travel, divert and disembark without changing aggregate population; ground-level resident-follow exploration supports terrain-aware movement, keyboard and touch controls, building/resource inspection, and return to the aerial strategy camera.
 - Functional placement/selection controls, camera controls, and clear selected-object feedback.
 - Industrial, harbor and renewable-energy areas are visually legible and connected to game systems.
 - Usable interface at target desktop resolutions, with graceful small-screen behavior and accessible labels/keyboard focus for key controls.
