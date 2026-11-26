@@ -701,7 +701,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   }
   function exitGroundView(){
     if(!groundViewMode)return false;
-    const previous=groundViewControlsState;
+    const previous=groundViewControlsState,previousCitizenId=groundViewCitizenId;
     groundViewMode=false;groundViewCitizenId=null;groundViewTerritoryId=null;groundViewControlsState=null;
     if(controls&&previous){controls.enablePan=previous.enablePan;controls.minDistance=previous.minDistance;controls.maxDistance=previous.maxDistance;controls.minPolarAngle=previous.minPolarAngle;controls.maxPolarAngle=previous.maxPolarAngle;controls.autoRotate=previous.autoRotate;autoRotate=previous.autoRotate;}
     const exit=document.getElementById("world3d-ground-exit");if(exit)exit.hidden=true;
@@ -710,7 +710,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     if(renderer)renderer.domElement.style.cursor="grab";
     document.getElementById("world3d-ground-inspector")?.remove();
     if(camera&&controls)fitWorldView();
-    const citizen=(lastState?.citizens||[]).find(item=>item.id===groundViewCitizenId);
+    const citizen=(lastState?.citizens||[]).find(item=>item.id===previousCitizenId)||(lastState?.world?.remoteCitizens||[]).find(item=>item.id===previousCitizenId);
     if(citizen)showCitizenInspector(citizen);
     setGroundViewHint("Select a resident in the 3D world to explore the island at ground level.");
     return true;
