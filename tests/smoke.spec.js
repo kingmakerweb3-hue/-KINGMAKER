@@ -708,7 +708,7 @@ test('named residents board passenger ferries, appear on the vessel and disembar
 
 test('ground-level exploration follows a named resident and supports touch movement', async ({ page }) => {
   await page.locator('[data-tab="world3d"]').click();
-  await page.waitForFunction(() => !!window.KingmakerWorld3D?.enterGroundView, { timeout: 20000 });
+  await page.waitForFunction(() => !!window.KingmakerWorld3D?.enterGroundView, null, { timeout: 20000 });
   expect(await page.evaluate(() => window.KingmakerWorld3D.inspectCitizenById('citizen-1'))).toBe(true);
   await expect(page.locator('#world3d-citizen-inspector [data-citizen-ground-view="citizen-1"]')).toBeVisible();
   await page.locator('#world3d-citizen-inspector [data-citizen-ground-view="citizen-1"]').click();
