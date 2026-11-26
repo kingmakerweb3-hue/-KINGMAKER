@@ -704,3 +704,39 @@ test('named residents board passenger ferries, appear on the vessel and disembar
   expect(restored.territoryId).toBe(setup.destinationId);
   expect(restored.destination).toBeNull();
 });
+
+
+test('ground-level exploration follows a named resident and supports touch movement', async ({ page }) => {
+  await page.locator('[data-tab="world3d"]').click();
+  await page.waitForFunction(() => !!window.KingmakerWorld3D?.enterGroundView, { timeout: 20000 });
+  expect(await page.evaluate(() => window.KingmakerWorld3D.inspectCitizenById('citizen-1'))).toBe(true);
+  await expect(page.locator('#world3d-citizen-inspector [data-citizen-ground-view="citizen-1"]')).toBeVisible();
+  await page.locator('#world3d-citizen-inspector [data-citizen-ground-view="citizen-1"]').click();
+  await expect(page.locator('#world3d-ground-exit')).toBeVisible();
+  await expect(page.locator('#world3d-ground-controls')).toBeVisible();
+  const view = await page.evaluate(() => window.KingmakerWorld3D.getGroundViewState());
+  expect(view.active).toBe(true);
+  expect(view.citizenId).toBe('citizen-1');
+  expect(view.cameraPosition.y).toBeGreaterThan(view.position.y);
+
+  let moved = false;
+  for (const direction of ['forward', 'backward', 'left', 'right']) {
+    await page.locator('#world3d-ground-controls [data-ground-step="' + direction + '"]').click();
+    moved = await page.evaluate(() => {
+      const save = JSON.parse(localStorage.getItem('kingmaker_save_v1'));
+      return !!save.citizens.find(citizen => citizen.id === 'citizen-1')?.destination;
+    });
+    if (moved) break;
+  }
+  expect(moved).toBe(true);
+  const afterMove = await page.evaluate(() => ({
+    view: window.KingmakerWorld3D.getGroundViewState(),
+    citizen: JSON.parse(localStorage.getItem('kingmaker_save_v1')).citizens.find(item => item.id === 'citizen-1')
+  }));
+  expect(afterMove.view.active).toBe(true);
+  expect(afterMove.citizen.destination).not.toBeNull();
+  await page.locator('#world3d-ground-exit').click();
+  await expect(page.locator('#world3d-ground-exit')).toBeHidden();
+  await expect(page.locator('#world3d-ground-controls')).toBeHidden();
+  expect(await page.evaluate(() => window.KingmakerWorld3D.getGroundViewState().active)).toBe(false);
+});
