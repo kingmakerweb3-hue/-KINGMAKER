@@ -157,3 +157,13 @@ Remote resident identities are generated deterministically from the campaign see
 ## Remote resident wellbeing
 
 Saved representative residents on outer islands now update their food, energy, safety, belonging and mood once per world turn. Their local conditions reflect the island's owner-controlled food reserves, residential/commercial districts, development, garrison and fortifications; rival residents use their own nation's food and stability rather than the player's reserves. Residents with an active exploration order keep that order while their needs update. If an island changes away from player control, an active player-issued waypoint is cleared safely. These named agents remain representative samples: their needs and memories do not add to or subtract from the island's aggregate population.
+
+
+## Ground-level exploration
+
+- Select a resident on a player-controlled island and enter ground view to follow that named resident at walking height.
+- Click open terrain to assign a saved walking waypoint; movement uses the same obstacle-aware, elevation-aware pathfinder as resident exploration orders.
+- WASD, arrow keys and the on-screen directional pad issue short, camera-relative movement orders. A resident must finish the current waypoint before accepting another.
+- Camera orbit and zoom remain available in ground view. The follow camera keeps above the terrain and shortens its boom when a building blocks the view.
+- Buildings open a local object inspector and resource deposits continue to use the existing resource inspector. Exiting ground view restores the aerial strategy camera and its prior orbit settings.
+- Ground-view camera state is presentation-only and is not written to campaign saves; the resident's accepted destination is saved by the existing citizen navigation system.
