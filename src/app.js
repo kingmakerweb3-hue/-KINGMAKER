@@ -428,7 +428,7 @@
     const citizen=homeCitizen||remoteCitizen;
     const assigned=act(()=>{if(homeCitizen)E.assignCitizenDestination(state,citizenId,{x:Number(detail.x),z:Number(detail.z)});else E.assignRemoteCitizenDestination(state,citizenId,{x:Number(detail.x),z:Number(detail.z)});});
     detail.accepted=assigned;
-    if(assigned)toast((citizen?.name||"Citizen")+" is travelling across "+(territoryId==="home"?"the home island":"the selected island")+".","success");
+    if(assigned)toast((citizen?.name||"Citizen")+" is travelling across "+((citizen?.territoryId||remoteCitizen?.territoryId||"home")==="home"?"the home island":"the selected island")+".","success");
   });
   window.addEventListener("kingmaker:citizen-arrived",event=>{
     const detail=event.detail||{},citizen=(state.citizens||[]).find(item=>item.id===detail.citizenId);let completed=false;
