@@ -167,3 +167,8 @@ Saved representative residents on outer islands now update their food, energy, s
 - Camera orbit and zoom remain available in ground view. The follow camera keeps above the terrain and shortens its boom when a building blocks the view.
 - Buildings open a local object inspector and resource deposits continue to use the existing resource inspector. Exiting ground view restores the aerial strategy camera and its prior orbit settings.
 - Ground-view camera state is presentation-only and is not written to campaign saves; the resident's accepted destination is saved by the existing citizen navigation system.
+
+
+## Ground-level resource operations
+
+When exploring at resident height, select a visible resource deposit to open its local operations panel. The panel shows the island, remaining finite reserve, per-turn yield and the destination reserve (national storage on the home island or the island stockpile on an outer territory). A player-controlled, undeveloped deposit can be established for 35 materials and 55 credits. Once established, extraction can be paused or resumed without another setup charge. Pausing stops reserve consumption on subsequent turns and preserves both the remaining deposit and any stored local output; resuming returns the site to its normal production cycle. Depleted deposits cannot be restarted, and only the nation controlling the island can change its extraction state. The same pause/resume controls are available in the standard resource inspector. The existing `operatedSinceTurn` field distinguishes a paused, previously established site from an undeveloped deposit, so this operation does not require a save-schema migration.
