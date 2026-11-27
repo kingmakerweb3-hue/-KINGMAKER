@@ -243,7 +243,10 @@
     }
     const yields = E.RESOURCE_SITE_OUTPUT[node.resource] || {};
     const rate = Object.entries(yields).map(([resource, amount]) => "+" + amount + " " + resource + "/turn").join(" · ");
-    const status = node.depleted ? "DEPLETED" : node.operational ? "EXTRACTING" : "UNDEVELOPED";
+    const territory = (state.world?.territories || []).find(item => item.id === (node.territoryId || "home"));
+    const established = Number.isInteger(node.operatedSinceTurn);
+    const status = node.depleted ? "DEPLETED" : node.operational ? "EXTRACTING" : established ? "PAUSED" : "UNDEVELOPED";
+    const manageable = territory?.owner === "player";
     const materials = Number(state.resources.materials) || 0;
     const credits = Number(state.resources.credits) || 0;
     const missing = [];
@@ -252,7 +255,9 @@
     const affordable = state.status === "playing" && missing.length === 0;
     const cost = '<div class="resource-site-cost"><span>Site establishment cost</span><b>35 materials · 55 credits</b><small>Your reserves: ' + num(materials) + ' materials · ' + num(credits) + ' credits</small></div>';
     const action = node.depleted ? '<p class="muted">Reserve exhausted. This built site remains on the map, but it produces nothing further.</p>' :
-      node.operational ? '<p class="muted">Extraction is active. The finite reserve is reduced each turn; production stops automatically when it reaches zero.</p>' :
+      !manageable ? '<p class="muted">Only the nation controlling ' + esc(territory?.name || "this island") + ' can manage this deposit.</p>' :
+      node.operational ? '<button type="button" data-action="pause-resource-site" data-id="' + esc(node.id) + '">Pause extraction</button><small class="muted">Pausing preserves the remaining reserve and local stockpile.</small>' :
+      established ? '<button type="button" data-action="resume-resource-site" data-id="' + esc(node.id) + '">Resume extraction</button><small class="muted">This established site resumes without another setup charge.</small>' :
       cost + '<button type="button" data-action="develop-resource" data-id="' + esc(node.id) + '" ' + (affordable ? "" : "disabled") + '>Establish extraction site</button>' + (missing.length ? '<small class="muted">Requires ' + esc(missing.join(" and ")) + '.</small>' : '<small class="muted">Ready to develop. Production starts on the next world turn.</small>');
     panel.innerHTML = '<div class="world3d-resource-heading"><div><span class="eyebrow">SELECTED DEPOSIT</span><h3>' + esc(node.resource) + '</h3><p>' + num(node.quantity) + ' units remaining · ' + esc(rate) + '</p></div><span class="tag">' + status + '</span></div>' + action;
   }
@@ -453,6 +458,8 @@
     act(()=>{
       if(action==="build")E.build(state,id);
       if(action==="develop-resource"){E.developResourceSite(state,id);toast("Extraction site established. Production begins next turn.","success");}
+      if(action==="pause-resource-site"){const site=E.setResourceSiteOperational(state,id,false);toast(site.resource+" extraction paused. Its remaining reserve is preserved.","success");}
+      if(action==="resume-resource-site"){const site=E.setResourceSiteOperational(state,id,true);toast(site.resource+" extraction resumed.","success");}
       if(action==="claim-territory"){const territory=E.claimTerritory(state,id);toast(territory.name+" claimed. Regional income begins next turn.","success");}
       if(action==="recruit-garrison"){const territory=E.recruitGarrison(state,id);toast("Garrison recruited on "+territory.name+". Military upkeep is now "+E.militaryEffects(state).upkeep+" credits per turn.","success");}
       if(action==="build-fortification"){const territory=E.buildFortification(state,id);toast(territory.name+" fortified to level "+territory.fortificationLevel+".","success");}
