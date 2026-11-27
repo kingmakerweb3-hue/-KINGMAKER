@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SAVE_VERSION = 9;
+  const SAVE_VERSION = 20;
   const CREATOR_EFFECTS = {
     "City Design": { label: "+25 population capacity", capacity: 25 },
     Building: { label: "+2 materials per turn", production: { materials: 2 } },
@@ -35,6 +35,17 @@
     "Rare crystals": { science: 2 }
   });
   const RESOURCE_SITE_TYPES = Object.freeze(Object.keys(RESOURCE_SITE_OUTPUT));
+  const SHIPPING_RESOURCES = Object.freeze(["food", "materials", "ore", "power", "science"]);
+  const INTERNATIONAL_TRADE_RESOURCES = Object.freeze(["food", "materials", "ore", "power"]);
+  const INTERNATIONAL_TRADE_TARIFFS = Object.freeze([0, 5, 10, 15, 20]);
+  const STOCKPILE_LIMIT = 500;
+  const PASSENGER_ROUTE_COST = Object.freeze({ materials: 30, credits: 45 });
+  const PASSENGER_ROUTE_LIMIT = 30;
+  const PASSENGER_ROUTE_UPKEEP = Object.freeze({ standard: 2, logistics: 1 });
+  const GARRISON_RECRUIT_COST = Object.freeze({ materials: 12, ore: 6, credits: 20 });
+  const MILITARY_UPKEEP_PER_UNIT = 1;
+  const GARRISON_MANPOWER_PER_UNIT = 10;
+  const MAX_FORTIFICATION_LEVEL = 3;
   // Permanent island wind and solar installations contribute power each turn.
   const RENEWABLE_POWER_OUTPUT = Object.freeze({ wind: 2, solar: 2 });
   const BUILDINGS = {
@@ -143,7 +154,43 @@
     return clamp(Math.floor(value), 0, max);
   }
   function copy(value) { return JSON.parse(JSON.stringify(value)); }
-  function createResourceDeposits(seed) {
+  function createStockpile() { return Object.fromEntries(SHIPPING_RESOURCES.map(resource => [resource, 0])); }
+  function garrisonCapacity(territory) {
+    return Math.max(0, Math.floor(Math.max(0, Number(territory?.population) || 0) / GARRISON_MANPOWER_PER_UNIT));
+  }
+  function fortificationCost(nextLevel) {
+    if (!Number.isInteger(nextLevel) || nextLevel < 1 || nextLevel > MAX_FORTIFICATION_LEVEL) return null;
+    return { materials: 25 * nextLevel, credits: 20 * nextLevel };
+  }
+  function territoryDefenseStrength(territory) {
+    if (!territory) return 0;
+    return Math.floor(Math.max(0, territory.population || 0) / 20) +
+      Math.floor(Math.max(0, territory.development || 0) / 10) +
+      Math.max(0, territory.harborLevel || 0) * 8 +
+      Math.max(0, territory.garrison || 0) * 8 +
+      Math.max(0, territory.fortificationLevel || 0) * 12;
+  }
+  function militaryEffects(state) {
+    const owned = (state.world?.territories || []).filter(territory => territory.owner === "player");
+    const units = owned.reduce((sum, territory) => sum + Math.max(0, territory.garrison || 0), 0);
+    return {
+      units,
+      manpower: units * GARRISON_MANPOWER_PER_UNIT,
+      upkeep: units * MILITARY_UPKEEP_PER_UNIT,
+      fortifications: owned.reduce((sum, territory) => sum + Math.max(0, territory.fortificationLevel || 0), 0)
+    };
+  }
+  const ARCHIPELAGO_TEMPLATES = [
+    { id: "isle-aurelia", name: "Aurelian Reach", owner: "aurelia", biome: "Temperate" },
+    { id: "isle-northreach", name: "Northreach", owner: "northreach", biome: "Highland" },
+    { id: "isle-meridian", name: "Meridian Isles", owner: "meridian", biome: "Rainforest" },
+    { id: "isle-solenne", name: "Solenne Fields", owner: "solenne", biome: "Grassland" },
+    { id: "isle-ironmarch", name: "Ironmarch Bastion", owner: "ironmarch", biome: "Volcanic" },
+    { id: "isle-duneward", name: "Duneward Frontier", owner: "duneward", biome: "Arid" },
+    { id: "isle-verdant", name: "Verdant Atoll", owner: "unclaimed", biome: "Wetland" },
+    { id: "isle-cinder", name: "Cinder Keys", owner: "unclaimed", biome: "Coastal" }
+  ];
+  function createTerritories(seed) {
     let value = (seed >>> 0) || 1;
     const random = () => {
       value = (value + 0x6D2B79F5) >>> 0;
@@ -152,21 +199,69 @@
       t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
-    return Array.from({ length: 8 }, (_, index) => {
+    const rotation = random() * Math.PI * 2;
+    const outer = ARCHIPELAGO_TEMPLATES.map((template, index) => {
+      const angle = rotation + index * Math.PI / 4;
+      const distance = 23.4 + (random() - 0.5) * 0.9;
+      const owner = template.owner;
+      return {
+        id: template.id, name: template.name, owner,
+        x: Number((Math.cos(angle) * distance).toFixed(2)),
+        z: Number((Math.sin(angle) * distance).toFixed(2)),
+        radius: Number((4.7 + random() * 0.75).toFixed(2)),
+        population: owner === "unclaimed" ? 18 + Math.floor(random() * 18) : 55 + Math.floor(random() * 65),
+        development: 12 + Math.floor(random() * 28),
+        biome: template.biome, harborLevel: 0, stockpile: createStockpile(),
+        garrison: owner === "unclaimed" ? 0 : owner === "ironmarch" ? 3 : 1,
+        fortificationLevel: owner === "ironmarch" ? 1 : 0,
+        phase: Number((random() * Math.PI * 2).toFixed(4)),
+        claimedTurn: owner === "unclaimed" ? null : 1
+      };
+    });
+    return [{
+      id: "home", name: "New Horizon", owner: "player", x: 0, z: 0,
+      radius: 15, population: 100, development: 35, biome: "Temperate", harborLevel: 1,
+      stockpile: createStockpile(), garrison: 2, fortificationLevel: 0, phase: 0, claimedTurn: 1
+    }, ...outer];
+  }
+  function remoteCitizenSpawnLocation(territory,index){const angle=(territory.phase||0)+index*2.399963229728653,radius=territory.radius*(.2+(index%3)*.12);return{x:Number((territory.x+Math.cos(angle)*radius).toFixed(3)),z:Number((territory.z+Math.sin(angle)*radius).toFixed(3))};}
+  function validRemoteCitizenPoint(point,territory){if(!point||typeof point!=="object"||!Number.isFinite(point.x)||!Number.isFinite(point.z)||Math.abs(point.x)>30||Math.abs(point.z)>30)return false;return territory?.id==="home"?validCitizenPoint(point):!!territory&&Math.hypot(point.x-territory.x,point.z-territory.z)<=territory.radius*.82;}
+  function createRemoteCitizens(seed,territories=[]){const roles=["farmer","builder","engineer","merchant","researcher","medic","courier","artisan"];return territories.filter(t=>t&&t.id!=="home").flatMap((territory,ti)=>{const count=Math.min(4,Math.ceil(Math.max(0,Number(territory.population)||0)/35));return Array.from({length:count},(_,index)=>{const hash=((seed>>>0)+Math.imul(ti+1,2654435761)+Math.imul(index+1,2246822519))>>>0;return{id:territory.id+"-resident-"+(index+1),name:territory.name+" Resident "+(index+1),role:roles[(ti+index)%roles.length],territoryId:territory.id,location:remoteCitizenSpawnLocation(territory,index),destination:null,activity:"walking",goal:"support the local community",mood:62+(hash%30),needs:{food:70+(hash%20),energy:65+((hash>>>5)%25),safety:70+((hash>>>10)%25),belonging:60+((hash>>>15)%35)},memory:[{turn:1,text:"Settled into life on "+territory.name+"."}]};});});}
+  function normalizeRemoteCitizens(state){const territories=state.world.territories||[];if(state.world.remoteCitizens===undefined)state.world.remoteCitizens=createRemoteCitizens(state.seed,territories);if(!Array.isArray(state.world.remoteCitizens)||state.world.remoteCitizens.length>32)throw new Error("Remote resident data is invalid.");const byId=new Map(territories.map(t=>[t.id,t])),ids=new Set();for(const[index,citizen]of state.world.remoteCitizens.entries()){if(!citizen||typeof citizen!=="object"||Array.isArray(citizen))throw new Error("Remote resident data is invalid.");const territory=byId.get(citizen.territoryId);if(!territory||typeof citizen.id!=="string"||!/^[a-z0-9-]{1,64}$/.test(citizen.id)||ids.has(citizen.id)||!validRemoteCitizenPoint(citizen.location,territory)||(citizen.destination!==null&&citizen.destination!==undefined&&!validRemoteCitizenPoint(citizen.destination,territory)))throw new Error("Remote resident navigation data is invalid.");ids.add(citizen.id);citizen.name=typeof citizen.name==="string"&&citizen.name.trim()?citizen.name.slice(0,48):territory.name+" Resident "+(index+1);citizen.role=CITIZEN_ROLES.includes(citizen.role)?citizen.role:CITIZEN_ROLES[index%CITIZEN_ROLES.length];citizen.location={x:Number(citizen.location.x.toFixed(3)),z:Number(citizen.location.z.toFixed(3))};citizen.destination=citizen.destination?{x:Number(citizen.destination.x.toFixed(2)),z:Number(citizen.destination.z.toFixed(2))}:null;citizen.activity=typeof citizen.activity==="string"?citizen.activity.slice(0,64):"walking";citizen.goal=typeof citizen.goal==="string"?citizen.goal.slice(0,64):"support the local community";citizen.mood=safeInt(citizen.mood,65,100);citizen.needs=citizen.needs&&typeof citizen.needs==="object"?citizen.needs:{};for(const key of ["food","energy","safety","belonging"])citizen.needs[key]=safeInt(citizen.needs[key],65,100);citizen.memory=(Array.isArray(citizen.memory)?citizen.memory:[]).filter(m=>m&&Number.isInteger(m.turn)&&m.turn>=1&&m.turn<=state.turn&&typeof m.text==="string").slice(-8).map(m=>({turn:m.turn,text:m.text.slice(0,120)}));}}
+  function createResourceDeposits(seed, territories = []) {
+    let value = (seed >>> 0) || 1;
+    const random = () => {
+      value = (value + 0x6D2B79F5) >>> 0;
+      let t = value;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const home = Array.from({ length: 8 }, (_, index) => {
       const angle = random() * Math.PI * 2;
       const radius = 4.5 + random() * 7.2;
       const resource = RESOURCE_SITE_TYPES[Math.floor(random() * RESOURCE_SITE_TYPES.length)];
       return {
-        id: "deposit-" + (index + 1),
-        resource,
-        quantity: 80 + Math.floor(random() * 121),
+        id: "deposit-" + (index + 1), territoryId: "home",
+        resource, quantity: 80 + Math.floor(random() * 121),
         x: Number((Math.cos(angle) * radius).toFixed(2)),
         z: Number((Math.sin(angle) * radius).toFixed(2)),
-        operational: false,
-        depleted: false,
-        operatedSinceTurn: null
+        operational: false, depleted: false, operatedSinceTurn: null
       };
     });
+    const outer = (territories || []).filter(territory => territory && territory.id !== "home").map(territory => {
+      const angle = random() * Math.PI * 2;
+      const radius = territory.radius * (0.22 + random() * 0.25);
+      const resource = RESOURCE_SITE_TYPES[Math.floor(random() * RESOURCE_SITE_TYPES.length)];
+      return {
+        id: "deposit-" + territory.id, territoryId: territory.id, resource,
+        quantity: 100 + Math.floor(random() * 151),
+        x: Number((territory.x + Math.cos(angle) * radius).toFixed(2)),
+        z: Number((territory.z + Math.sin(angle) * radius).toFixed(2)),
+        operational: false, depleted: false, operatedSinceTurn: null
+      };
+    });
+    return home.concat(outer);
   }
   function creatorIdFor(name) { return String(name || "").normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " "); }
   function normalizeCreatorRecords(state, preserveCommissions = false) {
@@ -197,12 +292,73 @@
 
   const CITIZEN_ROLES = ["farmer", "builder", "engineer", "merchant", "researcher", "medic", "courier", "artisan"];
   const CITIZEN_NAMES = ["Ari", "Mira", "Soren", "Nia", "Tarin", "Lena", "Oren", "Zara", "Kian", "Elia", "Ravi", "Noor", "Dara", "Ilan", "Sana", "Theo", "Amira", "Eren", "Milo", "Aya", "Ronan", "Iris", "Juno", "Kai"];
+  function citizenSpawnLocation(index) {
+    const angle = index * 2.399963229728653;
+    // Keep the initial crowd outside the capital and the default building cluster.
+    const radius = 8.4 + (index % 4) * 0.32;
+    return { x: Number((Math.cos(angle) * radius).toFixed(3)), z: Number((Math.sin(angle) * radius).toFixed(3)) };
+  }
+  function validCitizenPoint(point) {
+    return !!point && typeof point === "object" && Number.isFinite(point.x) && Number.isFinite(point.z) &&
+      Math.abs(point.x) <= 11.5 && Math.abs(point.z) <= 11.5 && Math.hypot(point.x, point.z) <= 11.5;
+  }
+  function citizenHomeObstacles(state) {
+    const obstacles = [{ x: 0, z: 0, radius: 1.3 }];
+    let index = 0;
+    for (const [type, countValue] of Object.entries(state.buildings || {})) {
+      const count = Math.min(18, Math.max(0, Number(countValue) || 0));
+      const savedItems = (state.world?.placedBuildings || []).filter(item => item.type === type);
+      for (let localIndex = 0; localIndex < count; localIndex++) {
+        const saved = savedItems[localIndex], angle = index * 2.399963, ring = 2.7 + Math.floor(index / 9) * 1.7;
+        const territoryId = saved?.territoryId || "home";
+        const x = Number.isFinite(saved?.x) ? saved.x : Math.cos(angle) * ring;
+        const z = Number.isFinite(saved?.z) ? saved.z : Math.sin(angle) * ring;
+        if (territoryId === "home") obstacles.push({ x, z, radius: type === "farm" ? 0.92 : type === "factory" ? 0.84 : 0.72 });
+        index++;
+      }
+    }
+    const home = (state.world?.territories || []).find(item => item.id === "home");
+    if (home?.garrison > 0) obstacles.push({ x: -home.radius * 0.13, z: home.radius * 0.12, radius: 0.52 });
+    if (home?.fortificationLevel > 0) {
+      const count = Math.min(6, home.fortificationLevel * 2), radius = home.radius * 0.52;
+      for (let i = 0; i < count; i++) {
+        const angle = (home.phase || 0) + i * Math.PI * 2 / count;
+        obstacles.push({ x: Math.cos(angle) * radius, z: Math.sin(angle) * radius, radius: 0.3 });
+      }
+    }
+    return obstacles;
+  }
+  function safeCitizenSpawnLocation(index, obstacles) {
+    for (let attempt = 0; attempt < 96; attempt++) {
+      const candidateIndex = index + attempt * 17;
+      const angle = candidateIndex * 2.399963229728653;
+      const radius = 8.4 + (candidateIndex % 4) * 0.32;
+      const point = { x: Number((Math.cos(angle) * radius).toFixed(3)), z: Number((Math.sin(angle) * radius).toFixed(3)) };
+      if (validCitizenPoint(point) && !obstacles.some(item => Math.hypot(point.x - item.x, point.z - item.z) < item.radius + 0.18)) return point;
+    }
+    return citizenSpawnLocation(index);
+  }
+  function repairCitizenLocations(state) {
+    const obstacles = citizenHomeObstacles(state);
+    const blocked = point => !!point && obstacles.some(item => Math.hypot(point.x - item.x, point.z - item.z) < item.radius + 0.18);
+    (state.citizens || []).forEach((citizen, index) => {
+      if ((citizen.territoryId || "home") !== "home") return;
+      if (blocked(citizen.location)) citizen.location = safeCitizenSpawnLocation(index, obstacles);
+      if (blocked(citizen.destination)) {
+        citizen.destination = null;
+        if (citizen.activity === "walking to waypoint") {
+          citizen.activity = "working";
+          citizen.goal = "support community";
+        }
+      }
+    });
+  }
   function createCitizens(population, seed) {
     const count = clamp(Math.ceil(population / 5), 12, 48);
     const citizens = Array.from({ length: count }, (_, i) => ({
       id: "citizen-" + (i + 1), name: CITIZEN_NAMES[(i + (seed % CITIZEN_NAMES.length)) % CITIZEN_NAMES.length] + " " + (i + 1),
-      role: CITIZEN_ROLES[i % CITIZEN_ROLES.length], home: "residential-" + (i % 3 + 1),
-      workplace: "district-" + (i % 4 + 1),
+      role: CITIZEN_ROLES[i % CITIZEN_ROLES.length], territoryId: "home", home: "residential-" + (i % 3 + 1),
+      workplace: "district-" + (i % 4 + 1), location: citizenSpawnLocation(i), destination: null,
       needs: { food: 70 + (i * 7) % 25, energy: 65 + (i * 11) % 30, safety: 72 + (i * 5) % 24, belonging: 60 + (i * 13) % 35 },
       mood: 65 + (i * 3) % 25, goal: ["improve home", "master profession", "support community", "save resources"][i % 4],
       memory: [{ turn: 1, text: "Joined the new civilization." }], activity: "working", age: 18 + (i * 7) % 48,
@@ -230,6 +386,16 @@
       c.role = CITIZEN_ROLES.includes(c.role) ? c.role : CITIZEN_ROLES[i % CITIZEN_ROLES.length];
       c.home = typeof c.home === "string" ? c.home.slice(0, 40) : "residential-1";
       c.workplace = typeof c.workplace === "string" ? c.workplace.slice(0, 40) : "district-1";
+      c.territoryId = typeof c.territoryId === "string" ? c.territoryId : "home";
+      const territory = (state.world?.territories || []).find(item => item.id === c.territoryId);
+      const validPoint = point => c.territoryId === "home" ? validCitizenPoint(point) : validRemoteCitizenPoint(point, territory);
+      if (!validPoint(c.location)) c.location = territory && c.territoryId !== "home" ? remoteCitizenSpawnLocation(territory, i) : citizenSpawnLocation(i);
+      else c.location = { x: Number(c.location.x.toFixed(3)), z: Number(c.location.z.toFixed(3)) };
+      if (c.destination === null || c.destination === undefined || !validPoint(c.destination)) c.destination = null;
+      else {
+        c.destination = { x: Number(c.destination.x.toFixed(2)), z: Number(c.destination.z.toFixed(2)) };
+        if (Math.hypot(c.destination.x - c.location.x, c.destination.z - c.location.z) < 0.25) c.destination = null;
+      }
       c.needs = c.needs && typeof c.needs === "object" ? c.needs : {};
       for (const key of ["food", "energy", "safety", "belonging"]) c.needs[key] = safeInt(c.needs[key], 70, 100);
       c.mood = safeInt(c.mood, 65, 100);
@@ -241,6 +407,45 @@
       return true;
     });
   }
+  function assignCitizenDestination(state, citizenId, point) {
+    if (!state || state.status !== "playing") throw new Error("Citizen orders are unavailable after a campaign ends.");
+    const citizen = (state.citizens || []).find(item => item.id === citizenId);
+    if (!citizen) throw new Error("That citizen could not be found.");
+    const territory = (state.world?.territories || []).find(item => item.id === (citizen.territoryId || "home"));
+    if (!territory || territory.owner !== "player") throw new Error("Only residents on player-controlled islands can receive exploration orders.");
+    if (citizenInTransit(state, citizen.id)) throw new Error(citizen.name + " is aboard a passenger ferry.");
+    if (citizen.destination) throw new Error(citizen.name + " is already travelling to a waypoint.");
+    if (!validRemoteCitizenPoint(point, territory)) throw new Error(territory.id === "home" ? "Choose a destination on safe home-island terrain." : "Choose a destination inside " + territory.name + ".");
+    const destination = { x: Number(point.x.toFixed(2)), z: Number(point.z.toFixed(2)) };
+    if (Math.hypot(destination.x - citizen.location.x, destination.z - citizen.location.z) < 0.75) throw new Error("Choose a destination farther away.");
+    citizen.destination = destination;
+    citizen.activity = "walking to waypoint";
+    citizen.goal = territory.id === "home" ? "explore the home island" : "explore " + territory.name;
+    citizen.memory.push({ turn: state.turn, text: territory.id === "home" ? "Set out to explore a new location on the home island." : "Set out to explore a new location on " + territory.name + "." });
+    citizen.memory = citizen.memory.slice(-8);
+    addEvent(state, citizen.name + (territory.id === "home" ? " set out to explore the home island." : " set out to explore " + territory.name + "."), "world");
+    return citizen;
+  }
+  function completeCitizenJourney(state, citizenId, point) {
+    const citizen = (state?.citizens || []).find(item => item.id === citizenId);
+    if (!citizen || !citizen.destination) throw new Error("That citizen has no active exploration waypoint.");
+    const territory = (state.world?.territories || []).find(item => item.id === (citizen.territoryId || "home"));
+    if (!territory || territory.owner !== "player" || !validRemoteCitizenPoint(point, territory) || Math.hypot(point.x - citizen.destination.x, point.z - citizen.destination.z) > 0.3) {
+      throw new Error("The arrival point does not match the saved island waypoint.");
+    }
+    citizen.location = { ...citizen.destination };
+    citizen.destination = null;
+    citizen.activity = territory.id === "home" ? "exploring the home island" : "exploring " + territory.name;
+    citizen.goal = "record a discovery";
+    citizen.memory.push({ turn: state.turn, text: territory.id === "home" ? "Reached a new location and explored the home island." : "Reached a new location and explored " + territory.name + "." });
+    citizen.memory = citizen.memory.slice(-8);
+    addEvent(state, citizen.name + (territory.id === "home" ? " reached a new location on the home island." : " reached a new location on " + territory.name + "."), "world");
+    return citizen;
+  }
+
+  function assignRemoteCitizenDestination(state,citizenId,point){if(!state||state.status!=="playing")throw new Error("Citizen orders are unavailable after a campaign ends.");const citizen=(state.world?.remoteCitizens||[]).find(item=>item.id===citizenId);if(!citizen)throw new Error("That island resident could not be found.");const territory=(state.world?.territories||[]).find(item=>item.id===citizen.territoryId);if(!territory||territory.owner!=="player")throw new Error("Only residents on player-controlled islands can receive exploration orders.");if(citizenInTransit(state,citizen.id))throw new Error(citizen.name+" is aboard a passenger ferry.");if(citizen.destination)throw new Error(citizen.name+" is already travelling to a waypoint.");if(!validRemoteCitizenPoint(point,territory))throw new Error("Choose a destination inside "+territory.name+".");const destination={x:Number(point.x.toFixed(2)),z:Number(point.z.toFixed(2))};if(Math.hypot(destination.x-citizen.location.x,destination.z-citizen.location.z)<.75)throw new Error("Choose a destination farther away.");citizen.destination=destination;citizen.activity="walking to waypoint";citizen.goal="explore "+territory.name;citizen.memory.push({turn:state.turn,text:"Set out to explore a new location on "+territory.name+"."});citizen.memory=citizen.memory.slice(-8);addEvent(state,citizen.name+" set out to explore "+territory.name+".","world");return citizen;}
+  function completeRemoteCitizenJourney(state,citizenId,point){const citizen=(state?.world?.remoteCitizens||[]).find(item=>item.id===citizenId);if(!citizen||!citizen.destination)throw new Error("That island resident has no active exploration waypoint.");const territory=(state.world?.territories||[]).find(item=>item.id===citizen.territoryId);if(!territory||territory.owner!=="player")throw new Error("That island is no longer under your control.");if(!validRemoteCitizenPoint(point,territory)||Math.hypot(point.x-citizen.destination.x,point.z-citizen.destination.z)>.3)throw new Error("The arrival point does not match the saved island waypoint.");citizen.location={...citizen.destination};citizen.destination=null;citizen.activity="exploring "+territory.name;citizen.goal="record a discovery";citizen.memory.push({turn:state.turn,text:"Reached a new location and explored "+territory.name+"."});citizen.memory=citizen.memory.slice(-8);addEvent(state,citizen.name+" reached a new location on "+territory.name+".","world");return citizen;}
+
   function updateCitizenRelationships(state) {
     const citizens = state.citizens || [];
     const byId = new Map(citizens.map(c => [c.id, c]));
@@ -270,6 +475,7 @@
   }
   function updateCitizens(state) {
     for (const c of state.citizens) {
+      if (citizenInTransit(state, c.id)) { c.activity = "aboard passenger ferry"; c.goal = "travelling between islands"; continue; }
       c.needs.food = clamp(c.needs.food - (state.resources.food > 0 ? 3 : 12), 0, 100);
       c.needs.energy = clamp(c.needs.energy - 2 + (state.resources.power > 0 ? 1 : 0), 0, 100);
       c.needs.safety = clamp(c.needs.safety + (state.nation.stability >= 60 ? 2 : -4), 0, 100);
@@ -291,10 +497,71 @@
       }
     }
   }
+
+  function updateRemoteCitizens(state) {
+    const territories = new Map((state.world?.territories || []).map(territory => [territory.id, territory]));
+    const districts = new Map();
+    for (const district of state.world?.placedDistricts || []) {
+      if (!district || !["residential", "commercial", "industrial", "agricultural"].includes(district.type)) continue;
+      const territoryId = district.territoryId || "home";
+      const counts = districts.get(territoryId) || { residential: 0, commercial: 0, industrial: 0, agricultural: 0 };
+      counts[district.type]++;
+      districts.set(territoryId, counts);
+    }
+    for (const citizen of state.world?.remoteCitizens || []) {
+      const territory = territories.get(citizen.territoryId);
+      if (!territory) continue;
+      const rival = territory.owner !== "player" && territory.owner !== "unclaimed" ? state.rivals?.[territory.owner] : null;
+      const local = districts.get(territory.id) || { residential: 0, commercial: 0, industrial: 0, agricultural: 0 };
+      const foodAvailable = (Number(territory.stockpile?.food) || 0) > 0 ||
+        (territory.owner === "player" ? state.resources.food > 0 : rival ? rival.resources.food > 0 : false);
+      const stability = territory.owner === "player" ? state.nation.stability : rival ? rival.stability : 50;
+      const housing = local.residential > 0 || territory.development >= 65;
+      const community = local.residential > 0 || local.commercial > 0 || territory.population >= 65;
+      const secure = (territory.garrison || 0) >= 2 || (territory.fortificationLevel || 0) > 0 || stability >= 70;
+
+      citizen.needs = citizen.needs && typeof citizen.needs === "object" ? citizen.needs : {};
+      citizen.needs.food = clamp((Number.isFinite(citizen.needs.food) ? citizen.needs.food : 70) + (foodAvailable ? 3 : -8), 0, 100);
+      citizen.needs.energy = clamp((Number.isFinite(citizen.needs.energy) ? citizen.needs.energy : 65) + (housing ? 2 : -2), 0, 100);
+      citizen.needs.safety = clamp((Number.isFinite(citizen.needs.safety) ? citizen.needs.safety : 70) + (secure ? 2 : -4), 0, 100);
+      citizen.needs.belonging = clamp((Number.isFinite(citizen.needs.belonging) ? citizen.needs.belonging : 60) + (community ? 2 : -1), 0, 100);
+      citizen.mood = Math.round((citizen.needs.food + citizen.needs.energy + citizen.needs.safety + citizen.needs.belonging) / 4);
+
+      if (territory.owner !== "player" && citizen.destination) {
+        citizen.destination = null;
+        citizen.memory = Array.isArray(citizen.memory) ? citizen.memory : [];
+        citizen.memory.push({ turn: state.turn, text: "Paused exploration after " + territory.name + " changed control." });
+        citizen.memory = citizen.memory.slice(-8);
+      }
+      if (citizenInTransit(state, citizen.id)) {
+        citizen.activity = "aboard passenger ferry";
+        citizen.goal = "travelling between islands";
+        continue;
+      }
+      const lowest = Object.keys(citizen.needs).sort((a, b) => citizen.needs[a] - citizen.needs[b])[0];
+      if (citizen.destination) {
+        citizen.activity = "walking to waypoint";
+        citizen.goal = "explore " + territory.name;
+      } else if (citizen.needs[lowest] < 35) {
+        citizen.activity = lowest === "food" ? "seeking food" : lowest === "energy" ? "resting" : lowest === "safety" ? "seeking safety" : "meeting neighbors";
+        citizen.goal = "restore " + lowest;
+      } else {
+        citizen.activity = "working locally as " + String(citizen.role || "resident");
+        citizen.goal = "support local community";
+      }
+      if (state.turn % 5 === 0) {
+        citizen.memory = Array.isArray(citizen.memory) ? citizen.memory : [];
+        citizen.memory.push({ turn: state.turn, text: citizen.mood < 45 ? "Had a difficult day; local needs require attention." : "Contributed to daily life in " + territory.name + "." });
+        citizen.memory = citizen.memory.slice(-8);
+      }
+    }
+  }
+
   function createInitialState(options = {}) {
     const defaultSeed = Math.floor(Math.random() * 0xffffffff) || 1;
     const seed = safeInt(options.seed, defaultSeed, 0xffffffff) || defaultSeed;
     const campaignId = CAMPAIGNS[options.campaignId] ? options.campaignId : "founding";
+    const territories = createTerritories(seed);
     const state = {
       schemaVersion: SAVE_VERSION, turn: 1, seed, citizens: createCitizens(100, seed),
       nation: { name: "New Horizon", government: "Republic", population: 100, stability: 80 },
@@ -308,7 +575,7 @@
       campaign: { id: campaignId, completedObjectives: [], status: "active", phaseIndex: 0, buildingStart: 6, progress: { tradeVolume: 0, agreementsSigned: 0, crisesSurvived: 0, peacefulDisputes: 0 } },
       achievements: [], creations: [], events: [{ id: "history-1-0", turn: 1, text: "Your civilization was founded. The first chapter begins.", type: "milestone", details: { summary: "A new campaign begins with a developing economy and six neighboring nations.", affectedNationIds: ["player"] } }],
       creatorEconomy: { nextAdoptionId: 1, publications: [], commissions: [], adoptions: [], totalRoyalties: 0, royaltyTurn: 1, lastTurnRoyalties: 0 },
-      world: { nextEventId: 1, activeEvents: [], processedEventIds: [], placedBuildings: [], placedRoads: [], placedDistricts: [], resourceNodes: createResourceDeposits(seed) },
+      world: { nextEventId: 1, activeEvents: [], processedEventIds: [], placedBuildings: [], placedRoads: [], placedDistricts: [], territories, resourceNodes: createResourceDeposits(seed, territories), shippingRoutes: [], passengerRoutes: [], remoteCitizens: createRemoteCitizens(seed, territories) },
       status: "playing"
     };
     if (campaignId === "longwinter") {
@@ -328,6 +595,8 @@
     state.buildings.transport = 0;
     state.campaign.buildingStart = Object.values(state.buildings).reduce((a, b) => a + b, 0);
     state.events[0].text = campaignId === "founding" ? state.events[0].text : "Your nation entered the " + CAMPAIGNS[campaignId].name + " campaign.";
+    const homeTerritory = state.world.territories.find(territory => territory.id === "home");
+    if (homeTerritory) homeTerritory.population = state.nation.population;
     return state;
   }
 
@@ -343,8 +612,40 @@
     if (!Array.isArray(normalized.world.placedBuildings)) normalized.world.placedBuildings = [];
     if (!Array.isArray(normalized.world.placedRoads)) normalized.world.placedRoads = [];
     if (!Array.isArray(normalized.world.placedDistricts)) normalized.world.placedDistricts = [];
-    if (normalized.world.resourceNodes === undefined) normalized.world.resourceNodes = createResourceDeposits(normalized.seed);
+    normalized.world.placedBuildings.forEach(item => { if (item && item.territoryId === undefined) item.territoryId = "home"; });
+    normalized.world.placedRoads.forEach(item => { if (item && item.territoryId === undefined) item.territoryId = "home"; });
+    normalized.world.placedDistricts.forEach(item => { if (item && item.territoryId === undefined) item.territoryId = "home"; });
+    const needsTerritoryMigration = normalized.world.territories === undefined;
+    if (needsTerritoryMigration) normalized.world.territories = createTerritories(normalized.seed);
+    if (!Array.isArray(normalized.world.territories)) throw new Error("Territory data is invalid.");
+    if (normalized.world.shippingRoutes === undefined) normalized.world.shippingRoutes = [];
+    if (!Array.isArray(normalized.world.shippingRoutes)) throw new Error("Shipping route data is invalid.");
+    if (normalized.world.passengerRoutes === undefined) normalized.world.passengerRoutes = [];
+    if (!Array.isArray(normalized.world.passengerRoutes)) throw new Error("Passenger route data is invalid.");
+    normalized.world.shippingRoutes.forEach(route => {
+      if (route && route.ownerId === undefined) route.ownerId = "player";
+    });
+    for (const territory of normalized.world.territories) {
+      if (!territory || typeof territory !== "object") continue;
+      if (territory.harborLevel === undefined) territory.harborLevel = territory.id === "home" ? 1 : 0;
+      if (territory.stockpile === undefined) territory.stockpile = createStockpile();
+      if (territory.garrison === undefined) {
+        const defaultUnits = territory.id === "home" ? 2 : territory.owner === "unclaimed" ? 0 : territory.owner === "ironmarch" ? 3 : 1;
+        territory.garrison = Math.min(defaultUnits, garrisonCapacity(territory));
+      }
+      if (territory.fortificationLevel === undefined) territory.fortificationLevel = territory.owner === "ironmarch" ? 1 : 0;
+    }
+    // Older saves may have residents standing inside the initial building cluster.
+    repairCitizenLocations(normalized);
+    if (normalized.world.resourceNodes === undefined) normalized.world.resourceNodes = createResourceDeposits(normalized.seed, normalized.world.territories);
     if (!Array.isArray(normalized.world.resourceNodes)) throw new Error("Resource deposit data is invalid.");
+    normalized.world.resourceNodes.forEach(node => { if (node && node.territoryId === undefined) node.territoryId = "home"; });
+    if (needsTerritoryMigration) {
+      const existingDepositIds = new Set(normalized.world.resourceNodes.map(node => node && node.id));
+      for (const deposit of createResourceDeposits(normalized.seed, normalized.world.territories).filter(node => node.territoryId !== "home")) {
+        if (!existingDepositIds.has(deposit.id)) normalized.world.resourceNodes.push(deposit);
+      }
+    }
     if (typeof normalized.nation.name !== "string" || normalized.nation.name.trim().length < 1 || normalized.nation.name.length > 48) throw new Error("Nation name must contain 1–48 characters.");
     if (typeof normalized.nation.government !== "string" || normalized.nation.government.length > 48) throw new Error("Government style is invalid.");
     if (!Number.isInteger(normalized.nation.population) || normalized.nation.population < 1 || normalized.nation.population > RESOURCE_LIMIT) throw new Error("Population is outside safe limits.");
@@ -374,20 +675,158 @@
         !Array.isArray(normalized.world.processedEventIds) || normalized.world.processedEventIds.length > 500 ||
         new Set(normalized.world.processedEventIds).size !== normalized.world.processedEventIds.length ||
         normalized.world.processedEventIds.some(id => typeof id !== "string" || id.length > 64)) throw new Error("World event state is invalid.");
-    if (normalized.world.placedBuildings.length > 10000 || normalized.world.placedBuildings.some(p => !p || !BUILDINGS[p.type] || !Number.isFinite(p.x) || !Number.isFinite(p.z) || Math.abs(p.x) > 13.2 || Math.abs(p.z) > 13.2)) throw new Error("Building placement data is invalid.");
-    if (normalized.world.placedRoads.length > 10000 || normalized.world.placedRoads.some(r => !r || !r.from || !r.to || ![r.from.x,r.from.z,r.to.x,r.to.z].every(Number.isFinite) || [r.from.x,r.from.z,r.to.x,r.to.z].some(n => Math.abs(n)>13.2) || Math.hypot(r.to.x-r.from.x,r.to.z-r.from.z)<1)) throw new Error("Road placement data is invalid.");
+    if (normalized.world.placedBuildings.length > 10000 || normalized.world.placedBuildings.some(p => !p || !BUILDINGS[p.type] || !Number.isFinite(p.x) || !Number.isFinite(p.z) || Math.abs(p.x) > 30 || Math.abs(p.z) > 30 || typeof p.territoryId !== "string")) throw new Error("Building placement data is invalid.");
+    if (normalized.world.placedRoads.length > 10000 || normalized.world.placedRoads.some(r => !r || !r.from || !r.to || ![r.from.x,r.from.z,r.to.x,r.to.z].every(Number.isFinite) || [r.from.x,r.from.z,r.to.x,r.to.z].some(n => Math.abs(n)>30) || Math.hypot(r.to.x-r.from.x,r.to.z-r.from.z)<1 || typeof r.territoryId !== "string")) throw new Error("Road placement data is invalid.");
     const districtTypes = ["residential", "commercial", "industrial", "agricultural"];
-    if (normalized.world.placedDistricts.length > 100 || normalized.world.placedDistricts.some(d => !d || !districtTypes.includes(d.type) || !Number.isFinite(d.x) || !Number.isFinite(d.z) || Math.abs(d.x) > 10.5 || Math.abs(d.z) > 10.5 || !Number.isFinite(d.radius) || d.radius < 1.5 || d.radius > 3.5)) throw new Error("District placement data is invalid.");
+    if (normalized.world.placedDistricts.length > 1000 || normalized.world.placedDistricts.some(d => !d || !districtTypes.includes(d.type) || !Number.isFinite(d.x) || !Number.isFinite(d.z) || Math.abs(d.x) > 30 || Math.abs(d.z) > 30 || !Number.isFinite(d.radius) || d.radius < 1.5 || d.radius > 3.5 || typeof d.territoryId !== "string")) throw new Error("District placement data is invalid.");
+    const territoryIds = new Set();
+    if (normalized.world.territories.length !== 9 || normalized.world.territories.some(territory => {
+      if (!territory || typeof territory.id !== "string" || !territory.id || territory.id.length > 48 || territoryIds.has(territory.id) ||
+          typeof territory.name !== "string" || !territory.name || territory.name.length > 64 ||
+          !["player", "unclaimed"].includes(territory.owner) && !Object.hasOwn(normalized.rivals, territory.owner) ||
+          !Number.isFinite(territory.x) || !Number.isFinite(territory.z) || Math.abs(territory.x) > 26 || Math.abs(territory.z) > 26 ||
+          !Number.isFinite(territory.radius) || territory.radius < 4 || territory.radius > 16 ||
+          !Number.isInteger(territory.population) || territory.population < 0 || territory.population > RESOURCE_LIMIT ||
+          !Number.isInteger(territory.development) || territory.development < 0 || territory.development > 100 ||
+          typeof territory.biome !== "string" || territory.biome.length > 32 ||
+          !Number.isFinite(territory.phase) || territory.phase < 0 || territory.phase > Math.PI * 2 ||
+          !Number.isInteger(territory.harborLevel) || territory.harborLevel < 0 || territory.harborLevel > 3 ||
+          !Number.isInteger(territory.garrison) || territory.garrison < 0 || territory.garrison > 1000 || territory.garrison > garrisonCapacity(territory) ||
+          !Number.isInteger(territory.fortificationLevel) || territory.fortificationLevel < 0 || territory.fortificationLevel > MAX_FORTIFICATION_LEVEL ||
+          (territory.lastLostOwnerId !== undefined && territory.lastLostOwnerId !== "player" && !Object.hasOwn(normalized.rivals, territory.lastLostOwnerId)) ||
+          (territory.lastLostTurn !== undefined && (!Number.isInteger(territory.lastLostTurn) || territory.lastLostTurn < 1 || territory.lastLostTurn > normalized.turn)) ||
+          (territory.counterattackStatus !== undefined && !["available", "active", "repelled", "retaken", "expired", "unavailable", "withdrawn"].includes(territory.counterattackStatus)) ||
+          (territory.counterattackForce !== undefined && (!Number.isInteger(territory.counterattackForce) || territory.counterattackForce < 0 || territory.counterattackForce > 6)) ||
+          !territory.stockpile || typeof territory.stockpile !== "object" || Array.isArray(territory.stockpile) ||
+          Object.keys(territory.stockpile).some(key => !SHIPPING_RESOURCES.includes(key)) ||
+          SHIPPING_RESOURCES.some(key => !Number.isInteger(territory.stockpile[key]) || territory.stockpile[key] < 0 || territory.stockpile[key] > STOCKPILE_LIMIT) ||
+          (territory.owner === "unclaimed" ? territory.claimedTurn !== null : (!Number.isInteger(territory.claimedTurn) || territory.claimedTurn < 1 || territory.claimedTurn > normalized.turn))) return true;
+      territoryIds.add(territory.id);
+      return false;
+    })) throw new Error("Territory data is invalid.");
+    normalizeRemoteCitizens(normalized);
+    const citizenTerritories = new Map(normalized.world.territories.map(territory => [territory.id, territory]));
+    if (normalized.citizens.some(citizen => {
+      const territory = citizenTerritories.get(citizen.territoryId || "home");
+      return !territory || !validRemoteCitizenPoint(citizen.location, territory) ||
+        (citizen.destination !== null && !validRemoteCitizenPoint(citizen.destination, territory));
+    })) throw new Error("Citizen navigation data is invalid.");
+    const homeTerritory = normalized.world.territories.find(territory => territory.id === "home");
+    if (!homeTerritory || homeTerritory.owner !== "player" || homeTerritory.x !== 0 || homeTerritory.z !== 0 || homeTerritory.harborLevel < 1) throw new Error("Home territory data is invalid.");
+    const ownedPopulation = normalized.world.territories.filter(territory => territory.owner === "player")
+      .reduce((sum, territory) => sum + territory.population, 0);
+    const passengerPopulation = normalized.world.passengerRoutes.reduce((sum, route) =>
+      sum + safeInt(route?.inTransit?.passengers, 0, RESOURCE_LIMIT), 0);
+    if (ownedPopulation + passengerPopulation < 1 || ownedPopulation + passengerPopulation > RESOURCE_LIMIT ||
+        normalized.nation.population !== ownedPopulation + passengerPopulation) {
+      throw new Error("National population does not match player-controlled territories.");
+    }
+    const territoryById = new Map(normalized.world.territories.map(territory => [territory.id, territory]));
+    const routeIds = new Set();
+    if (normalized.world.shippingRoutes.length > 50 || normalized.world.shippingRoutes.some(route => {
+      if (!route) return true;
+      const source = territoryById.get(route.sourceId);
+      const destination = territoryById.get(route.destinationId);
+      const international = !!route.partnerId;
+      const partner = international && Object.hasOwn(normalized.rivals || {}, route.partnerId) ? normalized.rivals[route.partnerId] : null;
+      const ownershipValid = international
+        ? route.ownerId === "player" && !!partner &&
+          ((source?.owner === "player" && destination?.owner === route.partnerId) ||
+           (source?.owner === route.partnerId && destination?.owner === "player"))
+        : source?.owner === route.ownerId && destination?.owner === route.ownerId;
+      if (!route || typeof route.id !== "string" || !route.id || route.id.length > 64 || routeIds.has(route.id) ||
+          !source || !destination || route.sourceId === route.destinationId ||
+          (!international && route.sourceId === "home") ||
+          typeof route.ownerId !== "string" || (route.ownerId !== "player" && (!normalized.rivals || !Object.hasOwn(normalized.rivals, route.ownerId))) ||
+          (international && (!partner || route.ownerId !== "player" ||
+            !INTERNATIONAL_TRADE_RESOURCES.includes(route.resource) ||
+            !INTERNATIONAL_TRADE_TARIFFS.includes(route.tariffPercent) ||
+            !Number.isInteger(route.unitPrice) || route.unitPrice < 1 || route.unitPrice > 120)) ||
+          (!international && (route.partnerId !== undefined || route.tariffPercent !== undefined || route.unitPrice !== undefined)) ||
+          !SHIPPING_RESOURCES.includes(route.resource) || !Number.isInteger(route.capacity) || route.capacity < 10 || route.capacity > 30 ||
+          !Number.isInteger(route.travelTurns) || route.travelTurns < 1 || route.travelTurns > 5 ||
+          !["active", "paused"].includes(route.status) ||
+          (route.status === "active" && (!ownershipValid || source.harborLevel < 1 || destination.harborLevel < 1 ||
+            (international && !hasActiveTradeAgreement(normalized, route.partnerId)))) ||
+          !Number.isInteger(route.createdTurn) || route.createdTurn < 1 || route.createdTurn > normalized.turn ||
+          !Number.isInteger(route.loadedTotal) || route.loadedTotal < 0 || route.loadedTotal > RESOURCE_LIMIT ||
+          !Number.isInteger(route.deliveredTotal) || route.deliveredTotal < 0 || route.deliveredTotal > RESOURCE_LIMIT ||
+          (route.lastLoadedTurn !== null && (!Number.isInteger(route.lastLoadedTurn) || route.lastLoadedTurn < route.createdTurn || route.lastLoadedTurn > normalized.turn)) ||
+          (route.lastDeliveredTurn !== null && (!Number.isInteger(route.lastDeliveredTurn) || route.lastDeliveredTurn < route.createdTurn || route.lastDeliveredTurn > normalized.turn)) ||
+          (route.inTransit !== null && (!route.inTransit || !Number.isInteger(route.inTransit.amount) || route.inTransit.amount < 1 || route.inTransit.amount > route.capacity ||
+            !Number.isInteger(route.inTransit.remainingTurns) || route.inTransit.remainingTurns < 1 || route.inTransit.remainingTurns > route.travelTurns))) return true;
+      routeIds.add(route.id);
+      return false;
+    })) throw new Error("Shipping route data is invalid.");
+    const passengerRouteIds = new Set();
+    const passengerRoutePairs = new Set();
+    const passengerCitizenById = new Map([...normalized.citizens, ...(normalized.world.remoteCitizens || [])].map(citizen => [citizen.id, citizen]));
+    const manifestCitizenIds = new Set();
+    normalized.world.passengerRoutes.forEach(route => {
+      if (route?.inTransit && typeof route.inTransit === "object" && route.inTransit.citizenIds === undefined) route.inTransit.citizenIds = [];
+    });
+    if (normalized.world.passengerRoutes.length > PASSENGER_ROUTE_LIMIT || normalized.world.passengerRoutes.some(route => {
+      if (!route) return true;
+      const source = territoryById.get(route.sourceId), destination = territoryById.get(route.destinationId);
+      const pair = route.sourceId + ">" + route.destinationId;
+      if (typeof route.id !== "string" || !route.id || route.id.length > 64 || passengerRouteIds.has(route.id) ||
+          !source || !destination || route.sourceId === route.destinationId || passengerRoutePairs.has(pair) ||
+          !["active", "paused"].includes(route.status) ||
+          (route.status === "active" && (source.owner !== "player" || destination.owner !== "player" || source.harborLevel < 1 || destination.harborLevel < 1)) ||
+          !Number.isInteger(route.capacity) || route.capacity < 12 || route.capacity > 24 ||
+          !Number.isInteger(route.travelTurns) || route.travelTurns < 1 || route.travelTurns > 5 ||
+          !Number.isInteger(route.createdTurn) || route.createdTurn < 1 || route.createdTurn > normalized.turn ||
+          !Number.isInteger(route.loadedTotal) || route.loadedTotal < 0 || route.loadedTotal > RESOURCE_LIMIT ||
+          !Number.isInteger(route.deliveredTotal) || route.deliveredTotal < 0 || route.deliveredTotal > RESOURCE_LIMIT ||
+          (route.lastLoadedTurn !== null && (!Number.isInteger(route.lastLoadedTurn) || route.lastLoadedTurn < route.createdTurn || route.lastLoadedTurn > normalized.turn)) ||
+          (route.lastDeliveredTurn !== null && (!Number.isInteger(route.lastDeliveredTurn) || route.lastDeliveredTurn < route.createdTurn || route.lastDeliveredTurn > normalized.turn)) ||
+          (route.inTransit !== null && (!route.inTransit || !Number.isInteger(route.inTransit.passengers) || route.inTransit.passengers < 1 || route.inTransit.passengers > route.capacity ||
+            !Number.isInteger(route.inTransit.remainingTurns) || route.inTransit.remainingTurns < 1 || route.inTransit.remainingTurns > route.travelTurns ||
+            (route.inTransit.returning !== undefined && typeof route.inTransit.returning !== "boolean")))) return true;
+      const manifest = route.inTransit?.citizenIds ?? [];
+      if (!Array.isArray(manifest) || manifest.length > route.capacity || manifest.some(id => typeof id !== "string" || id.length > 64)) return true;
+      for (const citizenId of manifest) {
+        const citizen = passengerCitizenById.get(citizenId);
+        if (!citizen || (citizen.territoryId || "home") !== route.sourceId || manifestCitizenIds.has(citizenId)) return true;
+        manifestCitizenIds.add(citizenId);
+      }
+      passengerRouteIds.add(route.id);
+      passengerRoutePairs.add(pair);
+      return false;
+    })) throw new Error("Passenger ferry route data is invalid.");
+    const placementLimit = (territory, margin = 0.75) => territory.id === "home" ? 13.2 : Math.max(1, territory.radius - margin);
+    const pointIsInside = (territory, x, z, margin = 0.75) =>
+      Math.hypot(x - territory.x, z - territory.z) <= placementLimit(territory, margin);
+    if (normalized.world.placedBuildings.some(item => {
+      const territory = territoryById.get(item.territoryId);
+      return !territory || territory.owner !== "player" || !pointIsInside(territory, item.x, item.z, 0.8);
+    })) throw new Error("Building placement territory is invalid.");
+    if (normalized.world.placedRoads.some(road => {
+      const territory = territoryById.get(road.territoryId);
+      return !territory || territory.owner !== "player" ||
+        !pointIsInside(territory, road.from.x, road.from.z, 0.35) ||
+        !pointIsInside(territory, road.to.x, road.to.z, 0.35);
+    })) throw new Error("Road placement territory is invalid.");
+    if (normalized.world.placedDistricts.some(district => {
+      const territory = territoryById.get(district.territoryId);
+      if (!territory || territory.owner !== "player") return true;
+      if (territory.id === "home") return Math.abs(district.x) > 10.5 || Math.abs(district.z) > 10.5;
+      const limit = Math.max(1, territory.radius - district.radius - 0.2);
+      return Math.hypot(district.x - territory.x, district.z - territory.z) > limit;
+    })) throw new Error("District placement data is invalid.");
     const depositIds = new Set();
     if (normalized.world.resourceNodes.length > 24 || normalized.world.resourceNodes.some(node => {
       if (!node || typeof node.id !== "string" || !node.id || node.id.length > 64 || depositIds.has(node.id) ||
           !Object.hasOwn(RESOURCE_SITE_OUTPUT, node.resource) ||
           !Number.isInteger(node.quantity) || node.quantity < 0 || node.quantity > RESOURCE_LIMIT ||
-          !Number.isFinite(node.x) || !Number.isFinite(node.z) || Math.abs(node.x) > 12.8 || Math.abs(node.z) > 12.8 ||
+          !Number.isFinite(node.x) || !Number.isFinite(node.z) || Math.abs(node.x) > 30 || Math.abs(node.z) > 30 ||
+          !territoryIds.has(node.territoryId) ||
           typeof node.operational !== "boolean" || typeof node.depleted !== "boolean" ||
           (node.depleted !== (node.quantity === 0)) ||
           (node.operatedSinceTurn !== null && (!Number.isInteger(node.operatedSinceTurn) || node.operatedSinceTurn < 1 || node.operatedSinceTurn > normalized.turn)) ||
           (node.operational && node.operatedSinceTurn === null)) return true;
+      const territory = normalized.world.territories.find(item => item.id === node.territoryId);
+      if (!territory || Math.hypot(node.x - territory.x, node.z - territory.z) > territory.radius + 0.2) return true;
       depositIds.add(node.id);
       return false;
     })) throw new Error("Resource deposit data is invalid.");
@@ -480,9 +919,21 @@
           !["active", "expired"].includes(treaty.status) || !Number.isInteger(treaty.startedTurn) || treaty.startedTurn > normalized.turn) throw new Error("Diplomatic agreement is invalid.");
     }
     for (const conflict of normalized.diplomacy.conflicts) {
+      const target = conflict?.targetTerritoryId
+        ? normalized.world.territories.find(territory => territory.id === conflict.targetTerritoryId)
+        : null;
       if (!conflict || !normalized.rivals[conflict.rivalId] || !["active", "peace", "resolved"].includes(conflict.status) ||
-          !Number.isInteger(conflict.startedTurn) || conflict.startedTurn > normalized.turn ||
-          !Number.isInteger(conflict.playerScore) || !Number.isInteger(conflict.rivalScore)) throw new Error("Conflict record is invalid.");
+          !Number.isInteger(conflict.startedTurn) || conflict.startedTurn < 1 || conflict.startedTurn > normalized.turn ||
+          !Number.isInteger(conflict.playerScore) || conflict.playerScore < 0 ||
+          !Number.isInteger(conflict.rivalScore) || conflict.rivalScore < 0 ||
+          (conflict.initiator !== undefined && !["player", "rival"].includes(conflict.initiator)) ||
+          (conflict.assaultGarrison !== undefined && (!Number.isInteger(conflict.assaultGarrison) || conflict.assaultGarrison < 1 || conflict.assaultGarrison > 6)) ||
+          (conflict.targetTerritoryId !== undefined && (typeof conflict.targetTerritoryId !== "string" ||
+            conflict.targetTerritoryId.length > 48 || !target)) ||
+          (conflict.initiator === "rival" && (!target || !Number.isInteger(conflict.assaultGarrison) ||
+            (conflict.status === "active" && target.owner !== "player")))) {
+        throw new Error("Conflict record is invalid.");
+      }
     }
     if (!["playing", "victory", "defeat"].includes(normalized.status)) throw new Error("Game status is invalid.");
     return normalized;
@@ -490,7 +941,7 @@
 
   function migrateSave(input) {
     if (input && input.schemaVersion === SAVE_VERSION) return validateSave(input);
-    if (input && [1, 2, 3, 4, 5, 6, 7, 8].includes(input.schemaVersion)) {
+    if (input && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].includes(input.schemaVersion)) {
       const state = copy(input);
       state.campaign = state.campaign || { id: "founding", completedObjectives: [], status: "active" };
       if (!CAMPAIGNS[state.campaign.id]) state.campaign.id = "founding";
@@ -504,6 +955,7 @@
       state.schemaVersion = SAVE_VERSION;
       addIndustryDefaults(state);
       normalizeCitizens(state);
+      migrateNationalPopulation(state, input.schemaVersion);
       return validateSave(state);
     }
     if (input && !("schemaVersion" in input) && input.buildings && input.events) {
@@ -537,6 +989,7 @@
       migrateCreatorEconomy(state);
       state.schemaVersion = SAVE_VERSION;
       addIndustryDefaults(state);
+      migrateNationalPopulation(state);
       return validateSave(state);
     }
     throw new Error("Save is corrupt or from an unsupported version.");
@@ -754,11 +1207,78 @@
     return production;
   }
   const JOBS_PER_LEVEL = { farm: 4, mine: 5, workshop: 5, factory: 8, transport: 4, market: 3, academy: 4, power: 4, housing: 1 };
+  const JOBS_PER_DISTRICT = { residential: 1, commercial: 3, industrial: 5, agricultural: 4 };
   function workforceFor(buildings) { return Object.entries(JOBS_PER_LEVEL).reduce((sum, [id, jobs]) => sum + safeInt(buildings[id], 0, 10_000) * jobs, 0); }
-  function industrialOutput(resources, buildings, technologies = [], population = RESOURCE_LIMIT) {
+  function nationalPopulationFor(state) {
+    const territories = state.world?.territories;
+    if (!Array.isArray(territories)) return safeInt(state.nation?.population, 1, RESOURCE_LIMIT) || 1;
+    const onLand = territories.filter(territory => territory?.owner === "player")
+      .reduce((sum, territory) => sum + safeInt(territory.population, 0, RESOURCE_LIMIT), 0);
+    const atSea = (state.world?.passengerRoutes || []).reduce((sum, route) =>
+      sum + safeInt(route?.inTransit?.passengers, 0, RESOURCE_LIMIT), 0);
+    return Math.min(RESOURCE_LIMIT, onLand + atSea);
+  }
+  function syncNationalPopulation(state) {
+    for (const territory of state.world?.territories || []) {
+      if (Number.isInteger(territory.garrison)) territory.garrison = Math.min(territory.garrison, garrisonCapacity(territory));
+    }
+    state.nation.population = Math.max(1, Math.min(RESOURCE_LIMIT, nationalPopulationFor(state)));
+    return state.nation.population;
+  }
+  function migrateNationalPopulation(state, sourceSchemaVersion = 0) {
+    state.seed = safeInt(state.seed, 1, 0xffffffff) || 1;
+    state.world = state.world && typeof state.world === "object" ? state.world : {};
+    if (!Array.isArray(state.world.territories)) {
+      state.world.territories = createTerritories(state.seed);
+      if (Array.isArray(state.world.resourceNodes)) {
+        const knownDeposits = new Set(state.world.resourceNodes.map(node => node?.id));
+        for (const deposit of createResourceDeposits(state.seed, state.world.territories)) {
+          if (deposit.territoryId !== "home" && !knownDeposits.has(deposit.id)) state.world.resourceNodes.push(deposit);
+        }
+      }
+    }
+    const home = state.world.territories.find(territory => territory?.id === "home");
+    if (home) {
+      const nationalPopulation = safeInt(state.nation?.population, home.population || 100, RESOURCE_LIMIT) || 1;
+      if (sourceSchemaVersion >= 19) {
+        const otherOwnedPopulation = state.world.territories.filter(territory => territory?.id !== "home" && territory?.owner === "player")
+          .reduce((sum, territory) => sum + safeInt(territory.population, 0, RESOURCE_LIMIT), 0);
+        const passengersAtSea = (state.world.passengerRoutes || []).reduce((sum, route) => sum + safeInt(route?.inTransit?.passengers, 0, RESOURCE_LIMIT), 0);
+        home.population = Math.max(1, nationalPopulation - otherOwnedPopulation - passengersAtSea);
+      } else home.population = nationalPopulation;
+    }
+    syncNationalPopulation(state);
+  }
+  function reducePlayerPopulation(state, amount) {
+    let remaining = Math.max(0, Math.floor(amount));
+    const territories = (state.world?.territories || []).filter(territory => territory?.owner === "player")
+      .sort((a, b) => (a.id === "home" ? -1 : b.id === "home" ? 1 : a.id.localeCompare(b.id)));
+    for (const territory of territories) {
+      const floor = territory.id === "home" ? 1 : 0;
+      const loss = Math.min(remaining, Math.max(0, territory.population - floor));
+      territory.population -= loss;
+      remaining -= loss;
+      if (!remaining) break;
+    }
+    if (remaining > 0) {
+      for (const route of state.world?.passengerRoutes || []) {
+        if (!route.inTransit || remaining <= 0) continue;
+        const loss = Math.min(remaining, route.inTransit.passengers);
+        route.inTransit.passengers -= loss;
+        remaining -= loss;
+        if (route.inTransit.passengers <= 0) {
+          const source = (state.world?.territories || []).find(territory => territory.id === route.sourceId);
+          if (source) movePassengerCitizens(state, route, source);
+          route.inTransit = null;
+        }
+      }
+    }
+    return syncNationalPopulation(state);
+  }
+  function industrialOutput(resources, buildings, technologies = [], population = RESOURCE_LIMIT, workforceOverride = null) {
     const base = productionFor(buildings, technologies);
     const factories = safeInt(buildings.factory, 0, 10_000);
-    const workforce = workforceFor(buildings);
+    const workforce = workforceOverride === null ? workforceFor(buildings) : safeInt(workforceOverride, 0, RESOURCE_LIMIT);
     const staffing = workforce > 0 ? Math.min(1, Math.max(0, population) / workforce) : 1;
     for (const key of Object.keys(base)) base[key] = Math.floor(base[key] * staffing);
     const activeFactories = Math.min(Math.floor(factories * staffing), Math.floor(resources.materials / 5), Math.floor(resources.ore / 3), Math.floor(resources.power / 2));
@@ -768,41 +1288,130 @@
   }
   function districtEffects(state) {
     const counts = { residential: 0, commercial: 0, industrial: 0, agricultural: 0 };
-    for (const district of state.world?.placedDistricts || []) if (district && Object.hasOwn(counts, district.type)) counts[district.type]++;
-    return { counts, production: {
-      food: counts.agricultural * 3,
-      materials: counts.industrial * 2,
-      credits: counts.commercial * 4
-    }, populationGrowth: counts.residential };
+    const regionalGrowth = {}, regionalCounts = {};
+    const territories = new Map((state.world?.territories || []).map(item => [item.id, item]));
+    for (const district of state.world?.placedDistricts || []) {
+      if (!district || !Object.hasOwn(counts, district.type)) continue;
+      const territoryId = district.territoryId || "home";
+      const territory = territories.get(territoryId);
+      if (territory?.owner !== "player") continue;
+      counts[district.type]++;
+      regionalCounts[territoryId] = regionalCounts[territoryId] || { residential: 0, commercial: 0, industrial: 0, agricultural: 0 };
+      regionalCounts[territoryId][district.type]++;
+      if (district.type === "residential") regionalGrowth[territoryId] = (regionalGrowth[territoryId] || 0) + 1;
+    }
+    const production = { food: 0, materials: 0, credits: 0 };
+    let workforce = 0, employed = 0;
+    for (const [territoryId, localCounts] of Object.entries(regionalCounts)) {
+      const territory = territories.get(territoryId);
+      const required = Object.entries(JOBS_PER_DISTRICT).reduce((sum, [type, jobs]) => sum + localCounts[type] * jobs, 0);
+      const civilianPopulation = Math.max(0, territory.population - (territory.garrison || 0) * GARRISON_MANPOWER_PER_UNIT);
+      workforce += required;
+      employed += Math.min(required, civilianPopulation);
+      const staffing = required > 0 ? Math.min(1, civilianPopulation / required) : 1;
+      production.food += Math.floor(localCounts.agricultural * 3 * staffing);
+      production.materials += Math.floor(localCounts.industrial * 2 * staffing);
+      production.credits += Math.floor(localCounts.commercial * 4 * staffing);
+    }
+    return { counts, production, populationGrowth: regionalGrowth.home || 0, regionalGrowth, workforce, employed };
   }
   function roadEffects(state) {
     const roads = state.world?.placedRoads || [];
     const districts = state.world?.placedDistricts || [];
+    const territories = new Map((state.world?.territories || []).map(item => [item.id, item]));
     const connected = new Set();
     for (const road of roads) {
       if (!road?.from || !road?.to) continue;
+      const territoryId = road.territoryId || "home";
+      if (territories.get(territoryId)?.owner !== "player") continue;
       const dx = road.to.x - road.from.x, dz = road.to.z - road.from.z;
       const lengthSq = dx * dx + dz * dz;
       for (let i = 0; i < districts.length; i++) {
         const d = districts[i];
-        if (!d || !Number.isFinite(d.x) || !Number.isFinite(d.z)) continue;
+        if (!d || !Number.isFinite(d.x) || !Number.isFinite(d.z) || (d.territoryId || "home") !== territoryId) continue;
         const t = Math.max(0, Math.min(1, ((d.x - road.from.x) * dx + (d.z - road.from.z) * dz) / lengthSq));
         const px = road.from.x + t * dx, pz = road.from.z + t * dz;
-        if (Math.hypot(d.x - px, d.z - pz) <= (d.radius || 2.6) + 0.8) connected.add(i);
+        if (Math.hypot(d.x - px, d.z - pz) <= (d.radius || 2.6) + 0.8) connected.add(territoryId + ":" + i);
       }
     }
     const count = connected.size;
     return { connectedDistricts: count, logistics: Math.min(5, count), production: { credits: count * 2 } };
   }
+  function worldPlacementTerritory(state, territoryId, x, z, margin = 0.75) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (!Number.isFinite(x) || !Number.isFinite(z)) throw new Error("Placement coordinates are invalid.");
+    const territory = (state.world?.territories || []).find(item => item.id === (territoryId || "home"));
+    if (!territory || territory.owner !== "player") throw new Error("You must control this island before building there.");
+    const limit = territory.id === "home" ? 13.2 : Math.max(1, territory.radius - margin);
+    if (Math.hypot(x - territory.x, z - territory.z) > limit) throw new Error("That position is outside your buildable territory.");
+    return territory;
+  }
+  function placeWorldBuilding(state, type, placement) {
+    if (!BUILDINGS[type]) throw new Error("Unknown building.");
+    const x = Number(placement?.x), z = Number(placement?.z), territoryId = placement?.territoryId || "home";
+    const territory = worldPlacementTerritory(state, territoryId, x, z, 0.8);
+    const occupied = (state.world.placedBuildings || []).some(item =>
+      (item.territoryId || "home") === territory.id && Math.hypot(item.x - x, item.z - z) < 1.25
+    );
+    if (occupied) throw new Error("Choose a clear building site.");
+    build(state, type);
+    state.world.placedBuildings.push({ type, x: Number(x.toFixed(2)), z: Number(z.toFixed(2)), territoryId: territory.id });
+    territory.development = Math.min(100, territory.development + 1);
+    return state.world.placedBuildings[state.world.placedBuildings.length - 1];
+  }
+  function placeWorldDistrict(state, type, placement) {
+    if (!["residential", "commercial", "industrial", "agricultural"].includes(type)) throw new Error("District type is invalid.");
+    const x = Number(placement?.x), z = Number(placement?.z), radius = Number(placement?.radius ?? 2.6), territoryId = placement?.territoryId || "home";
+    const territory = worldPlacementTerritory(state, territoryId, x, z, 0.75);
+    if (!Number.isFinite(radius) || radius < 1.5 || radius > 3.5) throw new Error("District radius is invalid.");
+    if (territory.id === "home" && (Math.abs(x) > 10.5 || Math.abs(z) > 10.5)) throw new Error("Districts must be placed farther inside the island.");
+    if (territory.id !== "home" && Math.hypot(x - territory.x, z - territory.z) > territory.radius - radius - 0.2) throw new Error("The district is too close to the island shore.");
+    if (state.world.placedDistricts.length >= 1000) throw new Error("Your nation has reached its district limit.");
+    if (state.resources.materials < 20 || state.resources.credits < 30) throw new Error("A district requires 20 materials and 30 credits.");
+    state.resources.materials -= 20;
+    state.resources.credits -= 30;
+    const district = { type, x: Number(x.toFixed(2)), z: Number(z.toFixed(2)), radius, territoryId: territory.id };
+    state.world.placedDistricts.push(district);
+    territory.development = Math.min(100, territory.development + 1);
+    addEvent(state, "Established a " + type + " district in " + territory.name + ".", "economy");
+    return district;
+  }
+  function placeWorldRoad(state, from, to, territoryId = "home") {
+    const territory = worldPlacementTerritory(state, territoryId, Number(from?.x), Number(from?.z), 0.35);
+    worldPlacementTerritory(state, territory.id, Number(to?.x), Number(to?.z), 0.35);
+    const length = Math.hypot(Number(to.x) - Number(from.x), Number(to.z) - Number(from.z));
+    if (length < 1 || length > territory.radius * 2) throw new Error("Road length is invalid for this island.");
+    if (state.world.placedRoads.length >= 10000) throw new Error("Your road network has reached its construction limit.");
+    if (state.resources.materials < 8 || state.resources.credits < 12) throw new Error("A road segment requires 8 materials and 12 credits.");
+    state.resources.materials -= 8;
+    state.resources.credits -= 12;
+    const road = { from: { x: Number(Number(from.x).toFixed(2)), z: Number(Number(from.z).toFixed(2)) },
+      to: { x: Number(Number(to.x).toFixed(2)), z: Number(Number(to.z).toFixed(2)) }, territoryId: territory.id };
+    state.world.placedRoads.push(road);
+    territory.development = Math.min(100, territory.development + 1);
+    addEvent(state, "Extended the road network on " + territory.name + ".", "economy");
+    return road;
+  }
   function resourceSiteEffects(state, consume = false) {
     const output = { food: 0, materials: 0, ore: 0, science: 0, power: 0 };
+    const territories = new Map((state.world?.territories || []).map(territory => [territory.id, territory]));
     for (const node of state.world && Array.isArray(state.world.resourceNodes) ? state.world.resourceNodes : []) {
       if (!node || node.operational !== true || node.depleted === true || node.quantity <= 0) continue;
       const yields = RESOURCE_SITE_OUTPUT[node.resource];
       if (!yields) continue;
       const [resource, rate] = Object.entries(yields)[0];
-      const amount = Math.min(rate, node.quantity);
-      output[resource] += amount;
+      const territory = territories.get(node.territoryId || "home");
+      if (!territory) continue;
+      let amount = Math.min(rate, node.quantity);
+      if (territory.id !== "home") {
+        if (territory.owner !== "player" || !consume) continue;
+        const stored = territory.stockpile?.[resource] || 0;
+        amount = Math.min(amount, STOCKPILE_LIMIT - stored);
+        if (amount <= 0) continue;
+        territory.stockpile[resource] = stored + amount;
+      } else {
+        output[resource] += amount;
+      }
       if (consume) {
         node.quantity -= amount;
         if (node.quantity === 0) node.depleted = true;
@@ -810,11 +1419,691 @@
     }
     return output;
   }
+  function shippingRouteCapacity(source, destination) {
+    if (!source || !destination) return 0;
+    return Math.min(30, 10 + Math.max(0, source.harborLevel - 1) * 5 + Math.max(0, destination.harborLevel - 1) * 5);
+  }
+  function upgradeHarbor(state, territoryId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const territory = (state.world?.territories || []).find(item => item.id === territoryId);
+    if (!territory || territory.owner !== "player") throw new Error("You must control this island before developing its harbor.");
+    if (territory.id === "home") throw new Error("The national harbor is already operational; develop an outer-island harbor instead.");
+    if (territory.harborLevel >= 3) throw new Error("This harbor is already at its maximum level.");
+    const nextLevel = territory.harborLevel + 1;
+    const cost = { materials: 30 + nextLevel * 10, credits: 45 + nextLevel * 20 };
+    if (state.resources.materials < cost.materials || state.resources.credits < cost.credits) {
+      throw new Error("Harbor development requires " + cost.materials + " materials and " + cost.credits + " credits.");
+    }
+    state.resources.materials -= cost.materials;
+    state.resources.credits -= cost.credits;
+    territory.harborLevel = nextLevel;
+    for (const route of state.world.shippingRoutes || []) {
+      if (route.sourceId === territory.id || route.destinationId === territory.id) {
+        const source = state.world.territories.find(item => item.id === route.sourceId);
+        const destination = state.world.territories.find(item => item.id === route.destinationId);
+        route.capacity = shippingRouteCapacity(source, destination);
+      }
+    }
+    addEvent(state, territory.name + " harbor expanded to level " + nextLevel + ".", "economy");
+    return territory;
+  }
+  function recruitGarrison(state, territoryId, units = 1) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const territory = (state.world?.territories || []).find(item => item.id === territoryId);
+    if (!territory) throw new Error("Territory not found.");
+    if (territory.owner !== "player") throw new Error("You can only recruit forces on territory you control.");
+    if (!Number.isInteger(units) || units < 1 || units > 5) throw new Error("Recruit between one and five garrison units.");
+    if (territory.garrison + units > garrisonCapacity(territory)) {
+      throw new Error("Local manpower supports " + garrisonCapacity(territory) + " garrison units on this island.");
+    }
+    for (const [resource, amount] of Object.entries(GARRISON_RECRUIT_COST)) {
+      const required = amount * units;
+      if ((state.resources[resource] || 0) < required) throw new Error("Recruitment requires " + required + " " + resource + ".");
+    }
+    for (const [resource, amount] of Object.entries(GARRISON_RECRUIT_COST)) state.resources[resource] -= amount * units;
+    territory.garrison += units;
+    addEvent(state, units + " garrison unit" + (units === 1 ? "" : "s") + " mobilized on " + territory.name + ". Each unit reserves ten local residents and costs one credit per turn.", "milestone");
+    return territory;
+  }
+  function buildFortification(state, territoryId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const territory = (state.world?.territories || []).find(item => item.id === territoryId);
+    if (!territory) throw new Error("Territory not found.");
+    if (territory.owner !== "player") throw new Error("You can only fortify territory you control.");
+    const nextLevel = territory.fortificationLevel + 1;
+    const cost = fortificationCost(nextLevel);
+    if (!cost) throw new Error("This island's fortifications are already at maximum level.");
+    if (state.resources.materials < cost.materials || state.resources.credits < cost.credits) {
+      throw new Error("Fortification level " + nextLevel + " requires " + cost.materials + " materials and " + cost.credits + " credits.");
+    }
+    state.resources.materials -= cost.materials;
+    state.resources.credits -= cost.credits;
+    territory.fortificationLevel = nextLevel;
+    territory.development = Math.min(100, territory.development + 1);
+    addEvent(state, territory.name + " completed fortification level " + nextLevel + ".", "milestone");
+    return territory;
+  }
+  function developRivalMilitary(state) {
+    const summary = { garrisonsRecruited: 0, fortificationsBuilt: 0, upkeepPaid: 0 };
+    for (const rival of Object.values(state.rivals || {})) {
+      const owned = (state.world?.territories || []).filter(territory => territory.owner === rival.id);
+      if (!owned.length) continue;
+      const currentUnits = owned.reduce((sum, territory) => sum + (territory.garrison || 0), 0);
+      const upkeep = currentUnits * MILITARY_UPKEEP_PER_UNIT;
+      const paid = Math.min(rival.resources.credits, upkeep);
+      rival.resources.credits -= paid;
+      summary.upkeepPaid += paid;
+      if (paid < upkeep) rival.stability = Math.max(0, rival.stability - 1);
+      const conflict = (state.diplomacy.conflicts || []).find(item => item.rivalId === rival.id && item.status === "active");
+      if (!conflict && rival.relation > -35) continue;
+      const target = conflict?.targetTerritoryId
+        ? owned.find(territory => territory.id === conflict.targetTerritoryId)
+        : owned.slice().sort((a, b) => b.development - a.development || b.population - a.population || a.id.localeCompare(b.id))[0];
+      if (!target) continue;
+      const fortificationLimit = conflict ? 2 : 1;
+      const nextLevel = target.fortificationLevel + 1;
+      const fortCost = fortificationCost(nextLevel);
+      if (target.fortificationLevel < fortificationLimit && fortCost &&
+          rival.resources.materials >= fortCost.materials && rival.resources.credits >= fortCost.credits) {
+        rival.resources.materials -= fortCost.materials;
+        rival.resources.credits -= fortCost.credits;
+        target.fortificationLevel = nextLevel;
+        summary.fortificationsBuilt++;
+        rememberRival(rival, state.turn, "defensive-fortification", "Fortified " + target.name + " against a territorial threat");
+        addEvent(state, rival.name + " reinforced " + target.name + " with fortification level " + nextLevel + ".", "conflict");
+      } else if (target.garrison < garrisonCapacity(target) &&
+          rival.resources.materials >= GARRISON_RECRUIT_COST.materials &&
+          rival.resources.ore >= GARRISON_RECRUIT_COST.ore &&
+          rival.resources.credits >= GARRISON_RECRUIT_COST.credits) {
+        rival.resources.materials -= GARRISON_RECRUIT_COST.materials;
+        rival.resources.ore -= GARRISON_RECRUIT_COST.ore;
+        rival.resources.credits -= GARRISON_RECRUIT_COST.credits;
+        target.garrison++;
+        summary.garrisonsRecruited++;
+        rememberRival(rival, state.turn, "garrison-recruitment", "Mobilized a garrison on " + target.name);
+        addEvent(state, rival.name + " mobilized additional defenders on " + target.name + ".", "conflict");
+      }
+    }
+    return summary;
+  }
+  const COUNTERATTACK_WINDOW = 6;
+  const COUNTERATTACK_COST = Object.freeze({ credits: 40, power: 10 });
+  function planRivalCounterattacks(state) {
+    const summary = { launched: 0, expired: 0 };
+    const territories = state.world?.territories || [];
+    for (const rival of Object.values(state.rivals || {}).sort((a, b) => a.id.localeCompare(b.id))) {
+      if ((state.diplomacy.conflicts || []).some(conflict => conflict.rivalId === rival.id && conflict.status === "active")) continue;
+      const candidates = territories.filter(territory =>
+        territory.owner === "player" && territory.lastLostOwnerId === rival.id &&
+        territory.counterattackStatus === "available" && territory.counterattackForce > 0
+      ).sort((a, b) => territoryDefenseStrength(a) - territoryDefenseStrength(b) ||
+        (b.lastLostTurn || 0) - (a.lastLostTurn || 0) || a.id.localeCompare(b.id));
+      for (const target of candidates) {
+        const age = state.turn - target.lastLostTurn;
+        if (age > COUNTERATTACK_WINDOW) {
+          target.counterattackStatus = "expired";
+          target.counterattackForce = 0;
+          summary.expired++;
+          continue;
+        }
+        if (age < 1 || rival.relation > -50 || rival.stability < 30) continue;
+        if (state.diplomacy.treaties.some(treaty =>
+          treaty.rivalId === rival.id && treaty.status === "active" &&
+          ["alliance", "non-aggression"].includes(treaty.kind)
+        )) continue;
+        if (rival.resources.credits < COUNTERATTACK_COST.credits || rival.resources.power < COUNTERATTACK_COST.power) continue;
+        const force = Math.min(6, target.counterattackForce);
+        const attackStrength = rival.resources.power + (rival.buildings.power || 0) * 12 +
+          (rival.technologies || []).length * 5 + force * 8;
+        if (attackStrength < Math.max(12, territoryDefenseStrength(target) * 0.4)) continue;
+        rival.resources.credits -= COUNTERATTACK_COST.credits;
+        rival.resources.power -= COUNTERATTACK_COST.power;
+        target.counterattackForce = 0;
+        target.counterattackStatus = "active";
+        const conflict = {
+          rivalId: rival.id, status: "active", startedTurn: state.turn,
+          playerScore: 0, rivalScore: 0, targetTerritoryId: target.id,
+          initiator: "rival", assaultGarrison: force
+        };
+        state.diplomacy.conflicts.push(conflict);
+        rival.stance = "Retaking lost territory";
+        rival.activity = "Launched a counterattack to retake " + target.name;
+        rememberRival(rival, state.turn, "territorial-counterattack", "Launched a counterattack for " + target.name);
+        addEvent(state, rival.name + " launched a counterattack to retake " + target.name + ". Defend the island or negotiate peace.", "conflict");
+        summary.launched++;
+        break;
+      }
+    }
+    return summary;
+  }
+  function createShippingRoute(state, sourceId, destinationId, resource) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const territories = state.world?.territories || [];
+    const source = territories.find(item => item.id === sourceId);
+    const destination = territories.find(item => item.id === destinationId);
+    if (!source || !destination || source.id === destination.id || source.id === "home") {
+      throw new Error("Choose a claimed outer island and a different destination.");
+    }
+    if (source.owner !== "player" || destination.owner !== "player") throw new Error("Both shipping ports must be under your control.");
+    if (source.harborLevel < 1 || destination.harborLevel < 1) throw new Error("Build a harbor at both ends before opening a shipping route.");
+    if (!SHIPPING_RESOURCES.includes(resource)) throw new Error("This resource cannot be shipped.");
+    const routes = state.world.shippingRoutes || (state.world.shippingRoutes = []);
+    if (routes.length >= 50) throw new Error("Your shipping network has reached its 50-route limit.");
+    if (routes.some(route => route.sourceId === source.id && route.destinationId === destination.id && route.resource === resource)) {
+      throw new Error("This shipping route already exists.");
+    }
+    const cost = { materials: 20, credits: 35 };
+    if (state.resources.materials < cost.materials || state.resources.credits < cost.credits) {
+      throw new Error("Opening a shipping route requires 20 materials and 35 credits.");
+    }
+    state.resources.materials -= cost.materials;
+    state.resources.credits -= cost.credits;
+    const distance = Math.hypot(destination.x - source.x, destination.z - source.z);
+    const travelTurns = clamp(Math.ceil(distance / 18) - (hasTech(state, "logistics") ? 1 : 0), 1, 5);
+    const route = {
+      id: "shipping-" + state.turn + "-" + (routes.length + 1),
+      ownerId: "player", sourceId: source.id, destinationId: destination.id, resource,
+      capacity: shippingRouteCapacity(source, destination), travelTurns,
+      status: "active", inTransit: null, createdTurn: state.turn,
+      loadedTotal: 0, deliveredTotal: 0, lastLoadedTurn: null, lastDeliveredTurn: null
+    };
+    routes.push(route);
+    addEvent(state, "Opened a " + resource + " shipping route from " + source.name + " to " + destination.name + ".", "economy");
+    return route;
+  }
+  function hasActiveTradeAgreement(state, rivalId) {
+    if (!Object.hasOwn(state.rivals || {}, rivalId)) return false;
+    return (state.diplomacy?.treaties || []).some(treaty =>
+      treaty.rivalId === rivalId && treaty.kind === "trade" && treaty.status === "active"
+    ) && !(state.diplomacy?.conflicts || []).some(conflict =>
+      conflict.rivalId === rivalId && conflict.status === "active"
+    );
+  }
+  function internationalTradeEndpointsValid(state, route, source, destination) {
+    const partnerId = route.partnerId;
+    const partner = state.rivals?.[partnerId];
+    return route.ownerId === "player" && !!partner &&
+      ((source.owner === "player" && destination.owner === partnerId) ||
+       (source.owner === partnerId && destination.owner === "player")) &&
+      hasActiveTradeAgreement(state, partnerId);
+  }
+  function createInternationalTradeRoute(state, rivalId, sourceId, destinationId, resource, tariffPercent = 10) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const rival = state.rivals[rivalId];
+    if (!Object.hasOwn(state.rivals || {}, rivalId) || !rival) throw new Error("Choose a valid trading nation.");
+    if (!hasActiveTradeAgreement(state, rivalId)) throw new Error("An active trade agreement is required for port access.");
+    const territories = state.world?.territories || [];
+    const source = territories.find(item => item.id === sourceId);
+    const destination = territories.find(item => item.id === destinationId);
+    if (!source || !destination || source.id === destination.id ||
+        !((source.owner === "player" && destination.owner === rivalId) ||
+          (source.owner === rivalId && destination.owner === "player"))) {
+      throw new Error("Choose one player port and one port controlled by " + rival.name + ".");
+    }
+    if (source.harborLevel < 1 || destination.harborLevel < 1) throw new Error("Both nations need an operational harbor at each end.");
+    if (!INTERNATIONAL_TRADE_RESOURCES.includes(resource)) throw new Error("This resource is not available for international trade.");
+    if (!INTERNATIONAL_TRADE_TARIFFS.includes(tariffPercent)) throw new Error("Choose a tariff of 0%, 5%, 10%, 15% or 20%.");
+    const routes = state.world.shippingRoutes || (state.world.shippingRoutes = []);
+    if (routes.length >= 50) throw new Error("Your shipping network has reached its 50-route limit.");
+    if (routes.some(route => route.partnerId === rivalId && route.sourceId === source.id &&
+        route.destinationId === destination.id && route.resource === resource)) {
+      throw new Error("This international trade route already exists.");
+    }
+    const cost = { materials: 20, credits: 35 };
+    if (state.resources.materials < cost.materials || state.resources.credits < cost.credits) {
+      throw new Error("Opening an international route requires 20 materials and 35 credits.");
+    }
+    const marketPrice = state.market.prices[resource];
+    const unitPrice = Math.max(1, Math.ceil(marketPrice * (100 + tariffPercent) / 100));
+    state.resources.materials -= cost.materials;
+    state.resources.credits -= cost.credits;
+    const distance = Math.hypot(destination.x - source.x, destination.z - source.z);
+    const travelTurns = clamp(Math.ceil(distance / 18) - (hasTech(state, "logistics") ? 1 : 0), 1, 5);
+    const route = {
+      id: "international-" + state.turn + "-" + (routes.length + 1),
+      ownerId: "player", partnerId: rivalId, sourceId: source.id, destinationId: destination.id,
+      resource, tariffPercent, unitPrice, capacity: shippingRouteCapacity(source, destination), travelTurns,
+      status: "active", inTransit: null, createdTurn: state.turn,
+      loadedTotal: 0, deliveredTotal: 0, lastLoadedTurn: null, lastDeliveredTurn: null
+    };
+    routes.push(route);
+    addEvent(state, "Opened an international " + resource + " route with " + rival.name +
+      " at a " + tariffPercent + "% tariff (" + unitPrice + " credits per unit).", "trade");
+    rememberRival(rival, state.turn, "trade-route", "Opened a " + resource + " maritime trade route with a " + tariffPercent + "% tariff");
+    return route;
+  }
+  function shippingEffects(state) {
+    const territories = new Map((state.world?.territories || []).map(item => [item.id, item]));
+    const active = (state.world?.shippingRoutes || []).filter(route => {
+      const source = territories.get(route.sourceId), destination = territories.get(route.destinationId);
+      return (route.ownerId || "player") === "player" && route.status === "active" &&
+        source?.harborLevel > 0 && destination?.harborLevel > 0 &&
+        (route.partnerId
+          ? internationalTradeEndpointsValid(state, route, source, destination)
+          : source?.owner === "player" && destination?.owner === "player");
+    });
+    return {
+      activeRoutes: active.length,
+      cargoInTransit: active.reduce((sum, route) => sum + (route.inTransit?.amount || 0), 0),
+      upkeep: active.length * (hasTech(state, "logistics") ? 1 : 2),
+      deliveredTotal: active.reduce((sum, route) => sum + route.deliveredTotal, 0)
+    };
+  }
+  function processShippingRoutes(state) {
+    const production = Object.fromEntries(SHIPPING_RESOURCES.map(resource => [resource, 0]));
+    const territories = new Map((state.world?.territories || []).map(item => [item.id, item]));
+    const available = new Map([...territories].map(([id, territory]) => [id, { ...(territory.stockpile || createStockpile()) }]));
+    const active = [], deliveredThisTurn = new Set();
+    let playerActiveRoutes = 0, rivalActiveRoutes = 0;
+    for (const route of state.world.shippingRoutes || []) {
+      const ownerId = route.ownerId || "player";
+      const source = territories.get(route.sourceId), destination = territories.get(route.destinationId);
+      const rival = route.partnerId ? null : (ownerId === "player" ? null : state.rivals[ownerId]);
+      const international = !!route.partnerId;
+      const endpointsValid = international
+        ? source && destination && internationalTradeEndpointsValid(state, route, source, destination)
+        : source && destination && source.owner === ownerId && destination.owner === ownerId;
+      if (!source || !destination || !rival && ownerId !== "player" ||
+          !endpointsValid || source.harborLevel < 1 || destination.harborLevel < 1) {
+        route.status = "paused";
+        continue;
+      }
+      if (rival) {
+        const upkeep = rival.technologies.includes("logistics") ? 1 : 2;
+        if (rival.resources.credits < upkeep) {
+          route.status = "paused";
+          continue;
+        }
+        rival.resources.credits -= upkeep;
+        rivalActiveRoutes++;
+      } else {
+        playerActiveRoutes++;
+      }
+      route.status = "active";
+      route.capacity = shippingRouteCapacity(source, destination);
+      active.push(route);
+      if (!route.inTransit) continue;
+      route.inTransit.remainingTurns = Math.max(0, route.inTransit.remainingTurns - 1);
+      if (route.inTransit.remainingTurns > 0) continue;
+      const amount = route.inTransit.amount;
+      let delivered = amount, waiting = 0;
+      if (international) {
+        const partner = state.rivals[route.partnerId];
+        const seller = source.owner === "player" ? state.resources : state.rivals[source.owner].resources;
+        const buyer = destination.owner === "player" ? state.resources : state.rivals[destination.owner].resources;
+        const destinationIsHome = destination.owner === "player" && destination.id === "home";
+        const stored = destination.owner === "player"
+          ? (destinationIsHome ? state.resources[route.resource] : destination.stockpile[route.resource] || 0)
+          : buyer[route.resource] || 0;
+        const room = destination.owner === "player" && !destinationIsHome
+          ? STOCKPILE_LIMIT - stored
+          : RESOURCE_LIMIT - stored;
+        const affordable = Math.floor(buyer.credits / route.unitPrice);
+        delivered = Math.min(amount, Math.max(0, room), Math.max(0, affordable));
+        const payment = delivered * route.unitPrice;
+        if (delivered > 0) {
+          buyer.credits -= payment;
+          seller.credits = clamp(seller.credits + payment, 0, RESOURCE_LIMIT);
+          if (destination.owner === "player") {
+            if (destinationIsHome) state.resources[route.resource] = stored + delivered;
+            else destination.stockpile[route.resource] = stored + delivered;
+          } else {
+            buyer[route.resource] = stored + delivered;
+          }
+          const relationDelta = route.tariffPercent === 0 ? 1 : route.tariffPercent >= 15 ? -1 : 0;
+          if (relationDelta) {
+            partner.relation = clamp(partner.relation + relationDelta, -100, 100);
+            rememberRival(partner, state.turn, "tariff", "A " + route.tariffPercent + "% trade tariff affected bilateral relations", relationDelta);
+          }
+          campaignProgress(state, "tradeVolume", delivered);
+          updateObjectives(state);
+          addEvent(state, "International convoy delivered " + delivered + " " + route.resource +
+            " to " + partner.name + " for " + payment + " credits (" + route.tariffPercent + "% tariff).", "trade");
+        }
+        waiting = amount - delivered;
+      } else if (ownerId === "player" && destination.id === "home") {
+        production[route.resource] += amount;
+      } else if (rival) {
+        const stored = rival.resources[route.resource] || 0;
+        delivered = Math.min(amount, RESOURCE_LIMIT - stored);
+        rival.resources[route.resource] = stored + delivered;
+        waiting = amount - delivered;
+      } else {
+        const stored = destination.stockpile[route.resource] || 0;
+        delivered = Math.min(amount, STOCKPILE_LIMIT - stored);
+        destination.stockpile[route.resource] = stored + delivered;
+        waiting = amount - delivered;
+      }
+      route.deliveredTotal += delivered;
+      if (delivered > 0) route.lastDeliveredTurn = state.turn;
+      route.inTransit = waiting > 0 ? { amount: waiting, remainingTurns: 1 } : null;
+      deliveredThisTurn.add(route.id);
+      if (!international && delivered > 0) {
+        const carrier = rival ? rival.name + "'s convoy" : "A convoy";
+        addEvent(state, carrier + " delivered " + delivered + " " + route.resource + " from " + source.name + " to " + destination.name + ".", "economy");
+      }
+    }
+    for (const route of active) {
+      if (route.inTransit || deliveredThisTurn.has(route.id)) continue;
+      const source = territories.get(route.sourceId);
+      const stock = source.owner === "player" && source.id === "home" ? state.resources : available.get(route.sourceId);
+      const amount = Math.min(route.capacity, stock?.[route.resource] || 0);
+      if (amount <= 0) continue;
+      stock[route.resource] -= amount;
+      if (stock !== state.resources) source.stockpile[route.resource] = Math.max(0, source.stockpile[route.resource] - amount);
+      route.inTransit = { amount, remainingTurns: route.travelTurns };
+      route.loadedTotal += amount;
+      route.lastLoadedTurn = state.turn;
+    }
+    return {
+      production, activeRoutes: playerActiveRoutes, rivalActiveRoutes,
+      upkeep: playerActiveRoutes * (hasTech(state, "logistics") ? 1 : 2)
+    };
+  }
+  function passengerRouteCapacity(source, destination) {
+    const level = Math.min(safeInt(source?.harborLevel, 0, 3), safeInt(destination?.harborLevel, 0, 3));
+    return level > 0 ? Math.min(24, 6 + level * 6) : 0;
+  }
+  function findPassengerCitizen(state, citizenId) {
+    return (state.citizens || []).find(citizen => citizen.id === citizenId) ||
+      (state.world?.remoteCitizens || []).find(citizen => citizen.id === citizenId) || null;
+  }
+  function passengerCitizenIdsInTransit(state) {
+    return new Set((state.world?.passengerRoutes || []).flatMap(route => route.inTransit?.citizenIds || []));
+  }
+  function citizenInTransit(state, citizenId) { return passengerCitizenIdsInTransit(state).has(citizenId); }
+  function movePassengerCitizens(state, route, target) {
+    const ids = route.inTransit?.citizenIds || [];
+    ids.forEach((citizenId, index) => {
+      const citizen = findPassengerCitizen(state, citizenId);
+      if (!citizen) return;
+      citizen.territoryId = target.id;
+      citizen.location = remoteCitizenSpawnLocation(target, index);
+      citizen.destination = null;
+      citizen.activity = "arrived by passenger ferry";
+      citizen.goal = "settle in " + target.name;
+      citizen.memory = Array.isArray(citizen.memory) ? citizen.memory : [];
+      citizen.memory.push({ turn: state.turn, text: "Travelled by passenger ferry from " + (state.world.territories.find(item => item.id === route.sourceId)?.name || route.sourceId) + " to " + target.name + "." });
+      citizen.memory = citizen.memory.slice(-8);
+    });
+  }
+  function createPassengerRoute(state, sourceId, destinationId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const territories = state.world?.territories || [];
+    const source = territories.find(item => item.id === sourceId);
+    const destination = territories.find(item => item.id === destinationId);
+    if (!source || !destination || source.id === destination.id) throw new Error("Choose two different island ports.");
+    if (source.owner !== "player" || destination.owner !== "player") throw new Error("Passenger ferries can only connect islands you control.");
+    if (source.harborLevel < 1 || destination.harborLevel < 1) throw new Error("Build an operational harbor at both ends before opening a ferry route.");
+    const routes = state.world.passengerRoutes || (state.world.passengerRoutes = []);
+    if (routes.length >= PASSENGER_ROUTE_LIMIT) throw new Error("Your passenger network has reached its 30-route limit.");
+    if (routes.some(route => route.sourceId === source.id && route.destinationId === destination.id)) throw new Error("This passenger ferry route already exists.");
+    if (state.resources.materials < PASSENGER_ROUTE_COST.materials || state.resources.credits < PASSENGER_ROUTE_COST.credits) {
+      throw new Error("Opening a passenger ferry requires 30 materials and 45 credits.");
+    }
+    state.resources.materials -= PASSENGER_ROUTE_COST.materials;
+    state.resources.credits -= PASSENGER_ROUTE_COST.credits;
+    const distance = Math.hypot(destination.x - source.x, destination.z - source.z);
+    const travelTurns = clamp(Math.ceil(distance / 18) - (hasTech(state, "logistics") ? 1 : 0), 1, 5);
+    const route = {
+      id: "ferry-" + state.turn + "-" + (routes.length + 1), sourceId: source.id, destinationId: destination.id,
+      capacity: passengerRouteCapacity(source, destination), travelTurns, status: "active", inTransit: null,
+      createdTurn: state.turn, loadedTotal: 0, deliveredTotal: 0, lastLoadedTurn: null, lastDeliveredTurn: null
+    };
+    routes.push(route);
+    addEvent(state, "Opened a passenger ferry from " + source.name + " to " + destination.name + ".", "economy");
+    return route;
+  }
+  function passengerRouteEffects(state) {
+    const territories = new Map((state.world?.territories || []).map(item => [item.id, item]));
+    const routes = state.world?.passengerRoutes || [];
+    const active = routes.filter(route => {
+      const source = territories.get(route.sourceId), destination = territories.get(route.destinationId);
+      return route.status === "active" && source?.owner === "player" && destination?.owner === "player" &&
+        source.harborLevel > 0 && destination.harborLevel > 0;
+    });
+    return {
+      activeRoutes: active.length,
+      passengersInTransit: routes.reduce((sum, route) => sum + (route.inTransit?.passengers || 0), 0),
+      namedPassengersInTransit: routes.reduce((sum, route) => sum + (route.inTransit?.citizenIds?.length || 0), 0),
+      upkeep: active.length * (hasTech(state, "logistics") ? PASSENGER_ROUTE_UPKEEP.logistics : PASSENGER_ROUTE_UPKEEP.standard),
+      loadedTotal: routes.reduce((sum, route) => sum + route.loadedTotal, 0),
+      deliveredTotal: routes.reduce((sum, route) => sum + route.deliveredTotal, 0)
+    };
+  }
+  function processPassengerRoutes(state) {
+    const territories = new Map((state.world?.territories || []).map(item => [item.id, item]));
+    const inTransitIds = passengerCitizenIdsInTransit(state);
+    let activeRoutes = 0, upkeep = 0, loadedThisTurn = 0, deliveredThisTurn = 0;
+    for (const route of state.world?.passengerRoutes || []) {
+      const source = territories.get(route.sourceId), destination = territories.get(route.destinationId);
+      const endpointsOwned = source?.owner === "player" && destination?.owner === "player" &&
+        source.harborLevel > 0 && destination.harborLevel > 0;
+      route.status = endpointsOwned ? "active" : "paused";
+      if (endpointsOwned) {
+        route.capacity = passengerRouteCapacity(source, destination);
+        activeRoutes++;
+        upkeep += hasTech(state, "logistics") ? PASSENGER_ROUTE_UPKEEP.logistics : PASSENGER_ROUTE_UPKEEP.standard;
+      }
+      let deliveredOnRoute = false;
+      if (route.inTransit) {
+        if (!endpointsOwned) {
+          if (source?.owner === "player") route.inTransit.returning = true;
+          else if (destination?.owner === "player") route.inTransit.returning = false;
+        }
+        const target = route.inTransit.returning ? source : destination;
+        const targetAvailable = target?.owner === "player";
+        if (endpointsOwned || targetAvailable) {
+          route.inTransit.remainingTurns = Math.max(0, route.inTransit.remainingTurns - 1);
+          if (route.inTransit.remainingTurns === 0 && targetAvailable) {
+            const passengers = route.inTransit.passengers;
+            target.population = Math.min(RESOURCE_LIMIT, target.population + passengers);
+            route.deliveredTotal = clamp(route.deliveredTotal + passengers, 0, RESOURCE_LIMIT);
+            route.lastDeliveredTurn = state.turn;
+            deliveredThisTurn += passengers;
+            const namedPassengers = route.inTransit.citizenIds || [];
+            movePassengerCitizens(state, route, target);
+            addEvent(state, passengers + " residents arrived at " + target.name + " by passenger ferry" +
+              (namedPassengers.length ? "; " + namedPassengers.length + " named residents disembarked." : "."), "world");
+            route.inTransit = null;
+            deliveredOnRoute = true;
+            syncNationalPopulation(state);
+          }
+        }
+      }
+      if (!endpointsOwned || route.inTransit || deliveredOnRoute) continue;
+      const protectedResidents = Math.max(1, (source.garrison || 0) * GARRISON_MANPOWER_PER_UNIT + 1);
+      const available = Math.max(0, source.population - protectedResidents);
+      const passengers = Math.min(route.capacity, available);
+      if (passengers > 0) {
+        source.population -= passengers;
+        const named = [...(state.citizens || []), ...(state.world?.remoteCitizens || [])].filter(citizen =>
+          (citizen.territoryId || "home") === source.id && !citizen.destination && !inTransitIds.has(citizen.id)
+        ).slice(0, Math.min(passengers, route.capacity));
+        const citizenIds = named.map(citizen => citizen.id);
+        route.inTransit = { passengers, remainingTurns: route.travelTurns, returning: false, citizenIds };
+        for (const citizen of named) { citizen.activity = "aboard passenger ferry"; citizen.goal = "travel to " + destination.name; inTransitIds.add(citizen.id); }
+        route.loadedTotal = clamp(route.loadedTotal + passengers, 0, RESOURCE_LIMIT);
+        route.lastLoadedTurn = state.turn;
+        loadedThisTurn += passengers;
+        syncNationalPopulation(state);
+        addEvent(state, passengers + " residents boarded a passenger ferry at " + source.name + ".", "world");
+      }
+    }
+    syncNationalPopulation(state);
+    return { activeRoutes, upkeep, loadedThisTurn, deliveredThisTurn, passengersInTransit: passengerRouteEffects(state).passengersInTransit, namedPassengersInTransit: passengerRouteEffects(state).namedPassengersInTransit };
+  }
+  function processRivalResourceSites(state) {
+    const territories = new Map((state.world?.territories || []).map(territory => [territory.id, territory]));
+    for (const node of state.world?.resourceNodes || []) {
+      if (!node || node.operational !== true || node.depleted === true || node.quantity <= 0) continue;
+      const territory = territories.get(node.territoryId || "home");
+      if (!territory || !Object.hasOwn(state.rivals || {}, territory.owner)) continue;
+      const yields = RESOURCE_SITE_OUTPUT[node.resource];
+      if (!yields) continue;
+      const [resource, rate] = Object.entries(yields)[0];
+      if (!SHIPPING_RESOURCES.includes(resource)) continue;
+      territory.stockpile = territory.stockpile || createStockpile();
+      const stored = territory.stockpile[resource] || 0;
+      const amount = Math.min(rate, node.quantity, STOCKPILE_LIMIT - stored);
+      if (amount <= 0) continue;
+      territory.stockpile[resource] = stored + amount;
+      node.quantity -= amount;
+      if (node.quantity === 0) node.depleted = true;
+    }
+  }
+  function developRivalTerritories(state) {
+    const routes = state.world.shippingRoutes || (state.world.shippingRoutes = []);
+    const summary = { harborsBuilt: 0, extractionSitesOpened: 0, routesOpened: 0 };
+    for (const rival of Object.values(state.rivals || {})) {
+      const owned = (state.world.territories || []).filter(territory => territory.owner === rival.id);
+      if (!owned.length) continue;
+      const unservedPort = owned.find(territory => territory.harborLevel < 1);
+      if (unservedPort && rival.resources.materials >= 40 && rival.resources.credits >= 65) {
+        rival.resources.materials -= 40;
+        rival.resources.credits -= 65;
+        unservedPort.harborLevel = 1;
+        summary.harborsBuilt++;
+        rememberRival(rival, state.turn, "harbor-construction", rival.activity);
+        addEvent(state, rival.name + " established a harbor on " + unservedPort.name + ".", "economy");
+      }
+      const activeSites = (state.world.resourceNodes || []).filter(node =>
+        node.operational && !node.depleted && owned.some(territory => territory.id === node.territoryId)
+      ).length;
+      const siteLimit = Math.min(owned.length, 2);
+      if (activeSites < siteLimit && rival.resources.materials >= 35 && rival.resources.credits >= 55) {
+        const candidate = (state.world.resourceNodes || [])
+          .filter(node => !node.operational && !node.depleted && node.quantity > 0 &&
+            owned.some(territory => territory.id === node.territoryId && territory.harborLevel > 0))
+          .sort((a, b) => b.quantity - a.quantity || a.id.localeCompare(b.id))[0];
+        if (candidate) {
+          rival.resources.materials -= 35;
+          rival.resources.credits -= 55;
+          candidate.operational = true;
+          candidate.operatedSinceTurn = state.turn;
+          summary.extractionSitesOpened++;
+          rememberRival(rival, state.turn, "resource-extraction", rival.activity);
+          addEvent(state, rival.name + " opened a " + candidate.resource.toLowerCase() + " extraction site.", "economy");
+        }
+      }
+      const ports = owned.filter(territory => territory.harborLevel > 0);
+      const rivalRoutes = routes.filter(route => (route.ownerId || "player") === rival.id);
+      if (ports.length < 2 || rivalRoutes.length >= 3 || routes.length >= 50 ||
+          rival.resources.materials < 20 || rival.resources.credits < 35) continue;
+      const sourceNodes = (state.world.resourceNodes || [])
+        .filter(node => node.operational && !node.depleted && node.quantity > 0 &&
+          ports.some(territory => territory.id === node.territoryId))
+        .sort((a, b) => {
+          const aTerritory = ports.find(item => item.id === a.territoryId);
+          const bTerritory = ports.find(item => item.id === b.territoryId);
+          const aStock = aTerritory?.stockpile?.[Object.keys(RESOURCE_SITE_OUTPUT[a.resource] || {})[0]] || 0;
+          const bStock = bTerritory?.stockpile?.[Object.keys(RESOURCE_SITE_OUTPUT[b.resource] || {})[0]] || 0;
+          return bStock - aStock || b.quantity - a.quantity || a.id.localeCompare(b.id);
+        });
+      let opened = false;
+      for (const node of sourceNodes) {
+        const source = ports.find(territory => territory.id === node.territoryId);
+        const resource = Object.keys(RESOURCE_SITE_OUTPUT[node.resource] || {})[0];
+        if (!source || !SHIPPING_RESOURCES.includes(resource)) continue;
+        const destinations = ports.filter(territory => territory.id !== source.id)
+          .sort((a, b) => Math.hypot(a.x - source.x, a.z - source.z) - Math.hypot(b.x - source.x, b.z - source.z) || a.id.localeCompare(b.id));
+        for (const destination of destinations) {
+          if (routes.some(route => (route.ownerId || "player") === rival.id &&
+              route.sourceId === source.id && route.destinationId === destination.id && route.resource === resource)) continue;
+          const distance = Math.hypot(destination.x - source.x, destination.z - source.z);
+          const travelTurns = clamp(Math.ceil(distance / 18) - (rival.technologies.includes("logistics") ? 1 : 0), 1, 5);
+          rival.resources.materials -= 20;
+          rival.resources.credits -= 35;
+          const route = {
+            id: "rival-" + rival.id + "-" + state.turn + "-" + (routes.length + 1),
+            ownerId: rival.id, sourceId: source.id, destinationId: destination.id, resource,
+            capacity: shippingRouteCapacity(source, destination), travelTurns,
+            status: "active", inTransit: null, createdTurn: state.turn,
+            loadedTotal: 0, deliveredTotal: 0, lastLoadedTurn: null, lastDeliveredTurn: null
+          };
+          routes.push(route);
+          summary.routesOpened++;
+          rememberRival(rival, state.turn, "maritime-trade", rival.activity);
+          addEvent(state, rival.name + " opened a " + resource + " shipping lane between its islands.", "economy");
+          opened = true;
+          break;
+        }
+        if (opened) break;
+      }
+    }
+    return summary;
+  }
+  function territoryClaimCost(state) {
+    return {
+      materials: Math.max(35, 60 - (state.technologies.includes("logistics") ? 10 : 0)),
+      credits: Math.max(60, 100 - (state.technologies.includes("commerce") ? 15 : 0)),
+      influence: 12
+    };
+  }
+  function claimTerritory(state, territoryId) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    const territory = (state.world?.territories || []).find(item => item.id === territoryId);
+    if (!territory || territory.id === "home") throw new Error("Territory not found.");
+    if (territory.owner !== "unclaimed") throw new Error("This island is already controlled by another nation.");
+    const cost = territoryClaimCost(state);
+    if (state.resources.materials < cost.materials || state.resources.credits < cost.credits || state.resources.influence < cost.influence) {
+      throw new Error("Claiming this island requires " + cost.materials + " materials, " + cost.credits + " credits and " + cost.influence + " influence.");
+    }
+    state.resources.materials -= cost.materials;
+    state.resources.credits -= cost.credits;
+    state.resources.influence -= cost.influence;
+    territory.owner = "player";
+    syncNationalPopulation(state);
+    territory.claimedTurn = state.turn;
+    territory.development = Math.min(100, territory.development + 5);
+    addEvent(state, "Your nation claimed " + territory.name + ". It now adds 3 credits and 1 influence each turn.", "milestone");
+    return territory;
+  }
+  function territoryEffects(state) {
+    const controlled = (state.world?.territories || []).filter(territory => territory.id !== "home" && territory.owner === "player").length;
+    return { controlled, credits: controlled * 3, influence: controlled };
+  }
+  function expandRivals(state) {
+    const territories = state.world?.territories || [];
+    const unclaimed = territories.filter(territory => territory.owner === "unclaimed");
+    if (!unclaimed.length) return null;
+    const expansionists = Object.values(state.rivals || {}).filter(rival =>
+      rival.traits.includes("expansionist") || rival.economicPriority === "extraction" || rival.militaryPriority === "expansion"
+    ).sort((a, b) => {
+      const score = rival => (rival.traits.includes("expansionist") ? 3 : 0) + (rival.economicPriority === "extraction" ? 2 : 0) + (rival.militaryPriority === "expansion" ? 1 : 0);
+      return score(b) - score(a) || a.id.localeCompare(b.id);
+    });
+    for (const rival of expansionists) {
+      const allied = state.diplomacy.treaties.some(treaty => treaty.rivalId === rival.id && treaty.kind === "alliance" && treaty.status === "active");
+      if (allied || rival.relation >= 65 || rival.resources.materials < 35 || rival.resources.credits < 55 || rival.resources.influence < 5) continue;
+      const owned = territories.filter(territory => territory.owner === rival.id);
+      const target = unclaimed.slice().sort((a, b) => {
+        const distance = territory => owned.length ? Math.min(...owned.map(item => Math.hypot(item.x - territory.x, item.z - territory.z))) : 0;
+        return distance(a) - distance(b) || a.id.localeCompare(b.id);
+      })[0];
+      if (!target) continue;
+      rival.resources.materials -= 35;
+      rival.resources.credits -= 55;
+      rival.resources.influence -= 5;
+      target.owner = rival.id;
+      target.claimedTurn = state.turn;
+      target.development = Math.min(100, target.development + 3);
+      rival.activity = "Expanded into " + target.name;
+      rival.stance = "Expanding frontier";
+      rememberRival(rival, state.turn, "territorial-expansion", "Claimed " + target.name);
+      addEvent(state, rival.name + " expanded into " + target.name + ".", "diplomacy");
+      return target;
+    }
+    return null;
+  }
   function developResourceSite(state, nodeId) {
     if (state.status !== "playing") throw new Error("This campaign has ended.");
     const node = state.world && Array.isArray(state.world.resourceNodes) ? state.world.resourceNodes.find(item => item.id === nodeId) : null;
     if (!node || !Object.hasOwn(RESOURCE_SITE_OUTPUT, node.resource)) throw new Error("Resource deposit not found.");
+    const territory = (state.world.territories || []).find(item => item.id === (node.territoryId || "home"));
+    if (!territory || territory.owner !== "player") throw new Error("You must control this island before establishing an extraction site.");
     if (node.operational) throw new Error("This resource deposit is already operational.");
+    if (Number.isInteger(node.operatedSinceTurn)) throw new Error("This extraction site is paused; resume it instead of paying to establish it again.");
     if (node.depleted || node.quantity <= 0) throw new Error("This resource deposit is depleted.");
     if (state.resources.materials < RESOURCE_SITE_COST.materials || state.resources.credits < RESOURCE_SITE_COST.credits) throw new Error("Establishing an extraction site requires 35 materials and 55 credits.");
     state.resources.materials -= RESOURCE_SITE_COST.materials;
@@ -824,10 +2113,32 @@
     addEvent(state, "Established a " + node.resource.toLowerCase() + " extraction site on the island.", "economy");
     return node;
   }
+  function setResourceSiteOperational(state, nodeId, operational) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (typeof operational !== "boolean") throw new Error("Extraction state must be active or paused.");
+    const node = state.world && Array.isArray(state.world.resourceNodes)
+      ? state.world.resourceNodes.find(item => item.id === nodeId) : null;
+    if (!node || !Object.hasOwn(RESOURCE_SITE_OUTPUT, node.resource)) throw new Error("Resource deposit not found.");
+    const territory = (state.world.territories || []).find(item => item.id === (node.territoryId || "home"));
+    if (!territory || territory.owner !== "player") throw new Error("You must control this island before managing its extraction site.");
+    if (node.depleted || node.quantity <= 0) throw new Error("This resource deposit is depleted.");
+    if (!Number.isInteger(node.operatedSinceTurn)) throw new Error("Establish the extraction site before changing its operating state.");
+    if (node.operational === operational) throw new Error(operational ? "This extraction site is already active." : "This extraction site is already paused.");
+    node.operational = operational;
+    addEvent(state, node.resource + " extraction on " + territory.name + (operational ? " resumed." : " paused."), "economy");
+    return node;
+  }
   function economicSnapshot(state) {
-    const jobs = workforceFor(state.buildings);
-    const employed = Math.min(jobs, state.nation.population);
-    const staffing = jobs > 0 ? Math.min(1, state.nation.population / jobs) : 1;
+    const population = nationalPopulationFor(state);
+    const homeTerritory = state.world?.territories?.find(territory => territory.id === "home");
+    const homePopulation = homeTerritory?.population ?? population;
+    const districts = districtEffects(state);
+    const military = militaryEffects(state);
+    const civilianHomePopulation = Math.max(0, homePopulation - (homeTerritory?.garrison || 0) * GARRISON_MANPOWER_PER_UNIT);
+    const homeJobs = workforceFor(state.buildings);
+    const jobs = homeJobs + districts.workforce + military.manpower;
+    const employed = Math.min(homeJobs, civilianHomePopulation) + districts.employed + military.manpower;
+    const staffing = homeJobs > 0 ? Math.min(1, civilianHomePopulation / homeJobs) : 1;
     const creator = creatorEffects(state);
     const base = productionFor(state.buildings, state.technologies);
     const renewablePower = worldEventActiveThisTurn(state, "energy_crisis") ? 0 : RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar;
@@ -835,17 +2146,21 @@
       materials: clamp(state.resources.materials + Math.floor(base.materials * staffing), 0, RESOURCE_LIMIT),
       ore: clamp(state.resources.ore + Math.floor(base.ore * staffing), 0, RESOURCE_LIMIT),
       power: clamp(state.resources.power + Math.floor(base.power * staffing) + renewablePower, 0, RESOURCE_LIMIT)
-    }, state.buildings, state.technologies, state.nation.population);
+    }, state.buildings, state.technologies, civilianHomePopulation, homeJobs);
     industry.production.power += renewablePower;
     for (const [resource, amount] of Object.entries(creator.production)) industry.production[resource] += amount;
-    const districts = districtEffects(state);
     for (const [resource, amount] of Object.entries(districts.production)) industry.production[resource] += amount;
     const roads = roadEffects(state);
     industry.production.logistics += roads.logistics;
     for (const [resource, amount] of Object.entries(roads.production)) industry.production[resource] += amount;
     for (const [resource, amount] of Object.entries(resourceSiteEffects(state))) industry.production[resource] += amount;
-    return { production: industry.production, consumption: { food: Math.ceil(state.nation.population / (12 + Math.min(8, industry.production.logistics))), ...industry.inputs },
-      workforce: jobs, employed, requiredJobs: Math.ceil(state.nation.population / 10), activeFactories: industry.activeFactories };
+    const shipping = shippingEffects(state);
+    industry.production.logistics += shipping.activeRoutes;
+    const territories = territoryEffects(state);
+    industry.production.credits += territories.credits;
+    return { population, production: industry.production, territoryInfluence: territories.influence, shipping, military,
+      consumption: { food: Math.ceil(population / (12 + Math.min(8, industry.production.logistics))), ...industry.inputs },
+      workforce: jobs, employed, requiredJobs: Math.ceil(population / 10), activeFactories: industry.activeFactories };
   }
   function build(state, id) {
     const definition = BUILDINGS[id];
@@ -897,6 +2212,12 @@
     if (state.resources.science < technology.cost) throw new Error("Not enough science.");
     state.resources.science -= technology.cost;
     state.technologies.push(id);
+    if (id === "logistics") {
+      for (const route of state.world.shippingRoutes || []) {
+        route.travelTurns = Math.max(1, route.travelTurns - 1);
+        if (route.inTransit) route.inTransit.remainingTurns = Math.max(1, route.inTransit.remainingTurns - 1);
+      }
+    }
     if (id === "governance") state.nation.stability = Math.min(100, state.nation.stability + 10);
     addEvent(state, "Researched " + technology.name + ".", "research");
     for (const rival of Object.values(state.rivals)) rememberRival(rival, state.turn, "player-research", "The player researched " + technology.name);
@@ -932,10 +2253,14 @@
     updateObjectives(state);
     return state;
   }
-  function declareConflict(state, rivalId) {
+  function declareConflict(state, rivalId, targetTerritoryId = null) {
     const rival = state.rivals[rivalId];
     if (!rival) throw new Error("Unknown nation.");
     if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (targetTerritoryId !== null) {
+      const target = (state.world?.territories || []).find(territory => territory.id === targetTerritoryId);
+      if (!target || target.owner !== rivalId) throw new Error("Choose a territory currently controlled by " + rival.name + ".");
+    }
     if (rival.relation > -20) throw new Error("Relations must fall to -20 before conflict can be declared.");
     if (state.diplomacy.treaties.some(t => t.rivalId === rivalId && t.kind === "alliance" && t.status === "active")) throw new Error("An active alliance prevents conflict.");
     if (state.diplomacy.treaties.some(t => t.rivalId === rivalId && t.kind === "non-aggression" && t.status === "active")) throw new Error("An active non-aggression pact prevents conflict.");
@@ -947,7 +2272,9 @@
       if (treaty.rivalId === rivalId && treaty.status === "active") treaty.status = "expired";
     }
     addEvent(state, "Prior agreements with " + rival.name + " were voided by the conflict.", "diplomacy");
-    state.diplomacy.conflicts.push({ rivalId, status: "active", startedTurn: state.turn, playerScore: 0, rivalScore: 0 });
+    const conflict = { rivalId, status: "active", startedTurn: state.turn, playerScore: 0, rivalScore: 0 };
+    if (targetTerritoryId !== null) conflict.targetTerritoryId = targetTerritoryId;
+    state.diplomacy.conflicts.push(conflict);
     addEvent(state, "Conflict declared with " + rival.name + ". Armies are mobilizing.", "conflict");
     rememberRival(rival, state.turn, "player-conflict", "The player declared conflict and voided prior agreements", -80);
     return state;
@@ -960,6 +2287,13 @@
     state.resources.credits -= 35;
     conflict.status = "peace";
     conflict.endedTurn = state.turn;
+    if (conflict.initiator === "rival" && conflict.targetTerritoryId) {
+      const target = (state.world?.territories || []).find(territory => territory.id === conflict.targetTerritoryId);
+      if (target && target.counterattackStatus === "active") {
+        target.counterattackStatus = "withdrawn";
+        target.counterattackForce = 0;
+      }
+    }
     state.rivals[rivalId].relation = Math.max(-25, state.rivals[rivalId].relation);
     addEvent(state, "A peace accord ended the conflict with " + state.rivals[rivalId].name + ".", "diplomacy");
     rememberRival(state.rivals[rivalId], state.turn, "peace", "The player negotiated an end to conflict");
@@ -1242,7 +2576,8 @@
         (technology.requires || []).every(required => rival.technologies.includes(required)) && rival.resources.science >= technology.cost);
   }
   function rememberRival(rival, turn, kind, text, relationDelta = 0) {
-    rival.memory.unshift({ turn, kind: String(kind).slice(0, 32), text: String(text).slice(0, 180), relationDelta: safeInt(relationDelta, 0, 200) * (relationDelta < 0 ? -1 : 1) });
+    const signedDelta = Number.isFinite(Number(relationDelta)) ? Math.max(-200, Math.min(200, Math.trunc(Number(relationDelta)))) : 0;
+    rival.memory.unshift({ turn, kind: String(kind).slice(0, 32), text: String(text).slice(0, 180), relationDelta: signedDelta });
     rival.memory = rival.memory.slice(0, 30);
   }
   function planRival(state, rival, foodNeed, foodTarget) {
@@ -1334,7 +2669,9 @@
       rival.resources.materials = Math.max(0, rival.resources.materials - industry.inputs.materials);
       rival.resources.ore = Math.max(0, rival.resources.ore - industry.inputs.ore);
       rival.resources.power = Math.max(0, rival.resources.power - industry.inputs.power);
-      const rivalIncome = output.credits + Math.floor(rival.population / 20);
+      const controlledTerritories = (state.world?.territories || []).filter(territory => territory.owner === rival.id).length;
+      rival.resources.influence = clamp(rival.resources.influence + controlledTerritories, 0, RESOURCE_LIMIT);
+      const rivalIncome = output.credits + Math.floor(rival.population / 20) + controlledTerritories * 2;
       rival.resources.credits = Math.min(RESOURCE_LIMIT, rival.resources.credits + (worldEventActiveThisTurn(state, "financial_crisis") ? Math.floor(rivalIncome * 0.75) : rivalIncome));
       for (const resource of MARKET_RESOURCES) worldFlow[resource] += output[resource] - (industry.inputs[resource] || 0);
       const foodNeed = Math.ceil(rival.population / (12 + Math.min(8, output.logistics)));
@@ -1398,8 +2735,11 @@
     if (state.turn >= 10_000_000) throw new Error("Turn limit reached.");
     autoResolvePendingWorldEvents(state);
     if (state.status !== "playing") return state;
+    syncNationalPopulation(state);
     state.turn++;
     updateCitizens(state);
+    updateRemoteCitizens(state);
+    const passengerTransport = processPassengerRoutes(state);
     state.creatorEconomy.royaltyTurn = state.turn;
     state.creatorEconomy.lastTurnRoyalties = 0;
     state.world.activeEvents = state.world.activeEvents.filter(event => event.status === "pending" || event.remainingTurns > 0);
@@ -1412,24 +2752,36 @@
     const flow = Object.fromEntries(MARKET_RESOURCES.map(key => [key, 0]));
     applyOngoingWorldEvents(state, flow);
     const creator = creatorEffects(state);
+    const districts = districtEffects(state);
+    const military = militaryEffects(state);
+    const homeTerritory = state.world.territories.find(territory => territory.id === "home");
+    const homePopulation = homeTerritory?.population ?? state.nation.population;
+    const civilianHomePopulation = Math.max(0, homePopulation - (homeTerritory?.garrison || 0) * GARRISON_MANPOWER_PER_UNIT);
     const baseOutput = productionFor(state.buildings, state.technologies);
-    const jobs = workforceFor(state.buildings), employed = Math.min(jobs, state.nation.population);
-    const staffing = jobs > 0 ? Math.min(1, state.nation.population / jobs) : 1;
+    const homeJobs = workforceFor(state.buildings);
+    const jobs = homeJobs + districts.workforce + military.manpower;
+    const employed = Math.min(homeJobs, civilianHomePopulation) + districts.employed + military.manpower;
+    const staffing = homeJobs > 0 ? Math.min(1, civilianHomePopulation / homeJobs) : 1;
     const renewablePower = worldEventActiveThisTurn(state, "energy_crisis") ? 0 : RENEWABLE_POWER_OUTPUT.wind + RENEWABLE_POWER_OUTPUT.solar;
     const industry = industrialOutput({ ...state.resources,
       materials: clamp(state.resources.materials + Math.floor(baseOutput.materials * staffing), 0, RESOURCE_LIMIT),
       ore: clamp(state.resources.ore + Math.floor(baseOutput.ore * staffing), 0, RESOURCE_LIMIT),
       power: clamp(state.resources.power + Math.floor(baseOutput.power * staffing) + renewablePower, 0, RESOURCE_LIMIT)
-    }, state.buildings, state.technologies, state.nation.population);
+    }, state.buildings, state.technologies, civilianHomePopulation, homeJobs);
     const output = industry.production;
     output.power += renewablePower;
     for (const [resource, amount] of Object.entries(creator.production)) output[resource] += amount;
-    const districts = districtEffects(state);
     for (const [resource, amount] of Object.entries(districts.production)) output[resource] += amount;
     const roads = roadEffects(state);
     output.logistics += roads.logistics;
     for (const [resource, amount] of Object.entries(roads.production)) output[resource] += amount;
     for (const [resource, amount] of Object.entries(resourceSiteEffects(state, true))) output[resource] += amount;
+    processRivalResourceSites(state);
+    const shipping = processShippingRoutes(state);
+    for (const [resource, amount] of Object.entries(shipping.production)) output[resource] += amount;
+    output.logistics += shipping.activeRoutes + passengerTransport.activeRoutes;
+    const territorialOutput = territoryEffects(state);
+    output.credits += territorialOutput.credits;
     if (worldEventActiveThisTurn(state, "industrial_revolution")) output.goods = Math.floor(output.goods * 1.3);
     for (const resource of ["food", "materials", "ore", "goods", "science", "power"]) {
       state.resources[resource] = clamp(state.resources[resource] + output[resource], 0, RESOURCE_LIMIT);
@@ -1443,8 +2795,9 @@
     let income = clamp(output.credits + taxIncome + tradeIncome, 0, RESOURCE_LIMIT);
     if (worldEventActiveThisTurn(state, "financial_crisis")) income = Math.floor(income * 0.75);
     state.resources.science = clamp(state.resources.science + activeTreaties.filter(t => t.kind === "research").length * 2, 0, RESOURCE_LIMIT);
-    state.resources.influence = clamp(state.resources.influence + activeTreaties.filter(t => t.kind === "alliance").length + creator.influence, 0, RESOURCE_LIMIT);
-    const wageExpense = Math.ceil(employed / 10 * (worldEventActiveThisTurn(state, "financial_crisis") ? 1.15 : 1) * (hasTech(state, "urbanism") ? 0.9 : 1));
+    state.resources.influence = clamp(state.resources.influence + activeTreaties.filter(t => t.kind === "alliance").length + creator.influence + territorialOutput.influence, 0, RESOURCE_LIMIT);
+    const civilianEmployed = Math.max(0, employed - military.manpower);
+    const wageExpense = Math.ceil(civilianEmployed / 10 * (worldEventActiveThisTurn(state, "financial_crisis") ? 1.15 : 1) * (hasTech(state, "urbanism") ? 0.9 : 1)) + shipping.upkeep + passengerTransport.upkeep + military.upkeep;
     state.resources.credits = clamp(state.resources.credits + income - wageExpense, 0, RESOURCE_LIMIT);
     const previousPhase = state.economy.phase;
     let phase = previousPhase, deficitTurns = state.economy.deficitTurns, recoveryTurns = state.economy.recoveryTurns;
@@ -1471,25 +2824,48 @@
     state.economy.consumption.food = foodNeed;
     state.resources.food -= foodNeed;
     flow.food -= foodNeed;
+    let populationGrowthAllowed = false;
     if (state.resources.food < 0) {
       state.resources.food = 0;
       state.nation.stability = Math.max(0, state.nation.stability - 10);
-      state.nation.population = Math.max(1, state.nation.population - 5);
-      addEvent(state, "Food shortages caused unrest and population loss.", "crisis");
+      reducePlayerPopulation(state, 5);
+      addEvent(state, "Food shortages caused unrest and population loss across the nation.", "crisis");
     } else {
-      state.nation.stability = Math.min(100, state.nation.stability + (jobs >= Math.ceil(state.nation.population / 10) ? (hasTech(state, "governance") ? 2 : 1) : 0));
-      if (state.resources.food > foodNeed * 3 && state.nation.stability >= 45 && phase !== "recession" && jobs >= Math.ceil(state.nation.population / 10)) {
-        const populationCap = Math.min(RESOURCE_LIMIT, 250 + (state.buildings.housing || 0) * 50 + (hasTech(state, "medicine") ? 100 : 0) + creator.capacity);
-        state.nation.population = Math.min(populationCap, state.nation.population + 2 + (hasTech(state, "medicine") ? 1 : 0) + Math.floor((state.buildings.housing || 0) / 2) + districts.populationGrowth);
+      state.nation.stability = Math.min(100, state.nation.stability + (employed >= Math.ceil(state.nation.population / 10) ? (hasTech(state, "governance") ? 2 : 1) : 0));
+      populationGrowthAllowed = state.resources.food > foodNeed * 3 && state.nation.stability >= 45 && phase !== "recession" && employed >= Math.ceil(state.nation.population / 10);
+      if (populationGrowthAllowed) {
+        const home = state.world.territories.find(territory => territory.id === "home");
+        if (home) {
+          const populationCap = Math.min(RESOURCE_LIMIT, 250 + (state.buildings.housing || 0) * 50 +
+            (hasTech(state, "medicine") ? 100 : 0) + creator.capacity + districts.populationGrowth * 50);
+          home.population = Math.min(populationCap, home.population + 2 + (hasTech(state, "medicine") ? 1 : 0) +
+            Math.floor((state.buildings.housing || 0) / 2) + districts.populationGrowth);
+        }
       }
     }
-    if (jobs < Math.ceil(state.nation.population / 10)) state.nation.stability = Math.max(0, state.nation.stability - 1);
+    if (populationGrowthAllowed) {
+      for (const territory of state.world.territories || []) {
+        if (territory.id === "home" || territory.owner !== "player") continue;
+        const growth = districts.regionalGrowth[territory.id] || 0;
+        if (growth > 0) {
+          const cap = Math.min(RESOURCE_LIMIT, 120 + growth * 50 + (hasTech(state, "medicine") ? 100 : 0));
+          territory.population = Math.min(cap, territory.population + growth);
+        }
+      }
+    }
+    syncNationalPopulation(state);
+    state.economy.requiredJobs = Math.ceil(state.nation.population / 10);
+    if (employed < Math.ceil(state.nation.population / 10)) state.nation.stability = Math.max(0, state.nation.stability - 1);
     if (phase === "recession") state.nation.stability = Math.max(0, state.nation.stability - 2);
     else if (phase === "recovery") state.nation.stability = Math.min(100, state.nation.stability + 1);
     state.nation.stability = Math.min(100, state.nation.stability + creator.stability);
     if (state.resources.power < state.nation.population / 10) state.nation.stability = Math.max(0, state.nation.stability - 2);
     const royaltiesBeforeRivals = state.creatorEconomy.lastTurnRoyalties;
     developRivals(state, flow);
+    expandRivals(state);
+    developRivalTerritories(state);
+    planRivalCounterattacks(state);
+    developRivalMilitary(state);
     const creatorRoyalties = state.creatorEconomy.lastTurnRoyalties - royaltiesBeforeRivals;
     if (creatorRoyalties > 0) {
       state.economy.lastIncome = Math.min(RESOURCE_LIMIT, state.economy.lastIncome + creatorRoyalties);
@@ -1498,26 +2874,118 @@
     for (const conflict of state.diplomacy.conflicts) {
       if (conflict.status !== "active") continue;
       const rival = state.rivals[conflict.rivalId];
-      const playerStrength = Math.max(1, state.resources.power + (state.buildings.power || 0) * 12 + state.technologies.length * 5);
-      const rivalStrength = Math.max(1, rival.resources.power + (rival.buildings.power || 0) * 12 + rival.technologies.length * 5);
+      const initiator = conflict.initiator === "rival" ? "rival" : "player";
+      const homeTerritory = (state.world.territories || []).find(territory => territory.id === "home");
+      const targetTerritory = conflict.targetTerritoryId
+        ? (state.world.territories || []).find(territory => territory.id === conflict.targetTerritoryId)
+        : null;
+      const targetDefense = targetTerritory ? territoryDefenseStrength(targetTerritory) : 0;
+      const playerStrength = initiator === "rival"
+        ? Math.max(1, state.resources.power + (state.buildings.power || 0) * 12 +
+          state.technologies.length * 5 + (targetTerritory?.owner === "player" ? targetDefense : 0))
+        : Math.max(1, state.resources.power + (state.buildings.power || 0) * 12 +
+          state.technologies.length * 5 + (homeTerritory?.garrison || 0) * 8);
+      const rivalStrength = initiator === "rival"
+        ? Math.max(1, rival.resources.power + (rival.buildings.power || 0) * 12 +
+          rival.technologies.length * 5 + (conflict.assaultGarrison || 0) * 8)
+        : Math.max(1, rival.resources.power + (rival.buildings.power || 0) * 12 +
+          rival.technologies.length * 5 + (targetTerritory?.owner === rival.id ? targetDefense : 0));
       conflict.playerScore += playerStrength;
       conflict.rivalScore += rivalStrength;
       state.resources.power = Math.max(0, state.resources.power - 2);
-      state.nation.stability = Math.max(0, state.nation.stability - 2);
-      rival.stability = Math.max(0, rival.stability - 3);
+      if (initiator === "rival") {
+        state.nation.stability = Math.max(0, state.nation.stability - 3);
+        rival.stability = Math.max(0, rival.stability - 2);
+      } else {
+        state.nation.stability = Math.max(0, state.nation.stability - 2);
+        rival.stability = Math.max(0, rival.stability - 3);
+      }
       if (state.turn - conflict.startedTurn >= 3 || state.nation.stability < 30 || rival.stability < 30) {
         conflict.status = "resolved";
         conflict.endedTurn = state.turn;
-        const won = conflict.playerScore >= conflict.rivalScore;
-        if (won) {
-          state.resources.credits = Math.min(RESOURCE_LIMIT, state.resources.credits + 30);
-          rival.relation = -10;
-          addEvent(state, "Your forces prevailed over " + rival.name + "; a settlement brings 30 credits.", "conflict");
+        const attackerWon = initiator === "rival"
+          ? conflict.rivalScore > conflict.playerScore
+          : conflict.playerScore >= conflict.rivalScore;
+        if (initiator === "player") {
+          if (attackerWon) {
+            state.resources.credits = Math.min(RESOURCE_LIMIT, state.resources.credits + 30);
+            rival.relation = -65;
+            addEvent(state, "Your forces prevailed over " + rival.name + "; a settlement brings 30 credits.", "conflict");
+            if (conflict.targetTerritoryId) {
+              const captured = (state.world.territories || []).find(territory => territory.id === conflict.targetTerritoryId);
+              if (captured && captured.owner === rival.id) {
+                const populationTransferred = Math.min(captured.population, Math.max(0, rival.population - 1));
+                captured.population = populationTransferred;
+                rival.population = Math.max(1, rival.population - populationTransferred);
+                const retreatingForce = Math.min(6, Math.max(captured.garrison > 0 ? 1 : 0,
+                  Math.floor(captured.garrison / 2) + (captured.harborLevel > 0 ? 1 : 0)));
+                captured.garrison = Math.max(0, captured.garrison - retreatingForce);
+                captured.counterattackForce = retreatingForce;
+                captured.lastLostOwnerId = rival.id;
+                captured.lastLostTurn = state.turn;
+                captured.counterattackStatus = retreatingForce > 0 ? "available" : "unavailable";
+                captured.owner = "player";
+                captured.claimedTurn = state.turn;
+                captured.development = Math.min(100, captured.development + 5);
+                for (const route of state.world.shippingRoutes || []) {
+                  if (route.sourceId === captured.id || route.destinationId === captured.id) route.status = "paused";
+                }
+                syncNationalPopulation(state);
+                addEvent(state, "Territorial victory: " + captured.name + " is now part of " + state.nation.name + ". " +
+                  (retreatingForce ? retreatingForce + " former garrison unit" + (retreatingForce === 1 ? " escaped by sea; the rival may attempt one counterattack." : "s escaped by sea; the rival may attempt one counterattack.") : "The former garrison did not escape.") +
+                  " Its residents, harbor, stockpile and infrastructure transferred with the island.", "milestone");
+                rememberRival(rival, state.turn, "territory-lost", "Lost " + captured.name + " after a territorial campaign", -15);
+              }
+            }
+          } else {
+            state.resources.credits = Math.max(0, state.resources.credits - 30);
+            state.nation.stability = Math.max(0, state.nation.stability - 12);
+            rival.relation = -15;
+            addEvent(state, rival.name + " prevailed. Your treasury and stability suffered.", "conflict");
+          }
         } else {
-          state.resources.credits = Math.max(0, state.resources.credits - 30);
-          state.nation.stability = Math.max(0, state.nation.stability - 12);
-          rival.relation = -15;
-          addEvent(state, rival.name + " prevailed. Your treasury and stability suffered.", "conflict");
+          const defendedTerritory = targetTerritory && targetTerritory.owner === "player" ? targetTerritory : null;
+          if (attackerWon && defendedTerritory) {
+            state.resources.credits = Math.max(0, state.resources.credits - 30);
+            state.nation.stability = Math.max(0, state.nation.stability - 12);
+            const populationTransferred = Math.min(defendedTerritory.population, Math.max(0, state.nation.population - 1));
+            defendedTerritory.population = populationTransferred;
+            rival.population = Math.min(RESOURCE_LIMIT, rival.population + populationTransferred);
+            defendedTerritory.owner = rival.id;
+            defendedTerritory.claimedTurn = state.turn;
+            defendedTerritory.lastLostOwnerId = "player";
+            defendedTerritory.lastLostTurn = state.turn;
+            defendedTerritory.counterattackStatus = "retaken";
+            defendedTerritory.counterattackForce = 0;
+            defendedTerritory.garrison = Math.min(garrisonCapacity(defendedTerritory),
+              Math.max(1, Math.floor((conflict.assaultGarrison || 1) / 2)));
+            for (const route of state.world.shippingRoutes || []) {
+              if (route.sourceId === defendedTerritory.id || route.destinationId === defendedTerritory.id) route.status = "paused";
+            }
+            for (const route of state.world.passengerRoutes || []) {
+              if (route.sourceId !== defendedTerritory.id && route.destinationId !== defendedTerritory.id) continue;
+              route.status = "paused";
+              if (route.inTransit) {
+                const source = state.world.territories.find(territory => territory.id === route.sourceId);
+                const destination = state.world.territories.find(territory => territory.id === route.destinationId);
+                if (source?.owner === "player") route.inTransit.returning = true;
+                else if (destination?.owner === "player") route.inTransit.returning = false;
+              }
+            }
+            syncNationalPopulation(state);
+            rival.relation = -65;
+            rival.stance = "Recovered lost territory";
+            addEvent(state, rival.name + " retook " + defendedTerritory.name + " in a counterattack. " +
+              populationTransferred + " residents returned to its national population; shipping lanes paused with cargo preserved.", "conflict");
+            rememberRival(rival, state.turn, "territory-retaken", "Retook " + defendedTerritory.name + " in a counterattack");
+          } else if (defendedTerritory) {
+            defendedTerritory.counterattackStatus = "repelled";
+            defendedTerritory.counterattackForce = 0;
+            rival.relation = -65;
+            rival.stance = "Counterattack repelled";
+            addEvent(state, "Your garrison and island defenses repelled " + rival.name + " at " + defendedTerritory.name + ".", "milestone");
+            rememberRival(rival, state.turn, "counterattack-repelled", "Failed to retake " + defendedTerritory.name);
+          }
         }
       }
     }
@@ -1595,11 +3063,11 @@
   }
 
   return {
-    SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, RENEWABLE_POWER_OUTPUT, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
+    SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, SHIPPING_RESOURCES, INTERNATIONAL_TRADE_RESOURCES, INTERNATIONAL_TRADE_TARIFFS, STOCKPILE_LIMIT, PASSENGER_ROUTE_COST, PASSENGER_ROUTE_LIMIT, PASSENGER_ROUTE_UPKEEP, RENEWABLE_POWER_OUTPUT, GARRISON_RECRUIT_COST, MILITARY_UPKEEP_PER_UNIT, GARRISON_MANPOWER_PER_UNIT, MAX_FORTIFICATION_LEVEL, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, createCitizens, updateCitizens, createResourceDeposits, resourceSiteEffects, developResourceSite, productionFor, build, trade,
+    createInitialState, validateSave, migrateSave, createCitizens, createRemoteCitizens, updateCitizens, updateRemoteCitizens, assignCitizenDestination, completeCitizenJourney, assignRemoteCitizenDestination, completeRemoteCitizenJourney, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, setResourceSiteOperational, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, garrisonCapacity, fortificationCost, territoryDefenseStrength, militaryEffects, recruitGarrison, buildFortification, developRivalMilitary, planRivalCounterattacks, COUNTERATTACK_WINDOW, COUNTERATTACK_COST, createShippingRoute, createInternationalTradeRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, passengerRouteCapacity, createPassengerRoute, passengerRouteEffects, processPassengerRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
-    creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects,
+    creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects, nationalPopulationFor, syncNationalPopulation,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
     exportSave, saveWithRecovery, loadWithRecovery, economicSnapshot, workforceFor, addEvent, hasTech, worldIntelligence
   };

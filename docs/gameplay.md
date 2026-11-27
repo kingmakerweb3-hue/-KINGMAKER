@@ -2,7 +2,7 @@
 
 ## Turn order
 
-Each world turn resolves an unchosen event with its conservative default, applies active world modifiers, expires agreements, collects production and taxes, pays wages, consumes food, simulates rival industries and market decisions, resolves conflicts, refreshes commodity supply and prices, then may introduce one new event. The game stores its random seed, so a save continues the same world sequence. Players can respond to a pending event before advancing; if they leave it unanswered, a safe default response is recorded on the next turn.
+Each world turn resolves an unchosen event with its conservative default, applies active world modifiers, expires agreements, collects national and local production, advances shipping convoys, charges wages, shipping and military upkeep, consumes food, simulates rival industries and market decisions, resolves conflicts, refreshes commodity supply and prices, then may introduce one new event. The game stores its random seed, so a save continues the same world sequence. Players can respond to a pending event before advancing; if they leave it unanswered, a safe default response is recorded on the next turn.
 
 ## National economy
 
@@ -25,6 +25,49 @@ Mines, workshops, factories, and power grids form an input chain: mines extract 
 National income includes market building output, citizen taxes, and trade-agreement income. Wages scale with employed industrial jobs. The last turn's income, wage costs, balance, production, and consumption appear in the World and Economy panels. Two consecutive negative-balance turns cause a recession, which reduces stability and stops population growth. Positive cash flow after a recession starts a three-turn recovery period.
 
 Six rivals use the same production chains and shared commodity market: Aurelia, Northreach, Meridian, Solenne, Ironmarch, and Duneward. Each has a distinct economic, political, and military priority, risk tolerance, and long-term objective. Rivals consume food and factory inputs, trade against finite shared stock, and maintain a three-turn investment or research plan. They compare food, energy, ore, materials, technology, and faction priorities before choosing what to develop. Their reports show the current action, plan, objective, employed workforce, treasury, and recent interaction history. Player investment, trade, research, aid, agreements, and conflict are remembered; recent aggression can block an alliance. Diplomatic rivals may form strategic alliances when relations are high and their current priorities permit it.
+
+## National population and regional workforce
+
+Population is tracked locally on each island. When an unclaimed island joins the player nation, its existing residents are added to the national population. National workforce requirements, employment, wages, food consumption, taxes, power coverage, campaign thresholds and population-based intelligence use the combined population of every player-controlled territory. Rival and unclaimed residents remain outside the player total.
+
+Home-island buildings are staffed by home residents. Districts add local job positions: residential 1, commercial 3, industrial 5 and agricultural 4. District output is staffed by residents on the same island, so a small or underpopulated region cannot operate unlimited district production. Remote residential districts grow their own island when the national food reserve is healthy, stability is at least 45, the economy is not in recession, and employed workers meet national job demand. Home-island housing, medicine and residential districts determine the home population cap; remote residential districts provide a local capacity and growth allowance. A food shortage reduces home residents first, then other player-held islands, while keeping the national total synchronized.
+
+The current economy uses a pooled national food reserve for all owned territories; local food stockpiles remain cargo storage for shipping rather than separate household reserves. schema 19 stores national population as the sum of player-owned territory populations, plus validated local garrisons, fortification levels, counterattack history and citizen navigation state. Older saves preserve the previous national figure as home-island population, then add saved populations of other player-owned islands; schema-15 saves receive deterministic local defense defaults.
+
+## Resident exploration and 3D navigation
+
+The 3D world displays a bounded group of named citizen agents. Select a resident to inspect their role, needs, mood and recent memories, then assign an exploration waypoint on safe home-island ground. The resident follows a deterministic A* route around major building footprints and home fortification markers, with a modest preference for existing player roads. The route remains inside the safe island boundary; a target without a safe route is rejected. The save stores the resident's last confirmed location and destination, not a stale path. On reload or when home infrastructure changes, the path is recalculated from the saved location. Arrival updates the citizen's location, activity and memory. The same saved waypoint system now works for home and outer-island residents, including named agents that have travelled by ferry. Walking paths are recalculated after arrival, reload and infrastructure changes; full pedestrian collision with every decorative object is not implemented.
+
+## Archipelago, harbors and shipping
+
+The home island begins with a level-1 national receiving harbor. A player must claim an outer island before building its harbor. Harbor level 1 costs 40 materials and 65 credits; upgrades to level 2 cost 50 materials and 85 credits, and level 3 costs 60 materials and 105 credits. The national receiving harbor is fixed at level 1.
+
+Remote resource extraction is stored locally instead of appearing immediately in the national treasury. Each island holds up to 500 units of each shippable resource. Home-island extraction continues to feed national production directly. The shipping resource list is food, materials, ore, power and science.
+
+Open a one-way route from a claimed outer island to another player-controlled island with an operational harbor. A route costs 20 materials and 35 credits. It loads up to 10 units per convoy at level-1 ports; each additional harbor level above 1 at either endpoint adds 5 capacity, up to 30. Travel time is based on island distance (one to five turns); Integrated Logistics reduces the journey by one turn, to a minimum of one. Each active route adds one logistics and costs 2 credits per turn; Integrated Logistics reduces route upkeep to 1 credit.
+
+Convoys load from the source stockpile, then deliver after the travel timer. Delivery to the home port enters national reserves; delivery to another outer island enters that island's stockpile and can be forwarded on a separate route. If either port is no longer player-controlled or loses its harbor, the route pauses and cargo remains in transit. Route state, cargo, stockpiles, harbor levels and bilateral trade contracts persist in schema-18 saves. Schema 17 and earlier saves migrate automatically.
+
+Rival nations also develop their own maritime infrastructure. They build level-1 harbors on controlled islands, open finite resource extraction sites, store output in local island stockpiles, and establish up to three autonomous shipping lanes between their own ports. Rival convoys deliver cargo into that rival's national reserves, pay upkeep from the rival treasury (reduced by its Logistics research), and pause without losing cargo when a port changes ownership or the rival cannot afford upkeep. Rival routes are rendered in the 3D world using their nation's route color and appear in the selected island's maritime intelligence panel. Rival shipping never charges the player's treasury or contributes to the player's logistics ledger.
+## International maritime trade
+
+An active five-turn trade agreement grants reciprocal port access between the player and that rival. Either nation can be the seller: choose one player harbor and one partner harbor, then choose the source and destination direction. The home harbor can ship directly from national reserves; outer-island ports use their local stockpiles. A route costs 20 materials and 35 credits, shares the 50-route network limit, and uses the same harbor-based capacity, distance-based travel time and route upkeep as domestic shipping.
+
+International cargo is limited to food, materials, ore and power. The contract locks a unit price at creation using the current world-market price plus the selected 0%, 5%, 10%, 15% or 20% tariff. The buyer pays the seller on delivery. If the buyer cannot afford the cargo or the destination lacks storage, the undelivered amount waits in transit rather than being lost. Deliveries count toward campaign trade-volume objectives.
+
+A 0% tariff improves relations by one point per delivered convoy; 5% and 10% are neutral; 15% and 20% reduce relations by one point per delivered convoy. A conflict voids the trade agreement and pauses the route; an expired agreement also pauses it until renewed. Cargo remains in transit while access is suspended. International lanes are shown in gold in the 3D archipelago and in the diplomacy and island inspectors.
+
+
+
+## Territorial campaigns
+
+A hostile rival can be challenged for a specific island it controls. Relations must be -20 or lower, and declaring a campaign costs 25 credits and 10 power. Active alliances and non-aggression pacts prevent the declaration; any other active agreement with that rival expires when conflict begins. Choose the target island in the Diplomacy panel before declaring the campaign.
+
+The existing three-turn conflict simulation compares the player's power, power-grid infrastructure and researched technologies against the rival's corresponding strength. A targeted island adds a defensive bonus based on its residents, development and harbor level. Both nations pay the existing wartime power and stability costs during the campaign.
+
+If the player wins, the selected island transfers to the player nation. Its residents join national population, the rival loses those residents (without dropping below one), and the island retains its harbor, local stockpile, extraction deposits, buildings, districts and roads. Routes that touch the captured island pause immediately; cargo already in transit is preserved. Captured extraction sites continue producing into the island's local stockpile on subsequent turns. A failed campaign does not change territorial ownership. Peace negotiations can end an active campaign before its automatic resolution.
+
+Targeted conflicts are saved and validated. Older conflict records without a territorial target continue to resolve as non-territorial conflicts.
 
 ## Living world events
 
@@ -55,10 +98,77 @@ Creator profiles are derived from validated records: each successful rival use g
 
 ## Diplomacy
 
-Aid costs credits and improves relations. Recalling an envoy costs influence and strains relations. Trade agreements add credits each turn; research agreements add science; alliances add influence and prevent conflict; non-aggression pacts prevent conflict. Trade and research agreements last five turns; alliances last twelve. Conflicts require hostile relations, credits, and power. They resolve after three turns based on national power, infrastructure, and research; fighting drains power and stability. Peace can be negotiated for credits.
+Aid costs credits and improves relations. Recalling an envoy costs influence and strains relations. Trade agreements add credits each turn; research agreements add science; alliances add influence and prevent conflict; non-aggression pacts prevent conflict. Trade and research agreements last five turns; alliances last twelve. Conflicts require hostile relations, credits, and power. They resolve after three turns based on national power, infrastructure, and research; fighting drains power and stability. Peace can be negotiated for credits. An active trade agreement also grants reciprocal port access for international shipping. Conflict voids trade access and pauses those routes; expired agreements pause them until renewed.
 
 ## Campaigns and saves
 
 The campaign screen has three scenarios: **A New Horizon** (balanced nation-building), **The Long Winter** (stability and survival), and **A Seat at the Council** (diplomacy and alliance). Each campaign advances through short-term, medium-term, and long-term phases with six objectives tied to resources, infrastructure, research, trade, treaties, or surviving crises. Completing all six wins that scenario. Stability at zero or population at ten or lower causes defeat. Campaign progress, world event responses, trade volume, and peaceful dispute resolutions are tracked in the save.
 
 Saves use versioned JSON with resource, economic ledger, structured event history, active event and duplicate-processing state, rival plan and memory, treaty, campaign phase and progress, and validated creator publication, adoption, commission, progression, and reward ledgers. Version 1 through 6 development saves and original v0.3 saves migrate into schema 7. Older creator entries remain in the archive and migrate as uncommissioned unless they were active commissions in schema 6. The browser retains a recovery copy before each autosave and before starting another campaign, and a corrupt primary save cannot replace the last validated recovery copy.
+
+
+## Island garrisons and fortifications
+
+Every island tracks a local garrison and fortification level. New campaigns begin with two garrison units on the home island, one on most rival islands, and three plus level-one fortifications on Ironmarch. Unclaimed islands begin undefended. Older saves migrate to these defaults while retaining their existing territory ownership and infrastructure.
+
+A garrison unit reserves ten local residents, so an island's manpower limit is one unit per ten residents. Reserved residents count as military employment in the national workforce ledger but are removed from civilian staffing for home buildings and local districts. Recruiting one unit costs 12 materials, 6 ore and 20 credits. Each player garrison unit adds eight offensive strength when the home island participates in a territorial campaign and costs one credit per turn in separate military upkeep; it is not charged a second civilian wage. Local garrisons also contribute eight points each to the defense of their own island.
+
+Fortifications can be upgraded through three levels. The costs are 25 materials and 20 credits for level one, 50 materials and 40 credits for level two, and 75 materials and 60 credits for level three. Each level adds twelve defensive strength and one point of local development. Fortifications are represented by visible defensive walls and watchtowers in the 3D archipelago; garrison buildings and unit markers appear on defended islands.
+
+Rivals pay upkeep for their local garrisons. When relations are hostile or a territorial campaign targets one of their islands, a rival can spend its own materials and credits to fortify the threatened territory, then recruit additional defenders using local manpower, ore and its own treasury. Territorial campaign scoring includes the target island's population, development, harbor, garrison and fortification strength. Rival defense decisions are deterministic for a given save and turn sequence.
+
+
+## Territorial counterattacks
+
+When a player wins a targeted territorial campaign, part of the former garrison may escape by sea. The captured island records its former owner, the loss turn, and the surviving expeditionary force. The remaining local garrison transfers with the island; escaped units are held separately for one possible counterattack.
+
+A former owner may launch a counterattack within six turns when relations remain at or below -50, its stability is at least 30, and it can pay 40 credits and 10 power. An active alliance or non-aggression pact prevents the attack. The AI consumes the escaped force when it launches, so the same force cannot be reused.
+
+Counterattacks resolve over three battle rounds. The rival's assault strength uses its power reserve, power infrastructure, research and escaped garrison. The player's defence includes national power, power infrastructure, research, and the target island's population, development, harbor, garrison and fortifications. Island garrisons and fortifications therefore matter directly when defending an exposed acquisition.
+
+If the rival wins, the island and the transferable local population return to the former owner, its garrison is re-established from the surviving assault force, and shipping routes touching the island pause without discarding cargo in transit. If the player wins, the counterattack is marked repelled and its escaped force is exhausted. The player may also negotiate peace for 35 credits; this withdraws an active counterattack without changing ownership.
+
+Counterattack history is stored on the territory and active battles record their initiator and assault size. Save schema 19 validates these fields. Schema 17 and earlier campaigns migrate without inventing historical losses or counterattack forces.
+
+## Outer-island resident activity
+
+Every outer island stores a deterministic group of named representative residents based on its local population. Their identities, needs, activity, location, destination and recent memories persist in the save; they remain visual samples and do not add or subtract from territory population totals. On a player-controlled island, select a resident and assign a local waypoint. The resident follows an island-centered A* route that stays inside the shoreline boundary, avoids placed buildings and fortification markers, prefers local roads, and uses the island's generated terrain elevation. Rival and unclaimed residents can be inspected but cannot receive player movement orders. Arrival updates the saved position, activity and memory. Named representative residents can board a player passenger ferry, are hidden from island pedestrian scenes while travelling, appear as role-colored figures on the vessel, and move to the destination island on disembarkation. Aggregate passenger headcounts remain the only values used for national population accounting.
+
+Home-island residents spawn on a safe outer neighborhood ring. Save validation also relocates legacy residents if a saved position overlaps the capital, a building, a garrison installation or a fortification marker; an invalid blocked waypoint is cleared rather than leaving a resident unable to move.
+
+
+## Passenger ferry network
+
+- Open a one-way ferry route between two player-controlled islands with operational harbors for 30 materials and 45 credits.
+- Harbor levels determine convoy capacity: level 1 supports 12 passengers, level 2 supports 18, and level 3 supports 24.
+- Travel time follows the same distance model as cargo shipping. Integrated Logistics shortens journeys and reduces route upkeep from 2 credits to 1 credit per turn.
+- A convoy loads residents above the source island's garrison manpower reserve and one-person local minimum. Passengers remain included in national population while at sea; delivery transfers them into the destination island's local population without creating or destroying headcount.
+- If a port is captured during a journey, the route pauses for new departures and the existing passengers divert to the surviving player-controlled endpoint. If neither endpoint remains player-controlled, passengers remain safely recorded in transit until a port becomes available.
+- Ferry routes, aggregate passenger headcounts, named resident manifests, travel timers and delivery totals persist in save schema 20. Schema 20 migrates older in-transit routes by adding an empty named manifest, preserving their existing aggregate passengers and timers.
+- A manifest selects representative citizens at the source port who are not already walking to a waypoint or aboard another ferry. Named agents are hidden from island pedestrian scenes while in transit and shown as role-colored passengers on the moving 3D vessel. On arrival or diversion, their territory, local spawn position, activity and memory are updated.
+- Named agents are representative samples, not additional population units. The existing numeric passenger count remains the sole value used by national population accounting; moving named agents never adds or removes population. Residents cannot receive walking orders while aboard a ferry.
+
+
+## Remote island exploration waypoints
+
+Remote resident identities are generated deterministically from the campaign seed and island records, then stored in `world.remoteCitizens`; they can travel to or from the home island on named ferry manifests. A resident can receive an exploration order only while their current island is player-controlled and they are not aboard a ferry. Waypoints are constrained to the island's safe interior; pathfinding accounts for local building footprints, garrison and fortification markers, road preference and generated terrain height. Saves retain the last confirmed location and destination rather than a transient frame-by-frame path. On reload or after infrastructure changes, the route is recalculated. Completing a journey records a memory and updates the resident's local position without changing population headcounts. Schema 20 migrates older saves by creating deterministic representative resident records.
+
+
+## Remote resident wellbeing
+
+Saved representative residents on outer islands now update their food, energy, safety, belonging and mood once per world turn. Their local conditions reflect the island's owner-controlled food reserves, residential/commercial districts, development, garrison and fortifications; rival residents use their own nation's food and stability rather than the player's reserves. Residents with an active exploration order keep that order while their needs update. If an island changes away from player control, an active player-issued waypoint is cleared safely. These named agents remain representative samples: their needs and memories do not add to or subtract from the island's aggregate population.
+
+
+## Ground-level exploration
+
+- Select a resident on a player-controlled island and enter ground view to follow that named resident at walking height.
+- Click open terrain to assign a saved walking waypoint; movement uses the same obstacle-aware, elevation-aware pathfinder as resident exploration orders.
+- WASD, arrow keys and the on-screen directional pad issue short, camera-relative movement orders. A resident must finish the current waypoint before accepting another.
+- Camera orbit and zoom remain available in ground view. The follow camera keeps above the terrain and shortens its boom when a building blocks the view.
+- Buildings open a local object inspector and resource deposits continue to use the existing resource inspector. Exiting ground view restores the aerial strategy camera and its prior orbit settings.
+- Ground-view camera state is presentation-only and is not written to campaign saves; the resident's accepted destination is saved by the existing citizen navigation system.
+
+
+## Ground-level resource operations
+
+When exploring at resident height, select a visible resource deposit to open its local operations panel. The panel shows the island, remaining finite reserve, per-turn yield and the destination reserve (national storage on the home island or the island stockpile on an outer territory). A player-controlled, undeveloped deposit can be established for 35 materials and 55 credits. Once established, extraction can be paused or resumed without another setup charge. Pausing stops reserve consumption on subsequent turns and preserves both the remaining deposit and any stored local output; resuming returns the site to its normal production cycle. Depleted deposits cannot be restarted, and only the nation controlling the island can change its extraction state. The same pause/resume controls are available in the standard resource inspector. The existing `operatedSinceTurn` field distinguishes a paused, previously established site from an undeveloped deposit, so this operation does not require a save-schema migration.
