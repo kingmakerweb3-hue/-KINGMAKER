@@ -1040,6 +1040,51 @@ test("resource extraction sites charge the treasury and report their real produc
   assert.deepEqual(restored.world.resourceNodes, state.world.resourceNodes);
 });
 
+test("developed extraction sites can be paused and resumed without losing reserves or paying twice", () => {
+  const state = Engine.createInitialState({ seed: 420031 });
+  state.resources.materials = 500;
+  state.resources.credits = 1000;
+  const node = state.world.resourceNodes.find(item => item.territoryId === "home");
+  const [resource, rate] = Object.entries(Engine.RESOURCE_SITE_OUTPUT[node.resource])[0];
+  const reserve = node.quantity;
+
+  Engine.developResourceSite(state, node.id);
+  assert.equal(node.operational, true);
+  Engine.setResourceSiteOperational(state, node.id, false);
+  assert.equal(node.operational, false);
+  assert.equal(node.operatedSinceTurn, state.turn);
+  assert.throws(() => Engine.developResourceSite(state, node.id), /paused; resume it/);
+  assert.equal(Engine.resourceSiteEffects(state, true)[resource], 0);
+  assert.equal(node.quantity, reserve);
+  assert.doesNotThrow(() => Engine.validateSave(state));
+
+  const restored = Engine.migrateSave(JSON.parse(Engine.exportSave(state)));
+  const restoredNode = restored.world.resourceNodes.find(item => item.id === node.id);
+  assert.equal(restoredNode.operational, false);
+  assert.equal(restoredNode.operatedSinceTurn, state.turn);
+  Engine.setResourceSiteOperational(restored, restoredNode.id, true);
+  const produced = Engine.resourceSiteEffects(restored, true);
+  const consumed = Math.min(rate, reserve);
+  assert.equal(produced[resource], consumed);
+  assert.equal(restoredNode.quantity, reserve - consumed);
+  assert.equal(restoredNode.operational, true);
+});
+
+test("extraction controls reject deposits outside player territory and depleted reserves", () => {
+  const state = Engine.createInitialState({ seed: 420032 });
+  const territory = state.world.territories.find(item => item.owner === "unclaimed");
+  const node = state.world.resourceNodes.find(item => item.territoryId === territory.id);
+  assert.throws(() => Engine.setResourceSiteOperational(state, node.id, false), /control this island/);
+  state.resources.materials = 500;
+  state.resources.credits = 1000;
+  Engine.claimTerritory(state, territory.id);
+  Engine.developResourceSite(state, node.id);
+  Engine.setResourceSiteOperational(state, node.id, false);
+  node.quantity = 0;
+  node.depleted = true;
+  assert.throws(() => Engine.setResourceSiteOperational(state, node.id, true), /depleted/);
+});
+
 test("rare-crystal extraction contributes science and finite deposits deplete", () => {
   const state = Engine.createInitialState({ seed: 42004 });
   const control = Engine.createInitialState({ seed: 42004 });
