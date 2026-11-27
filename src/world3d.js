@@ -11,7 +11,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   const passengerVessels=[];
   const windTurbineRotors=[];
   const solarTrackers=[];
-  let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,exploreMode=false,selectedCitizenId=null,selectedCitizenTerritoryId=null,groundViewMode=false,groundViewCitizenId=null,groundViewTerritoryId=null,groundViewControlsState=null,raycaster,groundPlane,previewMarker,placementPointer=null,territorySignature="",shippingSignature="",passengerSignature="",navigationSignature="",remoteResidentSignature="",worldFitted=false,waypointGroup,lastAnimationTime=0;
+  let lastState=null,animationId=0,autoRotate=true,resizeObserver,clock,selectedBuilding=null,roadMode=false,roadStart=null,selectedDistrict=null,districtMode=false,exploreMode=false,selectedCitizenId=null,selectedCitizenTerritoryId=null,groundViewMode=false,groundViewCitizenId=null,groundViewTerritoryId=null,groundViewControlsState=null,groundResourceNodeId=null,raycaster,groundPlane,previewMarker,placementPointer=null,territorySignature="",shippingSignature="",passengerSignature="",navigationSignature="",remoteResidentSignature="",worldFitted=false,waypointGroup,lastAnimationTime=0;
   const residentPathHistory=new Map();
   const COLORS={farm:0xc6a35d,mine:0x78838d,workshop:0x9c7652,factory:0x697b8e,transport:0x9b9b8b,market:0xc49b52,academy:0x8b80b8,power:0x75b9c9,housing:0xd6c5a3};
   const material=(color,roughness=.86)=>new THREE.MeshStandardMaterial({color,roughness});
@@ -708,6 +708,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const pad=document.getElementById("world3d-ground-controls");if(pad)pad.hidden=true;
     const rotate=document.getElementById("world3d-rotate");if(rotate){rotate.setAttribute("aria-pressed",String(autoRotate));rotate.textContent="Auto-rotate: "+(autoRotate?"on":"off");}
     if(renderer)renderer.domElement.style.cursor="grab";
+    groundResourceNodeId=null;
     document.getElementById("world3d-ground-inspector")?.remove();
     if(camera&&controls)fitWorldView();
     const citizen=(lastState?.citizens||[]).find(item=>item.id===previousCitizenId)||(lastState?.world?.remoteCitizens||[]).find(item=>item.id===previousCitizenId);
@@ -867,6 +868,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   }
   function showGroundBuildingInspector(building){
     if(!building?.userData?.buildingType)return false;
+    groundResourceNodeId=null;
     let panel=document.getElementById("world3d-ground-inspector");
     if(!panel){panel=document.createElement("aside");panel.id="world3d-ground-inspector";panel.className="world3d-ground-inspector";panel.setAttribute("aria-live","polite");host.appendChild(panel);}
     const type=building.userData.buildingType,territoryId=building.userData.territoryId||"home",territory=(lastState?.world?.territories||[]).find(item=>item.id===territoryId),names={capital:"National capital",farm:"Farm",mine:"Mine",workshop:"Workshop",factory:"Factory",transport:"Transport hub",market:"Market",academy:"Academy",power:"Power station",housing:"Housing"};
@@ -874,6 +876,32 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     const position=building.userData.worldPosition||{x:building.position.x,z:building.position.z};
     panel.innerHTML='<button type="button" class="ground-inspector-close" aria-label="Close building details">×</button><span class="eyebrow">WORLD OBJECT</span><h3>'+esc(names[type]||type)+'</h3><p>'+esc(territory?.name||"Home island")+' · '+Number(position.x).toFixed(1)+', '+Number(position.z).toFixed(1)+'</p><small>Structures are connected to the existing national and territorial economy.</small>';
     panel.querySelector("button").addEventListener("click",()=>panel.remove());
+    return true;
+  }
+  function showGroundResourceInspector(node){
+    if(!node?.id||!lastState)return false;
+    groundResourceNodeId=node.id;
+    let panel=document.getElementById("world3d-ground-inspector");
+    if(!panel){panel=document.createElement("aside");panel.id="world3d-ground-inspector";panel.className="world3d-ground-inspector";panel.setAttribute("aria-live","polite");host.appendChild(panel);}
+    const territory=(lastState.world?.territories||[]).find(item=>item.id===(node.territoryId||"home"));
+    const yields=window.KingmakerEngine?.RESOURCE_SITE_OUTPUT?.[node.resource]||{};
+    const [resource,rate]=Object.entries(yields)[0]||["resource",0];
+    const established=Number.isInteger(node.operatedSinceTurn);
+    const status=node.depleted?"DEPLETED":node.operational?"EXTRACTING":established?"PAUSED":"UNDEVELOPED";
+    const stock=territory?.id==="home"?(lastState.resources?.[resource]||0):(territory?.stockpile?.[resource]||0);
+    const canManage=territory?.owner==="player"&&lastState.status==="playing";
+    let action="";
+    if(node.depleted)action="<small>Reserve exhausted. This site cannot produce further resources.</small>";
+    else if(!canManage)action="<small>Only the nation controlling this island can manage extraction.</small>";
+    else if(node.operational)action='<button type="button" data-action="pause-resource-site" data-id="'+esc(node.id)+'">Pause extraction</button><small>Pausing preserves the remaining reserve and local stockpile.</small>';
+    else if(established)action='<button type="button" data-action="resume-resource-site" data-id="'+esc(node.id)+'">Resume extraction</button><small>Resume without paying the establishment cost again.</small>';
+    else{
+      const affordable=(lastState.resources?.materials||0)>=35&&(lastState.resources?.credits||0)>=55;
+      action='<button type="button" data-action="develop-resource" data-id="'+esc(node.id)+'" '+(affordable?"":"disabled")+'>Establish extraction · 35 materials / 55 credits</button><small>Production begins on the next world turn.</small>';
+    }
+    const esc=value=>String(value??"").replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+    panel.innerHTML='<button type="button" class="ground-inspector-close" aria-label="Close resource details">×</button><span class="eyebrow">RESOURCE OPERATION</span><h3>'+esc(node.resource)+' deposit</h3><p>'+esc(territory?.name||"Unknown island")+' · '+Number(node.quantity).toLocaleString()+' units remaining</p><p>Output: +'+rate+' '+esc(resource)+' / turn · '+(territory?.id==="home"?"national reserve":"local stockpile")+': '+Number(stock).toLocaleString()+'</p><span class="tag">'+status+'</span>'+action;
+    panel.querySelector(".ground-inspector-close")?.addEventListener("click",()=>{panel.remove();groundResourceNodeId=null;});
     return true;
   }
   function inspectGroundBuilding(event){
@@ -895,7 +923,13 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     while(marker&&marker.parent!==resourceGroup)marker=marker.parent;
     const id=marker?.userData?.resourceNodeId;
     if(!id)return false;
+    return inspectResourceById(id);
+  }
+  function inspectResourceById(id){
+    const node=(lastState?.world?.resourceNodes||[]).find(item=>item.id===id);
+    if(!node)return false;
     window.dispatchEvent(new CustomEvent("kingmaker:inspect-resource",{detail:{id}}));
+    if(groundViewMode)return showGroundResourceInspector(node);
     return true;
   }
   function getGroundPoint(event){
@@ -1051,6 +1085,11 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   function update(state){
     if(!state)return;lastState=state;
     if(groundViewMode){const explorer=(state.citizens||[]).find(item=>item.id===groundViewCitizenId)||(state.world?.remoteCitizens||[]).find(item=>item.id===groundViewCitizenId),territory=(state.world?.territories||[]).find(item=>item.id===groundViewTerritoryId),inTransit=(state.world?.passengerRoutes||[]).some(route=>(route.inTransit?.citizenIds||[]).includes(groundViewCitizenId));if(!explorer||!territory||territory.owner!=="player"||inTransit||(explorer.territoryId||"home")!==groundViewTerritoryId)exitGroundView();}
+    if(groundResourceNodeId&&groundViewMode){
+      const node=(state.world?.resourceNodes||[]).find(item=>item.id===groundResourceNodeId);
+      if(node)showGroundResourceInspector(node);
+      else{groundResourceNodeId=null;document.getElementById("world3d-ground-inspector")?.remove();}
+    }
     const citizenPanel=document.getElementById("world3d-citizen-inspector");
     if(citizenPanel?.dataset.citizenId){const id=citizenPanel.dataset.citizenId,citizen=(state.citizens||[]).find(item=>item.id===id)||(state.world?.remoteCitizens||[]).find(item=>item.id===id);if(citizen)showCitizenInspector(citizen);else citizenPanel.remove();}
     const nextNavigationSignature=navigationSignatureFor(state),navigationChanged=nextNavigationSignature!==navigationSignature;
@@ -1087,6 +1126,6 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
   document.addEventListener("visibilitychange",handleVisibilityChange);
   function dispose(){cancelAnimationFrame(animationId);animationId=0;window.removeEventListener("keydown",handleGroundViewKeydown);document.removeEventListener("visibilitychange",handleVisibilityChange);resizeObserver?.disconnect();renderer?.dispose();controls?.dispose();}
   window.addEventListener("pagehide",dispose,{once:true});
-  try{createScene();window.KingmakerWorld3D={update,resume,selectBuilding,setCitizenWaypointMode,cancelCitizenWaypointMode,commitCitizenWaypoint,enterGroundView,exitGroundView,moveGroundView,getGroundViewState,inspectCitizenById,inspectCitizenPath,inspectRemoteResidents,inspectRemoteResidentById,inspectRemoteResidentPath,inspectPassengerFerries};window.dispatchEvent(new Event("kingmaker:world3d-ready"));if(lastState)update(lastState);}
+  try{createScene();window.KingmakerWorld3D={update,resume,selectBuilding,setCitizenWaypointMode,cancelCitizenWaypointMode,commitCitizenWaypoint,enterGroundView,exitGroundView,moveGroundView,getGroundViewState,inspectCitizenById,inspectCitizenPath,inspectRemoteResidents,inspectRemoteResidentById,inspectRemoteResidentPath,inspectPassengerFerries,inspectResourceById};window.dispatchEvent(new Event("kingmaker:world3d-ready"));if(lastState)update(lastState);}
   catch(error){host.innerHTML='<div class="world3d-loading">3D world could not initialize. Try a browser with WebGL enabled.</div>';const status=document.getElementById("world3d-status");if(status)status.textContent="3D ENGINE UNAVAILABLE";console.error("KINGMAKER 3D:",error);}
 })();
