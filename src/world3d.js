@@ -883,6 +883,7 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
     groundResourceNodeId=node.id;
     let panel=document.getElementById("world3d-ground-inspector");
     if(!panel){panel=document.createElement("aside");panel.id="world3d-ground-inspector";panel.className="world3d-ground-inspector";panel.setAttribute("aria-live","polite");host.appendChild(panel);}
+    const esc=value=>String(value??"").replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
     const territory=(lastState.world?.territories||[]).find(item=>item.id===(node.territoryId||"home"));
     const yields=window.KingmakerEngine?.RESOURCE_SITE_OUTPUT?.[node.resource]||{};
     const [resource,rate]=Object.entries(yields)[0]||["resource",0];
@@ -899,7 +900,6 @@ import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.170.0/exampl
       const affordable=(lastState.resources?.materials||0)>=35&&(lastState.resources?.credits||0)>=55;
       action='<button type="button" data-action="develop-resource" data-id="'+esc(node.id)+'" '+(affordable?"":"disabled")+'>Establish extraction · 35 materials / 55 credits</button><small>Production begins on the next world turn.</small>';
     }
-    const esc=value=>String(value??"").replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
     panel.innerHTML='<button type="button" class="ground-inspector-close" aria-label="Close resource details">×</button><span class="eyebrow">RESOURCE OPERATION</span><h3>'+esc(node.resource)+' deposit</h3><p>'+esc(territory?.name||"Unknown island")+' · '+Number(node.quantity).toLocaleString()+' units remaining</p><p>Output: +'+rate+' '+esc(resource)+' / turn · '+(territory?.id==="home"?"national reserve":"local stockpile")+': '+Number(stock).toLocaleString()+'</p><span class="tag">'+status+'</span>'+action;
     panel.querySelector(".ground-inspector-close")?.addEventListener("click",()=>{panel.remove();groundResourceNodeId=null;});
     return true;
