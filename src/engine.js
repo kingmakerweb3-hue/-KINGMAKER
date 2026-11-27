@@ -2103,6 +2103,7 @@
     const territory = (state.world.territories || []).find(item => item.id === (node.territoryId || "home"));
     if (!territory || territory.owner !== "player") throw new Error("You must control this island before establishing an extraction site.");
     if (node.operational) throw new Error("This resource deposit is already operational.");
+    if (Number.isInteger(node.operatedSinceTurn)) throw new Error("This extraction site is paused; resume it instead of paying to establish it again.");
     if (node.depleted || node.quantity <= 0) throw new Error("This resource deposit is depleted.");
     if (state.resources.materials < RESOURCE_SITE_COST.materials || state.resources.credits < RESOURCE_SITE_COST.credits) throw new Error("Establishing an extraction site requires 35 materials and 55 credits.");
     state.resources.materials -= RESOURCE_SITE_COST.materials;
@@ -2110,6 +2111,21 @@
     node.operational = true;
     node.operatedSinceTurn = state.turn;
     addEvent(state, "Established a " + node.resource.toLowerCase() + " extraction site on the island.", "economy");
+    return node;
+  }
+  function setResourceSiteOperational(state, nodeId, operational) {
+    if (state.status !== "playing") throw new Error("This campaign has ended.");
+    if (typeof operational !== "boolean") throw new Error("Extraction state must be active or paused.");
+    const node = state.world && Array.isArray(state.world.resourceNodes)
+      ? state.world.resourceNodes.find(item => item.id === nodeId) : null;
+    if (!node || !Object.hasOwn(RESOURCE_SITE_OUTPUT, node.resource)) throw new Error("Resource deposit not found.");
+    const territory = (state.world.territories || []).find(item => item.id === (node.territoryId || "home"));
+    if (!territory || territory.owner !== "player") throw new Error("You must control this island before managing its extraction site.");
+    if (node.depleted || node.quantity <= 0) throw new Error("This resource deposit is depleted.");
+    if (!Number.isInteger(node.operatedSinceTurn)) throw new Error("Establish the extraction site before changing its operating state.");
+    if (node.operational === operational) throw new Error(operational ? "This extraction site is already active." : "This extraction site is already paused.");
+    node.operational = operational;
+    addEvent(state, node.resource + " extraction on " + territory.name + (operational ? " resumed." : " paused."), "economy");
     return node;
   }
   function economicSnapshot(state) {
@@ -3049,7 +3065,7 @@
   return {
     SAVE_VERSION, RESOURCE_LIMIT, RESOURCE_SITE_COST, RESOURCE_SITE_OUTPUT, RESOURCE_SITE_TYPES, SHIPPING_RESOURCES, INTERNATIONAL_TRADE_RESOURCES, INTERNATIONAL_TRADE_TARIFFS, STOCKPILE_LIMIT, PASSENGER_ROUTE_COST, PASSENGER_ROUTE_LIMIT, PASSENGER_ROUTE_UPKEEP, RENEWABLE_POWER_OUTPUT, GARRISON_RECRUIT_COST, MILITARY_UPKEEP_PER_UNIT, GARRISON_MANPOWER_PER_UNIT, MAX_FORTIFICATION_LEVEL, BUILDINGS, TECHNOLOGIES, CAMPAIGNS, CREATOR_EFFECTS, CREATOR_COMMISSION_COST, MAX_COMMISSIONED_CREATIONS,
     MAX_CREATOR_PUBLICATIONS, MAX_CREATOR_ROYALTY_PER_USE,
-    createInitialState, validateSave, migrateSave, createCitizens, createRemoteCitizens, updateCitizens, updateRemoteCitizens, assignCitizenDestination, completeCitizenJourney, assignRemoteCitizenDestination, completeRemoteCitizenJourney, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, garrisonCapacity, fortificationCost, territoryDefenseStrength, militaryEffects, recruitGarrison, buildFortification, developRivalMilitary, planRivalCounterattacks, COUNTERATTACK_WINDOW, COUNTERATTACK_COST, createShippingRoute, createInternationalTradeRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, passengerRouteCapacity, createPassengerRoute, passengerRouteEffects, processPassengerRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
+    createInitialState, validateSave, migrateSave, createCitizens, createRemoteCitizens, updateCitizens, updateRemoteCitizens, assignCitizenDestination, completeCitizenJourney, assignRemoteCitizenDestination, completeRemoteCitizenJourney, createTerritories, createResourceDeposits, resourceSiteEffects, developResourceSite, setResourceSiteOperational, territoryClaimCost, claimTerritory, territoryEffects, expandRivals, developRivalTerritories, processRivalResourceSites, upgradeHarbor, garrisonCapacity, fortificationCost, territoryDefenseStrength, militaryEffects, recruitGarrison, buildFortification, developRivalMilitary, planRivalCounterattacks, COUNTERATTACK_WINDOW, COUNTERATTACK_COST, createShippingRoute, createInternationalTradeRoute, shippingRouteCapacity, shippingEffects, processShippingRoutes, passengerRouteCapacity, createPassengerRoute, passengerRouteEffects, processPassengerRoutes, productionFor, build, placeWorldBuilding, placeWorldDistrict, placeWorldRoad, trade,
     research, sendGift, offerTreaty, declareConflict, makePeace, registerCreation, commissionCreation, withdrawCreation, creatorEffects, creatorEffectFor,
     creatorProgress, creatorProfiles, creatorDemand, districtEffects, roadEffects, nationalPopulationFor, syncNationalPopulation,
     deleteCreation, advanceTurn, resolveWorldEvent, worldEventInfo, campaignObjectiveValue,
