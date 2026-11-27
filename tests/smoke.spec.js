@@ -740,3 +740,54 @@ test('ground-level exploration follows a named resident and supports touch movem
   await expect(page.locator('#world3d-ground-controls')).toBeHidden();
   expect(await page.evaluate(() => window.KingmakerWorld3D.getGroundViewState().active)).toBe(false);
 });
+
+
+test('ground-level resource interactions establish, pause and resume finite extraction', async ({ page }) => {
+  test.setTimeout(60000);
+  const setup = await page.evaluate(() => {
+    const E = window.KingmakerEngine;
+    const state = E.createInitialState({ seed: 930061 });
+    state.resources.materials = 500;
+    state.resources.credits = 1000;
+    state.resources.food = 1000;
+    const node = state.world.resourceNodes.find(item => item.territoryId === 'home');
+    localStorage.setItem('kingmaker_save_v1', E.exportSave(state));
+    return { nodeId: node.id, resource: node.resource, reserve: node.quantity };
+  });
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="world3d"]').click();
+  await page.waitForFunction(() => !!window.KingmakerWorld3D?.inspectResourceById, null, { timeout: 20000 });
+  expect(await page.evaluate(() => window.KingmakerWorld3D.inspectCitizenById('citizen-1'))).toBe(true);
+  expect(await page.evaluate(() => window.KingmakerWorld3D.enterGroundView('citizen-1'))).toBe(true);
+  expect(await page.evaluate(id => window.KingmakerWorld3D.inspectResourceById(id), setup.nodeId)).toBe(true);
+
+  const inspector = page.locator('#world3d-ground-inspector');
+  await expect(inspector).toContainText(setup.resource);
+  await inspector.locator('[data-action="develop-resource"]').click();
+  let site = await page.evaluate(id => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.resourceNodes.find(node => node.id === id), setup.nodeId);
+  expect(site.operational).toBe(true);
+  expect(site.quantity).toBe(setup.reserve);
+
+  await inspector.locator('[data-action="pause-resource-site"]').click();
+  const paused = await page.evaluate(id => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.resourceNodes.find(node => node.id === id), setup.nodeId);
+  expect(paused.operational).toBe(false);
+  expect(Number.isInteger(paused.operatedSinceTurn)).toBe(true);
+  await page.locator('#advance-turn').click();
+  site = await page.evaluate(id => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.resourceNodes.find(node => node.id === id), setup.nodeId);
+  expect(site.quantity).toBe(paused.quantity);
+
+  await inspector.locator('[data-action="resume-resource-site"]').click();
+  site = await page.evaluate(id => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.resourceNodes.find(node => node.id === id), setup.nodeId);
+  expect(site.operational).toBe(true);
+  await page.locator('#advance-turn').click();
+  const produced = await page.evaluate(id => JSON.parse(localStorage.getItem('kingmaker_save_v1')).world.resourceNodes.find(node => node.id === id), setup.nodeId);
+  expect(produced.quantity).toBeLessThan(paused.quantity);
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-tab="world3d"]').click();
+  await page.waitForFunction(() => !!window.KingmakerWorld3D?.inspectResourceById, null, { timeout: 20000 });
+  expect(await page.evaluate(() => window.KingmakerWorld3D.enterGroundView('citizen-1'))).toBe(true);
+  expect(await page.evaluate(id => window.KingmakerWorld3D.inspectResourceById(id), setup.nodeId)).toBe(true);
+  await expect(page.locator('#world3d-ground-inspector')).toContainText('EXTRACTING');
+});
